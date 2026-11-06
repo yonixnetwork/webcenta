@@ -216,8 +216,9 @@ model Listing {
   updatedAt        DateTime  @updatedAt @db.Timestamptz
   deletedAt        DateTime? @db.Timestamptz
 
-  // Full-text search: a generated tsvector column + GIN index and pg_trgm
-  // indexes are added in the Phase 1 migration via raw SQL (see docs/DATABASE.md).
+  /// Full-text search vector. Created in the migration as a GENERATED column
+  /// (see docs/DATABASE.md §3); never written by application code.
+  searchVector Unsupported("tsvector")?
 
   developer       DeveloperOrg? @relation(fields: [developerId], references: [id], onDelete: SetNull)
   primaryCategory Category?     @relation("ListingPrimaryCategory", fields: [primaryCategoryId], references: [id], onDelete: SetNull)
@@ -256,6 +257,12 @@ model Listing {
   @@index([domain])
   @@index([nextScanAt])
   @@index([securityStatus])
+  @@index([searchVector], type: Gin)
+  /// Trigram index for autocomplete / typo tolerance. pg_trgm is installed in the
+  /// "extensions" schema (Supabase convention). The migration SQL uses the
+  /// qualified name extensions.gin_trgm_ops; Postgres introspection reports the
+  /// unqualified name, so it is written unqualified here to keep diffs empty.
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Listing_name_trgm_idx")
 }
 
 model ListingCategory {

@@ -16,22 +16,50 @@ Only items marked ✅ are implemented. Nothing in a future phase should be assum
 | Roadmap | ✅ | This file |
 | CI for schema checks | ✅ | `.github/workflows/ci.yml` |
 
-## Phase 1 — Marketplace foundation ⬜
-* Next.js 16 app scaffold, Tailwind, design tokens, dark/light theme, UI kit (cards, rails,
-  skeletons, empty and error states).
-* Host-based middleware (public, admin and developer route groups; `www` redirect; security
-  headers).
-* Baseline migration including FTS, trigram and CHECK SQL.
-* Taxonomy seed: the main categories and subcategories (real configuration, not fake data).
-* Homepage rails driven by `HomepageSection`. Rails that need data the system doesn't have yet
-  (ratings, trending) are hidden, not faked.
-* Category pages, listing detail page, `/go/[slug]` interstitial redirect.
-* Search with filters and autocomplete (Postgres FTS + `pg_trgm`); alternatives and similar
-  listings (content-based).
-* Visibility filter (status, security status, geo, age).
-* Basic SEO: metadata, canonical URLs, sitemap, robots, JSON-LD `SoftwareApplication`.
-* Tests: unit, integration (real DB), Playwright on mobile and desktop viewports.
-* Dev-only fixture listings clearly marked as fictional and never seeded in production.
+## Phase 1 — Marketplace foundation ✅
+
+**Compatibility checks (Hostinger Business + Supabase), done first:**
+
+| Check | Status | Evidence |
+| --- | --- | --- |
+| Baseline migration applies cleanly; no Prisma drift | ✅ | `prisma migrate deploy`, then `prisma migrate diff --exit-code` = 0 (local PG 16 and CI) |
+| Supabase conventions: `extensions` schema, pg_trgm | ✅ | Migration + `tests/db/schema.test.ts` |
+| Supabase Data API exposure closed (RLS everywhere, privileges and default privileges revoked) | ✅ | Simulated `anon`/`authenticated` roles: `anon` gets "permission denied"; tables created later get 0 grants |
+| Pooler-safe DB client (transaction pooler, small pool, no session state, TLS verify with CA) | ✅ | `src/server/db-config.ts` + unit tests. **Not yet tested against a real Supabase project.** |
+| Migrations via session pooler (`DIRECT_URL`), not during the Hostinger build | ✅ | `prisma.config.ts`, DEPLOYMENT.md |
+| No WebSockets, workers, Redis or Docker; cron over HTTPS | ✅ | `/api/cron/tick` + DB job queue, tested |
+| `npm run db:check` read-only compatibility report for the real Supabase project | ✅ | Script; owner runs it with production credentials |
+
+**Features:**
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Next.js 16 app, Tailwind 4 design tokens, light/dark/system theme without flash | ✅ | Screenshots in `docs/screenshots/` |
+| Host routing (`www` → apex 308, admin and developer placeholders `noindex`, internal paths 404), CSP with nonce, security headers | ✅ | E2E `hosts and SEO` |
+| Taxonomy: 48 main categories, 264 subcategories, risk tiers, age ratings, 21 restricted | ✅ | `src/server/catalog/taxonomy.ts`, unit tests |
+| Visibility filter (status, security status, disabled/restricted categories incl. parent, listing and category geo rules, age) | ✅ | `tests/db/visibility.test.ts` |
+| Homepage rails from `HomepageSection`; rails without real data are hidden | ✅ | DB + E2E tests |
+| Categories index, category pages with subcategories, filters, sort, pagination | ✅ | E2E |
+| Search: FTS + trigram, prefix and typo tolerance, filters, autocomplete (accessible combobox), suggested searches | ✅ | DB + E2E tests |
+| App detail page: trust panel with honest wording, info, features, tags, JSON-LD (no rating unless real), share, report | ✅ | E2E |
+| Similar apps, competitors, free / open-source / better-rated alternatives, alternatives page | ✅ | DB tests |
+| `/go/:slug` "leaving WebCenter" notice + POST-only tracked redirect (no open redirect) | ✅ | E2E + curl |
+| Privacy-preserving outbound click events (daily random salts, deleted after 2 days) | ✅ | DB tests |
+| Anonymous listing reports (rate-limited, honeypot) stored for Phase 3 moderation | ✅ | DB + E2E |
+| SEO: metadata, canonicals, sitemap (excludes sample and restricted), robots, `noindex` for search and samples | ✅ | E2E |
+| Loading skeletons, empty and error states, real 404 status codes | ✅ | E2E |
+| Accessibility: axe WCAG 2.1 AA, no serious or critical violations on 6 key pages | ✅ | E2E (desktop + mobile) |
+| Dev fixtures: 18 fictional `.example` listings, gated (`--fixtures` + `ALLOW_DEV_FIXTURES=true`, refused in production) | ✅ | `prisma/seed/dev-fixtures.ts` |
+
+**Not in Phase 1 (by design):** favourites (button disabled; needs accounts), reviews (Phase 4),
+recommendations (Phase 5), listing view analytics (Phase 5), media uploads (Phase 2), PWA
+(Phase 7). The admin and developer hosts are placeholders only.
+
+**Known limitations:**
+* Text search ranks at most 500 candidates per query before filtering, which is fine at the
+  current scale. The `SearchProvider` boundary allows Meilisearch later.
+* Country detection needs a geo header (e.g. Cloudflare's `cf-ipcountry`). Without one, every
+  visitor is "unknown" and geo-restricted listings are hidden (`GEO_UNKNOWN_POLICY=deny`).
 
 ## Phase 2 — Accounts and developer submissions ⬜
 Better Auth (email+password, verification, reset, Google, Apple when configured), profiles and
@@ -71,7 +99,9 @@ payment integration. Activated only after business and legal review.
 
 | # | Decision | Recommendation | Blocking |
 | --- | --- | --- | --- |
-| D1 | Where to host PostgreSQL, given that Hostinger managed Node.js only bundles MySQL | Managed Postgres (e.g. Neon or Supabase) in the region nearest the Hostinger datacentre | Phase 1 deploy (not local development) |
+| D0 | **Approve the first production deployment** | After the owner runs `npm run db:check` against Supabase | Going live |
+| D8 | Put Cloudflare in front of Hostinger (free)? | Yes: country header for geo rules, DDoS protection, CDN | Accurate geo restrictions |
+| D1 | ~~Database hosting~~ | **Decided: Supabase PostgreSQL** (ADR-0007) | — |
 | D2 | Object storage provider | Cloudflare R2 | Phase 2 uploads |
 | D3 | Transactional email provider | Hostinger SMTP at first, then Postmark or SES | Phase 2 |
 | D4 | Apple Developer account for Sign in with Apple (US$99/yr) | Enable later; Google and email first | Phase 2 (Apple only) |

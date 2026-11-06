@@ -1,6 +1,6 @@
 # WebCenter — Architecture
 
-Status: **Phase 0 (design)**. This document describes the target architecture. Only items marked
+Status: **Phase 1 implemented** (marketplace foundation). This document describes the target architecture. Only items marked
 ✅ in [ROADMAP.md](ROADMAP.md) are implemented.
 
 ## 1. Goals and constraints
@@ -16,7 +16,7 @@ Status: **Phase 0 (design)**. This document describes the target architecture. O
 
 ```
                     ┌──────────────────────────── one Next.js deployment ───────────────────────────┐
- webcenter.com ───► │  middleware (host routing, security headers, rate limits, geo/age context)    │
+ webcenter.com ───► │  proxy.ts (host routing, security headers, rate limits, geo/age context)    │
  admin.…       ───► │   ├─ app/(public)      marketplace pages (SSR/ISR)                            │
  developers.…  ───► │   ├─ app/(developer)   developer portal                                        │
  api.…         ───► │   ├─ app/(admin)       admin portal  (separate auth, MFA, host-only cookie)   │
@@ -28,7 +28,7 @@ Status: **Phase 0 (design)**. This document describes the target architecture. O
                      PostgreSQL               Object storage          External services
                 (data, FTS, job queue)     (local disk → S3/R2)   (email, OAuth, threat intel)
                             ▲
-                            │  scheduled command: `npm run jobs:tick` (cron every 5–15 min)
+                            │  Hostinger Cron → POST /api/cron/tick (bearer secret, every ~10 min)
                     ┌───────┴────────┐
                     │ job runner      │  scans, re-checks, analytics roll-ups, emails, cleanups
                     │ (same codebase) │  On a VPS: long-running worker + isolated scanner host.
@@ -37,15 +37,15 @@ Status: **Phase 0 (design)**. This document describes the target architecture. O
 
 ### Why one deployment for several subdomains?
 
-Hostinger's managed Node.js plan runs a single app per domain set, so all four hostnames start out
-served by **one Next.js app**. Middleware maps the request `Host` to a route group:
+Hostinger Business runs a single Node.js app, so all four hostnames start out served by
+**one Next.js app**. `src/proxy.ts` (Next.js 16's name for middleware) maps the request `Host` to a route group:
 
 | Host | Route group | Notes |
 | --- | --- | --- |
 | `webcenter.com` | `(public)` | Canonical public site. |
 | `www.webcenter.com` | — | Permanent 308 redirect to `https://webcenter.com`. |
-| `admin.webcenter.com` | `(admin)` | Only reachable on this host; `/admin` paths on other hosts return 404. Separate cookie, separate user table, MFA. `noindex`. |
-| `developers.webcenter.com` | `(developer)` | Uses the public user account (developers are users who belong to a developer organisation). |
+| `admin.webcenter.com` | `app/admin-host` (internal rewrite) | Only reachable on this host; requesting `/admin-host/…` directly on any host returns 404. Separate cookie, separate user table, MFA. `noindex`. |
+| `developers.webcenter.com` | `app/developer-host` (internal rewrite) | Uses the public user account (developers are users who belong to a developer organisation). |
 | `api.webcenter.com` | `app/api` | Optional. Same handlers are also reachable at `webcenter.com/api` at first; split later if a mobile client or third parties need it. |
 
 Isolation does **not** rely on hidden links. Admin authorisation is enforced on every admin route
@@ -62,7 +62,7 @@ Each choice has an ADR in [`docs/adr`](adr/).
 | Language | TypeScript (strict) | One language front to back; strong typing for a large schema. | — |
 | Web framework | **Next.js 16 (App Router), React** | SSR/ISR for SEO, server actions, route groups for the subdomains, first-class Hostinger support. | Runs unchanged on any Node host, VPS or container. |
 | UI | Tailwind CSS + Radix UI primitives (shadcn/ui pattern) + Lucide icons | Accessible primitives, consistent design tokens, dark/light themes. | — |
-| Database | **PostgreSQL 15+** | Relational integrity, full-text search (`tsvector`), trigram similarity (`pg_trgm`), JSONB, `SKIP LOCKED` job queue. See ADR-0002 for the hosting trade-off. | Managed Postgres → self-hosted Postgres on VPS via `pg_dump`/`pg_restore`. |
+| Database | **PostgreSQL 15+ on Supabase** (used as plain Postgres) | Relational integrity, full-text search (`tsvector`), trigram similarity (`pg_trgm`), JSONB, `SKIP LOCKED` job queue. See ADR-0002 and ADR-0007. | Supabase → self-hosted or other managed Postgres via `pg_dump`/`pg_restore`. |
 | ORM / migrations | **Prisma 7** (driver adapter `@prisma/adapter-pg`) | Typed client, migration history, readable multi-file schema. Raw SQL for FTS indexes and CHECK constraints. | — |
 | Search | Postgres FTS + `pg_trgm` behind a `SearchProvider` interface | No extra service on shared hosting; good enough for tens of thousands of listings. | Meilisearch/Typesense/OpenSearch adapter on a VPS, fed by the job queue. |
 | Auth (public users and developers) | **Better Auth** | Email+password, verification, reset, Google, Apple, rate limiting, 2FA plugin; Prisma adapter; self-hosted, no per-user cost. | — |
@@ -70,7 +70,7 @@ Each choice has an ADR in [`docs/adr`](adr/).
 | Validation | zod | One schema for forms, API and server actions. | — |
 | File storage | `StorageDriver` interface: local disk (dev) / **S3-compatible** (Cloudflare R2, Backblaze B2, AWS S3) | Shared hosting disk is not a durable CDN; R2 has no egress fees. | Change the driver configuration only. |
 | Images | Upload → validate (magic bytes, size, dimensions) → re-encode with `sharp` → store. Served via `next/image`. | Strips metadata and payloads embedded in images. | CDN in front of the bucket. |
-| Background jobs | DB-backed queue (`Job` table) + `jobs:tick` CLI run by cron | No Redis or permanent worker needed. | Same runner as a long-lived process (systemd/pm2) on a VPS; BullMQ only if needed. |
+| Background jobs | DB-backed queue (`Job` table), ticked by Hostinger Cron via `POST /api/cron/tick` | No Redis or permanent worker needed. | Same runner as a long-lived process (systemd/pm2) on a VPS; BullMQ only if needed. |
 | Scheduled scanning | Job types `scan.listing` and `monitor.enqueue`; the scanner module uses SSRF-safe fetch | Works under cron; time-boxed. | Move the scanner to an **isolated host or container** with egress-only networking (recommended before high volume). |
 | Analytics | Own privacy-first events, `ListingEvent` → daily roll-ups | No third-party tracker on listing pages; developers see aggregates only. | ClickHouse/TimescaleDB if volume demands. |
 | Caching | Next.js data cache / ISR + in-process LRU; HTTP cache headers | No Redis on shared hosting. | Redis/Valkey on a VPS for a shared cache and rate limits. |
@@ -100,7 +100,7 @@ src/
     analytics/  recommendations/  security/  scanner/  jobs/  admin/
     auth/  storage/  email/  audit/  geo/  ranking/
   lib/                      shared utilities (url normalisation, slugs, i18n)
-  middleware.ts             host routing, security headers
+  proxy.ts                  host routing, CSP nonce, security headers
 scripts/                    CLIs: jobs:tick, admin:provision, db:smoke
 docs/                       architecture, security, deployment, ADRs, roadmap
 tests/                      vitest + playwright

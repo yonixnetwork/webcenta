@@ -1,6 +1,6 @@
 # ADR-0002: PostgreSQL as the primary database
 
-Status: Accepted, with hosting location pending (ROADMAP D1) · Date: 2026-11-06
+Status: Accepted. Hosting decided in ADR-0007 (Supabase) · Date: 2026-11-06
 
 ## Context
 Hostinger managed Node.js hosting bundles MySQL/MariaDB, not PostgreSQL. The product needs

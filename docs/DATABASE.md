@@ -1,12 +1,11 @@
 # WebCenter — Database Design
 
-Engine: **PostgreSQL 15+** · ORM: **Prisma 7** · Schema: [`prisma/schema/`](../prisma/schema)
+Engine: **PostgreSQL 15+** (production: **Supabase**) · ORM: **Prisma 7** · Schema: [`prisma/schema/`](../prisma/schema)
 
-The schema has been checked against a real PostgreSQL 16 instance with `prisma db push` and the
-smoke test `npm run db:smoke` (13 checks). **No migration has been committed yet.** The baseline
-migration is generated in Phase 1, once the first code uses the schema, so that early changes
-don't pile up as migration noise. From Phase 1 on, every schema change ships as a committed
-migration. `db push` is for local experiments only.
+The baseline migration is `prisma/migrations/*_init`. Every schema change from now on ships as a
+committed migration; `db push` is for local experiments only. CI applies the migrations to a fresh
+database that simulates Supabase's `anon`/`authenticated` roles, then checks for drift
+(`prisma migrate diff --exit-code`) and RLS coverage.
 
 ## 1. Domain map
 
@@ -49,39 +48,21 @@ migration. `db push` is for local experiments only.
 * **IDs.** UUIDv7 strings, which are time-ordered and give good B-tree locality. High-volume
   append-only tables (`ListingEvent`, `InteractionEvent`, `AuditLog`) use `BIGSERIAL`.
 
-## 3. Raw SQL to add in the Phase 1 baseline migration
+## 3. Hand-written SQL in the baseline migration
 
-Prisma cannot express these, so they go in the migration SQL by hand:
+Prisma cannot express these, so they are appended to the generated migration and marked `HAND-WRITTEN`:
 
-```sql
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE EXTENSION IF NOT EXISTS unaccent;
+| What | Why |
+| --- | --- |
+| `CREATE SCHEMA extensions; CREATE EXTENSION pg_trgm WITH SCHEMA extensions` | Supabase convention; trigram search and autocomplete. Queries use `extensions.similarity(...)`. |
+| `Listing.searchVector` filled by trigger `webcenter_listing_search_vector()` | Weighted FTS (name A; tagline/publisher B; features C; description D) using the `'simple'` config for a multilingual catalogue. A trigger is used because a generated column cannot call the non-IMMUTABLE `array_to_string`. |
+| GIN indexes on `searchVector` and on `name` (`extensions.gin_trgm_ops`) | Declared in the Prisma schema too, so there is no drift. The schema names the opclass unqualified because that is what introspection reports. |
+| CHECK constraints: rating 1–5, geo restriction has exactly one target, ISO country format, no self-parent category, slug format, `https://` website URLs, rating-average range | Integrity at the database level. Prisma ignores CHECKs in diffs. |
+| `ENABLE ROW LEVEL SECURITY` on every table in `public` | Supabase exposes `public` via its Data API. With RLS and no policies, those roles see nothing. The app connects as the table owner, which bypasses RLS. |
+| `REVOKE ALL` and `ALTER DEFAULT PRIVILEGES … REVOKE` from `anon` and `authenticated` (only if those roles exist) | Defence in depth, including for tables created by later migrations. |
 
--- Full-text search vector (weighted) on listings
-ALTER TABLE "Listing" ADD COLUMN "searchVector" tsvector
-  GENERATED ALWAYS AS (
-    setweight(to_tsvector('simple', coalesce(name, '')), 'A') ||
-    setweight(to_tsvector('simple', coalesce(tagline, '')), 'B') ||
-    setweight(to_tsvector('simple', coalesce("publisherName", '')), 'B') ||
-    setweight(to_tsvector('simple', coalesce(description, '')), 'C')
-  ) STORED;
-CREATE INDEX "Listing_searchVector_idx" ON "Listing" USING GIN ("searchVector");
-CREATE INDEX "Listing_name_trgm_idx" ON "Listing" USING GIN (name gin_trgm_ops);  -- autocomplete / typo tolerance
-
--- Integrity checks
-ALTER TABLE "Review" ADD CONSTRAINT "Review_rating_range" CHECK (rating BETWEEN 1 AND 5);
-ALTER TABLE "GeoRestriction" ADD CONSTRAINT "GeoRestriction_one_target"
-  CHECK (("listingId" IS NULL) <> ("categoryId" IS NULL));
-ALTER TABLE "Category" ADD CONSTRAINT "Category_not_own_parent" CHECK ("parentId" IS NULL OR "parentId" <> id);
-
--- Partial index for the public catalogue
-CREATE INDEX "Listing_public_idx" ON "Listing" ("publishedAt" DESC)
-  WHERE status = 'PUBLISHED' AND "deletedAt" IS NULL;
-```
-
-Feature bullets and tag names are added to the search vector through a trigger in Phase 1, because
-generated columns cannot reference other tables. The `'simple'` configuration is used because the
-catalogue is multilingual. Per-language configurations can be added later.
+**Rule for future migrations:** every new table must get `ALTER TABLE … ENABLE ROW LEVEL SECURITY`.
+`tests/db/schema.test.ts` and `npm run db:check` fail otherwise.
 
 ## 4. Data retention (defaults; configurable in SystemSetting)
 

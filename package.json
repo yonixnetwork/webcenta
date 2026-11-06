@@ -2,7 +2,7 @@
   "name": "webcenter",
   "version": "0.0.0",
   "private": true,
-  "description": "WebCenter — global web application discovery marketplace",
+  "description": "WebCenter \u2014 global web application discovery marketplace",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {
@@ -12,23 +12,49 @@
     "db:format": "prisma format",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
-    "db:push:dev": "prisma db push",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:smoke": "tsx scripts/db-smoke-test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "playwright test --trace off",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:check": "tsx scripts/db-check.ts",
+    "jobs:tick": "tsx scripts/jobs-tick.ts",
+    "postinstall": "prisma generate",
+    "db:push:dev": "prisma db push"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/postcss": "^4.3.4",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "dotenv": "^18.0.9",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.5",
+    "postcss": "^8.5.32",
     "prisma": "^7.10.1",
+    "tailwindcss": "^4.3.4",
     "tsx": "^4.23.15",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
-    "pg": "^8.23.1"
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.70.0",
+    "next": "^16.4.5",
+    "pg": "^8.23.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
   }
 }

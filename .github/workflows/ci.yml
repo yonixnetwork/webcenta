@@ -8,10 +8,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  schema:
-    name: Schema & smoke tests
+  test:
+    name: Lint, test, build, E2E
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -24,7 +29,15 @@ jobs:
           --health-cmd "pg_isready -U webcenter"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      # CI-only, disposable values. No real credentials are used in CI.
       DATABASE_URL: postgresql://webcenter:ci-only-password@localhost:5432/webcenter_ci
+      PGPASSWORD: ci-only-password
+      PUBLIC_ORIGIN: http://localhost:3100
+      ADMIN_ORIGIN: http://admin.localhost:3100
+      DEVELOPER_ORIGIN: http://developers.localhost:3100
+      CRON_SECRET: ci-only-cron-secret-0123456789abcdef0123
+      ALLOW_DEV_FIXTURES: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,8 +45,41 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run db:validate
-      - run: npm run db:generate
-      - run: npm run typecheck
-      - run: npx prisma db push
+
+      - name: Simulate Supabase roles and default privileges
+        run: |
+          psql -h localhost -U webcenter -d webcenter_ci -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE authenticated NOLOGIN;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated;
+          CREATE SCHEMA extensions;
+          SQL
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+      - name: Schema drift check (migrations == Prisma schema)
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code
+      - name: Data API roles cannot read data
+        run: |
+          out=$(psql -h localhost -U webcenter -d webcenter_ci -c 'SET ROLE anon; SELECT 1 FROM "Listing" LIMIT 1;' 2>&1 || true)
+          echo "$out"; echo "$out" | grep -q "permission denied"
+
+      - name: Seed (twice, to prove idempotence)
+        run: |
+          npm run db:seed -- --fixtures
+          npm run db:seed -- --fixtures
+
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm test
       - run: npm run db:smoke
+      - run: npm run db:check
+
+      - run: npm run build
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: E2E (desktop + mobile, accessibility)
+        run: npm run test:e2e
+      - name: www redirect is absolute in production-like config
+        run: bash scripts/check-www-redirect.sh
