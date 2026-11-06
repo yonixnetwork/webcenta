@@ -1,0 +1,149 @@
+// -----------------------------------------------------------------------------
+// Administrator identity — completely separate from public users.
+// * No public sign-up: accounts exist only via AdminInvitation or a one-off
+//   provisioning CLI run on the server (for the first Super Administrator).
+// * Mandatory TOTP (and optionally WebAuthn later); host-only cookie on
+//   admin.webcenter.com; short idle timeout.
+// * Roles map to permissions in code (src/server/admin/permissions.ts, Phase 3).
+// -----------------------------------------------------------------------------
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+  SUPPORT_AGENT
+  ANALYTICS_VIEWER
+}
+
+enum AdminStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+model AdminUser {
+  id                String      @id @default(uuid(7))
+  email             String      @unique
+  name              String
+  role              AdminRole
+  status            AdminStatus @default(ACTIVE)
+  /// argon2id/scrypt hash. Never logged.
+  passwordHash      String
+  /// TOTP seed encrypted with FIELD_ENCRYPTION_KEY (AES-256-GCM).
+  totpSecretEnc     String?
+  totpEnabledAt     DateTime?   @db.Timestamptz
+  failedLoginCount  Int         @default(0)
+  lockedUntil       DateTime?   @db.Timestamptz
+  lastLoginAt       DateTime?   @db.Timestamptz
+  passwordChangedAt DateTime?   @db.Timestamptz
+  invitedById       String?
+  createdAt         DateTime    @default(now()) @db.Timestamptz
+  updatedAt         DateTime    @updatedAt @db.Timestamptz
+
+  invitedBy AdminUser?  @relation("AdminInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+  invitees  AdminUser[] @relation("AdminInvitedBy")
+
+  sessions           AdminSession[]
+  invitationsSent    AdminInvitation[]    @relation("InvitationSender")
+  loginEvents        AdminLoginEvent[]
+  auditLogs          AuditLog[]
+  moderationActions  ModerationAction[]
+  revisionsReviewed  ListingRevision[]
+  complianceReviewed ComplianceDocument[]
+  claimsReviewed     ListingClaim[]
+  reportsAssigned    Report[]
+  appealsDecided     Appeal[]
+  supportCases       SupportCase[]
+  supportMessages    SupportCaseMessage[]
+  scansRequested     SecurityScan[]
+  alertsAssigned     SecurityAlert[]
+  geoRestrictions    GeoRestriction[]
+  collections        Collection[]
+  placements         FeaturedPlacement[]
+  settingsChanged    SystemSetting[]
+  policiesAuthored   LegalPolicy[]
+  uploadedMedia      MediaAsset[]
+
+  @@index([role, status])
+}
+
+model AdminSession {
+  id            String    @id @default(uuid(7))
+  /// SHA-256 of the session token; the raw token exists only in the cookie.
+  tokenHash     String    @unique
+  adminId       String
+  /// Set once the second factor succeeds; null = password-only (no access granted).
+  mfaVerifiedAt DateTime? @db.Timestamptz
+  expiresAt     DateTime  @db.Timestamptz
+  lastSeenAt    DateTime  @default(now()) @db.Timestamptz
+  ipAddress     String?
+  userAgent     String?
+  revokedAt     DateTime? @db.Timestamptz
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([expiresAt])
+}
+
+model AdminInvitation {
+  id          String    @id @default(uuid(7))
+  email       String
+  role        AdminRole
+  /// SHA-256 of the single-use invitation token.
+  tokenHash   String    @unique
+  invitedById String
+  expiresAt   DateTime  @db.Timestamptz
+  acceptedAt  DateTime? @db.Timestamptz
+  revokedAt   DateTime? @db.Timestamptz
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+
+  invitedBy AdminUser @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([email])
+}
+
+model AdminLoginEvent {
+  id             String   @id @default(uuid(7))
+  adminId        String?
+  emailAttempted String
+  success        Boolean
+  /// e.g. "bad_password", "bad_totp", "locked", "suspended"
+  failureReason  String?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now()) @db.Timestamptz
+
+  admin AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([adminId, createdAt])
+  @@index([success, createdAt])
+}
+
+/// Append-only audit trail of every important action. In production the app's DB
+/// role has INSERT/SELECT only on this table (see docs/SECURITY.md).
+model AuditLog {
+  id          BigInt    @id @default(autoincrement())
+  actorType   ActorType
+  adminId     String?
+  /// Public user id when actorType is USER or DEVELOPER (plain id; no FK so user
+  /// deletion does not erase the audit trail).
+  actorUserId String?
+  /// Dotted action name, e.g. "listing.approve", "admin.role.change".
+  action      String
+  targetType  String?
+  targetId    String?
+  /// Before/after diff or other context. Never contains secrets.
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+
+  admin AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([adminId, createdAt])
+  @@index([targetType, targetId])
+  @@index([action, createdAt])
+}

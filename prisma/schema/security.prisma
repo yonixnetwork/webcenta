@@ -1,0 +1,155 @@
+// -----------------------------------------------------------------------------
+// Security scanning & continuous monitoring.
+// A scan is a point-in-time observation, not a safety guarantee.
+// -----------------------------------------------------------------------------
+
+enum ScanTrigger {
+  SUBMISSION
+  SCHEDULED
+  MANUAL
+  REPORT
+  CLAIM
+}
+
+enum ScanStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum CheckVerdict {
+  PASS
+  WARN
+  FAIL
+  /// Check could not complete (timeout, provider error). Never treated as PASS.
+  INCONCLUSIVE
+  SKIPPED
+}
+
+enum CheckType {
+  DNS_RESOLUTION
+  TLS_CERTIFICATE
+  HTTP_REACHABILITY
+  REDIRECT_CHAIN
+  THREAT_INTEL_URL
+  THREAT_INTEL_DOMAIN
+  PHISHING_HEURISTICS
+  IMPERSONATION
+  DOWNLOAD_BEHAVIOUR
+  CONTENT_CHANGE
+  IDENTITY_CHANGE
+  DNS_CHANGE
+  POLICY_PAGES
+  DOMAIN_VERIFICATION
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED_FALSE_POSITIVE
+  RESOLVED_NO_ACTION
+  RESOLVED_ACTION_TAKEN
+}
+
+model SecurityScan {
+  id                 String        @id @default(uuid(7))
+  listingId          String
+  revisionId         String?
+  trigger            ScanTrigger
+  status             ScanStatus    @default(QUEUED)
+  /// Aggregate result: worst verdict across required checks.
+  overallVerdict     CheckVerdict?
+  /// 0–100, higher = riskier. Input to the approval engine, not a public score.
+  riskScore          Int?
+  targetUrl          String
+  finalUrl           String?
+  httpStatus         Int?
+  redirectChain      Json?
+  resolvedIps        String[]
+  nameservers        String[]
+  tlsIssuer          String?
+  tlsValidTo         DateTime?     @db.Timestamptz
+  tlsFingerprint     String?
+  pageTitle          String?
+  /// Hash of normalised visible text, for change detection.
+  contentHash        String?
+  bytesFetched       Int?
+  durationMs         Int?
+  error              String?
+  requestedByAdminId String?
+  startedAt          DateTime?     @db.Timestamptz
+  completedAt        DateTime?     @db.Timestamptz
+  createdAt          DateTime      @default(now()) @db.Timestamptz
+
+  listing          Listing               @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  revision         ListingRevision?      @relation(fields: [revisionId], references: [id], onDelete: SetNull)
+  requestedByAdmin AdminUser?            @relation(fields: [requestedByAdminId], references: [id], onDelete: SetNull)
+  checks           SecurityCheckResult[]
+  alerts           SecurityAlert[]
+
+  @@index([listingId, createdAt])
+  @@index([status, createdAt])
+}
+
+model SecurityCheckResult {
+  id         String       @id @default(uuid(7))
+  scanId     String
+  check      CheckType
+  /// e.g. "internal", "google-web-risk", "urlhaus", "virustotal"
+  provider   String
+  verdict    CheckVerdict
+  summary    String?
+  /// Structured evidence (provider response excerpt, matched indicators).
+  evidence   Json?
+  durationMs Int?
+  createdAt  DateTime     @default(now()) @db.Timestamptz
+
+  scan SecurityScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([scanId])
+  @@index([check, verdict])
+}
+
+model SecurityAlert {
+  id              String        @id @default(uuid(7))
+  listingId       String
+  scanId          String?
+  severity        AlertSeverity
+  status          AlertStatus   @default(OPEN)
+  title           String
+  details         String?
+  evidence        Json?
+  /// True when the system restricted visibility automatically.
+  autoRestricted  Boolean       @default(false)
+  assignedAdminId String?
+  resolutionNotes String?
+  resolvedAt      DateTime?     @db.Timestamptz
+  createdAt       DateTime      @default(now()) @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @db.Timestamptz
+
+  listing       Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  scan          SecurityScan? @relation(fields: [scanId], references: [id], onDelete: SetNull)
+  assignedAdmin AdminUser?    @relation(fields: [assignedAdminId], references: [id], onDelete: SetNull)
+
+  @@index([status, severity, createdAt])
+  @@index([listingId])
+}
+
+/// Re-scan cadence and automatic response thresholds per risk tier (admin-editable).
+model MonitoringPolicy {
+  riskTier               RiskTier      @id
+  scanIntervalHours      Int
+  /// Alerts at or above this severity auto-restrict visibility pending review.
+  autoRestrictAtSeverity AlertSeverity @default(CRITICAL)
+  /// Whether automated approval is permitted at all for this tier.
+  allowAutoApproval      Boolean       @default(false)
+  updatedAt              DateTime      @updatedAt @db.Timestamptz
+}

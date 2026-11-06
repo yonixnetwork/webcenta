@@ -1,0 +1,175 @@
+// -----------------------------------------------------------------------------
+// Developer organisations, team membership, domain ownership verification,
+// compliance evidence and claims of editorial listings.
+// -----------------------------------------------------------------------------
+
+enum DeveloperVerificationLevel {
+  UNVERIFIED
+  /// At least one domain proven via DNS TXT / meta tag / well-known file.
+  DOMAIN_VERIFIED
+  /// Business identity reviewed by an administrator using submitted evidence.
+  BUSINESS_VERIFIED
+}
+
+enum DeveloperStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum DeveloperMemberRole {
+  OWNER
+  ADMIN
+  EDITOR
+  ANALYST
+}
+
+enum DomainVerificationMethod {
+  DNS_TXT
+  HTML_META
+  WELL_KNOWN_FILE
+}
+
+enum DomainVerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  /// Previously verified but the proof disappeared on a re-check.
+  LAPSED
+}
+
+enum ComplianceDocType {
+  OPERATING_LICENCE
+  BUSINESS_REGISTRATION
+  REGULATORY_REGISTRATION
+  AGE_VERIFICATION_POLICY
+  RISK_DISCLOSURE
+  OTHER
+}
+
+enum ReviewDecision {
+  PENDING
+  ACCEPTED
+  REJECTED
+  INFO_REQUIRED
+}
+
+model DeveloperOrg {
+  id                String                     @id @default(uuid(7))
+  slug              String                     @unique
+  displayName       String
+  legalName         String?
+  websiteUrl        String?
+  /// Public contact address (distinct from members' login emails).
+  contactEmail      String?
+  countryCode       String?                    @db.Char(2)
+  bio               String?
+  logoAssetId       String?
+  status            DeveloperStatus            @default(ACTIVE)
+  verificationLevel DeveloperVerificationLevel @default(UNVERIFIED)
+  verifiedAt        DateTime?                  @db.Timestamptz
+  suspendedAt       DateTime?                  @db.Timestamptz
+  suspendReason     String?
+  createdAt         DateTime                   @default(now()) @db.Timestamptz
+  updatedAt         DateTime                   @updatedAt @db.Timestamptz
+
+  logo                MediaAsset?             @relation(fields: [logoAssetId], references: [id], onDelete: SetNull)
+  members             DeveloperMember[]
+  domainVerifications DomainVerification[]
+  listings            Listing[]
+  complianceDocs      ComplianceDocument[]
+  claims              ListingClaim[]
+  reviewReplies       ReviewReply[]
+  subscriptions       DeveloperSubscription[]
+  sponsorships        Sponsorship[]
+  reports             Report[]
+
+  @@index([status])
+  @@index([verificationLevel])
+}
+
+model DeveloperMember {
+  orgId     String
+  userId    String
+  role      DeveloperMemberRole @default(EDITOR)
+  createdAt DateTime            @default(now()) @db.Timestamptz
+
+  org  DeveloperOrg @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, userId])
+  @@index([userId])
+}
+
+model DomainVerification {
+  id            String                   @id @default(uuid(7))
+  orgId         String
+  /// Lower-case host, e.g. "app.example.com" or "example.com".
+  domain        String
+  method        DomainVerificationMethod
+  /// Random challenge value the developer publishes. Not a credential.
+  challenge     String
+  status        DomainVerificationStatus @default(PENDING)
+  verifiedAt    DateTime?                @db.Timestamptz
+  lastCheckedAt DateTime?                @db.Timestamptz
+  failureReason String?
+  createdAt     DateTime                 @default(now()) @db.Timestamptz
+  updatedAt     DateTime                 @updatedAt @db.Timestamptz
+
+  org    DeveloperOrg   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  claims ListingClaim[]
+
+  @@unique([orgId, domain])
+  @@index([domain, status])
+}
+
+/// Licences and legal evidence for high-risk categories. Files are private (never public URLs).
+model ComplianceDocument {
+  id            String            @id @default(uuid(7))
+  orgId         String
+  listingId     String?
+  type          ComplianceDocType
+  jurisdiction  String?
+  issuingBody   String?
+  referenceNo   String?
+  assetId       String?
+  validFrom     DateTime?         @db.Timestamptz
+  expiresAt     DateTime?         @db.Timestamptz
+  decision      ReviewDecision    @default(PENDING)
+  decisionNotes String?
+  reviewedById  String?
+  reviewedAt    DateTime?         @db.Timestamptz
+  createdAt     DateTime          @default(now()) @db.Timestamptz
+
+  org        DeveloperOrg @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  listing    Listing?     @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  asset      MediaAsset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  reviewedBy AdminUser?   @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([decision])
+  @@index([expiresAt])
+}
+
+/// A developer org's request to take ownership of an editorial listing.
+model ListingClaim {
+  id                   String         @id @default(uuid(7))
+  listingId            String
+  orgId                String
+  requestedById        String
+  domainVerificationId String?
+  evidence             String?
+  decision             ReviewDecision @default(PENDING)
+  decisionNotes        String?
+  reviewedById         String?
+  reviewedAt           DateTime?      @db.Timestamptz
+  createdAt            DateTime       @default(now()) @db.Timestamptz
+
+  listing            Listing             @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  org                DeveloperOrg        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  requestedBy        User                @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  domainVerification DomainVerification? @relation(fields: [domainVerificationId], references: [id], onDelete: SetNull)
+  reviewedBy         AdminUser?          @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([listingId])
+  @@index([decision, createdAt])
+}

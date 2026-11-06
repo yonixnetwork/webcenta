@@ -1,0 +1,167 @@
+// -----------------------------------------------------------------------------
+// Platform management: homepage sections, featured/sponsored placements,
+// settings, legal policies, and (future, inactive) developer plans.
+// -----------------------------------------------------------------------------
+
+enum HomepageSectionType {
+  FEATURED
+  TRENDING
+  POPULAR
+  NEW
+  EDITORS_PICKS
+  TOP_RATED
+  RECOMMENDED
+  BY_CATEGORY
+  RECENTLY_UPDATED
+  COLLECTION
+  ALTERNATIVES_SPOTLIGHT
+}
+
+enum PlacementSlot {
+  HOME_HERO
+  HOME_FEATURED
+  CATEGORY_TOP
+  SEARCH_TOP
+}
+
+enum LegalPolicyType {
+  TERMS_OF_SERVICE
+  PRIVACY_POLICY
+  COOKIE_POLICY
+  CONTENT_POLICY
+  DEVELOPER_AGREEMENT
+  REVIEW_GUIDELINES
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum SponsorshipStatus {
+  PENDING_REVIEW
+  SCHEDULED
+  ACTIVE
+  ENDED
+  REJECTED
+}
+
+model HomepageSection {
+  id        String              @id @default(uuid(7))
+  key       String              @unique
+  title     String
+  type      HomepageSectionType
+  sortOrder Int                 @default(0)
+  isEnabled Boolean             @default(true)
+  /// e.g. { "categoryId": "...", "collectionId": "...", "limit": 12 }
+  config    Json?
+  updatedAt DateTime            @updatedAt @db.Timestamptz
+
+  @@index([isEnabled, sortOrder])
+}
+
+/// Editorial or sponsored placement. Sponsored placements are ALWAYS labelled
+/// "Sponsored" in the UI and never affect organic scores or search ranking.
+model FeaturedPlacement {
+  id               String        @id @default(uuid(7))
+  listingId        String
+  slot             PlacementSlot
+  categoryId       String?
+  isSponsored      Boolean       @default(false)
+  sponsorshipId    String?
+  sortOrder        Int           @default(0)
+  startsAt         DateTime      @db.Timestamptz
+  endsAt           DateTime?     @db.Timestamptz
+  createdByAdminId String?
+  createdAt        DateTime      @default(now()) @db.Timestamptz
+
+  listing        Listing      @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  category       Category?    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  sponsorship    Sponsorship? @relation(fields: [sponsorshipId], references: [id], onDelete: SetNull)
+  createdByAdmin AdminUser?   @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([slot, startsAt, endsAt])
+}
+
+/// Key/value platform settings (ranking weights, feature flags, limits).
+model SystemSetting {
+  key              String   @id
+  value            Json
+  description      String?
+  updatedByAdminId String?
+  updatedAt        DateTime @updatedAt @db.Timestamptz
+
+  updatedByAdmin AdminUser? @relation(fields: [updatedByAdminId], references: [id], onDelete: SetNull)
+}
+
+model LegalPolicy {
+  id               String          @id @default(uuid(7))
+  type             LegalPolicyType
+  version          Int
+  title            String
+  /// Markdown, rendered with a sanitising renderer.
+  body             String
+  effectiveAt      DateTime        @db.Timestamptz
+  publishedAt      DateTime?       @db.Timestamptz
+  createdByAdminId String?
+  createdAt        DateTime        @default(now()) @db.Timestamptz
+
+  createdByAdmin AdminUser? @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+
+  @@unique([type, version])
+}
+
+// ---- Monetisation (Phase 8). Tables exist; billing is NOT active. ----
+
+model DeveloperPlan {
+  id           String   @id @default(uuid(7))
+  code         String   @unique
+  name         String
+  /// Entitlements, e.g. { "analyticsHistoryDays": 90, "maxListings": 5 }
+  entitlements Json
+  /// Null until pricing is decided. Billing must not be enabled before review.
+  priceCents   Int?
+  currency     String?  @db.Char(3)
+  isActive     Boolean  @default(false)
+  createdAt    DateTime @default(now()) @db.Timestamptz
+
+  subscriptions DeveloperSubscription[]
+}
+
+model DeveloperSubscription {
+  id               String             @id @default(uuid(7))
+  orgId            String
+  planId           String
+  status           SubscriptionStatus
+  /// Payment provider name and external id (e.g. "stripe", "sub_...").
+  provider         String?
+  providerRef      String?
+  currentPeriodEnd DateTime?          @db.Timestamptz
+  createdAt        DateTime           @default(now()) @db.Timestamptz
+  updatedAt        DateTime           @updatedAt @db.Timestamptz
+
+  org  DeveloperOrg  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  plan DeveloperPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([orgId])
+}
+
+/// A paid promotion request. Payment never bypasses listing moderation:
+/// only PUBLISHED listings in good security standing can become ACTIVE.
+model Sponsorship {
+  id        String            @id @default(uuid(7))
+  orgId     String
+  listingId String
+  status    SponsorshipStatus @default(PENDING_REVIEW)
+  startsAt  DateTime?         @db.Timestamptz
+  endsAt    DateTime?         @db.Timestamptz
+  createdAt DateTime          @default(now()) @db.Timestamptz
+
+  org        DeveloperOrg        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  listing    Listing             @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  placements FeaturedPlacement[]
+
+  @@index([status])
+}

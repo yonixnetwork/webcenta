@@ -1,0 +1,156 @@
+// -----------------------------------------------------------------------------
+// Reviews, developer replies, helpful votes, favourites, collections and
+// in-app notifications.
+// -----------------------------------------------------------------------------
+
+enum ReviewStatus {
+  PUBLISHED
+  /// Held by anti-spam heuristics until a moderator checks it.
+  HELD_FOR_MODERATION
+  HIDDEN
+  REMOVED
+}
+
+enum CollectionVisibility {
+  PRIVATE
+  UNLISTED
+  PUBLIC
+}
+
+enum NotificationType {
+  REVIEW_REPLY
+  LISTING_STATUS
+  MODERATION_NOTICE
+  REPORT_UPDATE
+  CLAIM_UPDATE
+  SECURITY_NOTICE
+  SYSTEM
+}
+
+model Review {
+  id                 String       @id @default(uuid(7))
+  listingId          String
+  userId             String
+  /// 1–5, enforced by a CHECK constraint added in the migration.
+  rating             Int
+  title              String?
+  body               String?
+  status             ReviewStatus @default(PUBLISHED)
+  /// Only true when a real verification mechanism exists (e.g. a future developer
+  /// integration). There is no such mechanism yet, so this stays false.
+  isVerifiedUsage    Boolean      @default(false)
+  verificationMethod String?
+  helpfulCount       Int          @default(0)
+  /// Anti-abuse signals (e.g. hashed IP bucket, account age at posting). Never public.
+  abuseSignals       Json?
+  editedAt           DateTime?    @db.Timestamptz
+  createdAt          DateTime     @default(now()) @db.Timestamptz
+  updatedAt          DateTime     @updatedAt @db.Timestamptz
+  deletedAt          DateTime?    @db.Timestamptz
+
+  listing      Listing             @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reply        ReviewReply?
+  helpfulVotes ReviewHelpfulVote[]
+  reports      Report[]
+
+  /// One review per user per listing (edit instead of re-posting).
+  @@unique([listingId, userId])
+  @@index([listingId, status, createdAt])
+  @@index([listingId, status, helpfulCount])
+  @@index([userId])
+}
+
+/// Official developer reply (one per review; editable).
+model ReviewReply {
+  id           String       @id @default(uuid(7))
+  reviewId     String       @unique
+  orgId        String
+  authorUserId String?
+  body         String
+  status       ReviewStatus @default(PUBLISHED)
+  editedAt     DateTime?    @db.Timestamptz
+  createdAt    DateTime     @default(now()) @db.Timestamptz
+  updatedAt    DateTime     @updatedAt @db.Timestamptz
+
+  review Review       @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  org    DeveloperOrg @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  author User?        @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+}
+
+model ReviewHelpfulVote {
+  reviewId  String
+  userId    String
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([reviewId, userId])
+  @@index([userId])
+}
+
+model Favorite {
+  userId    String
+  listingId String
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId])
+  @@index([listingId])
+}
+
+/// User-created collections and editorial (curated) collections.
+/// Editorial collections have ownerId = null and createdByAdminId set.
+model Collection {
+  id               String               @id @default(uuid(7))
+  slug             String               @unique
+  title            String
+  description      String?
+  ownerId          String?
+  isEditorial      Boolean              @default(false)
+  visibility       CollectionVisibility @default(PRIVATE)
+  createdByAdminId String?
+  createdAt        DateTime             @default(now()) @db.Timestamptz
+  updatedAt        DateTime             @updatedAt @db.Timestamptz
+
+  owner          User?            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdByAdmin AdminUser?       @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  items          CollectionItem[]
+
+  @@index([ownerId])
+  @@index([isEditorial, visibility])
+}
+
+model CollectionItem {
+  collectionId String
+  listingId    String
+  sortOrder    Int      @default(0)
+  note         String?
+  addedAt      DateTime @default(now()) @db.Timestamptz
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  listing    Listing    @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, listingId])
+  @@index([listingId])
+}
+
+model Notification {
+  id        String           @id @default(uuid(7))
+  userId    String
+  type      NotificationType
+  title     String
+  body      String?
+  /// Relative in-app path only (never an external URL).
+  linkPath  String?
+  data      Json?
+  readAt    DateTime?        @db.Timestamptz
+  createdAt DateTime         @default(now()) @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}

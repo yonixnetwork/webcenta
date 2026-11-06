@@ -1,0 +1,143 @@
+// -----------------------------------------------------------------------------
+// Analytics & personalisation.
+//
+// Privacy model (see docs/SECURITY.md §Privacy):
+//   * Anonymous listing events store a visitorHash = HMAC(secret_of_the_day,
+//     ip + user-agent + listingId). The daily secret is discarded after
+//     roll-up, so hashes cannot be linked across days or reversed. "Unique"
+//     therefore means unique-per-day; weekly/monthly figures are labelled as
+//     sums of daily uniques.
+//   * Raw ListingEvent rows are kept ≤ 35 days, then only roll-ups remain.
+//   * InteractionEvent (personalisation) exists only for signed-in users with
+//     historyEnabled = true and is user-clearable. It is never shown to developers.
+//   * Outbound clicks are clicks on "Visit Website" — NOT registrations,
+//     purchases or conversions on the developer's site.
+// -----------------------------------------------------------------------------
+
+enum ListingEventType {
+  VIEW
+  OUTBOUND_CLICK
+  SEARCH_IMPRESSION
+}
+
+enum DeviceType {
+  DESKTOP
+  MOBILE
+  TABLET
+  BOT
+  UNKNOWN
+}
+
+enum StatDimension {
+  COUNTRY
+  DEVICE
+  REFERRER
+}
+
+enum InteractionType {
+  LISTING_VIEW
+  LISTING_DWELL
+  CATEGORY_VIEW
+  SEARCH
+  FAVORITE
+  OUTBOUND_CLICK
+  REVIEW
+}
+
+enum InterestSource {
+  EXPLICIT
+  INFERRED
+}
+
+model ListingEvent {
+  id           BigInt           @id @default(autoincrement())
+  listingId    String
+  type         ListingEventType
+  occurredAt   DateTime         @default(now()) @db.Timestamptz
+  visitorHash  String
+  countryCode  String?          @db.Char(2)
+  device       DeviceType       @default(UNKNOWN)
+  /// Referrer host only (no path/query) to avoid leaking third-party URLs.
+  referrerHost String?
+  /// Internal surface that produced the event, e.g. "search", "home:trending".
+  surface      String?
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, occurredAt])
+  @@index([occurredAt])
+}
+
+model ListingDailyStat {
+  listingId            String
+  date                 DateTime @db.Date
+  views                Int      @default(0)
+  uniqueVisitors       Int      @default(0)
+  outboundClicks       Int      @default(0)
+  uniqueOutboundClicks Int      @default(0)
+  searchImpressions    Int      @default(0)
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([listingId, date])
+  @@index([date])
+}
+
+model ListingDailyDimensionStat {
+  listingId      String
+  date           DateTime      @db.Date
+  dimension      StatDimension
+  /// Country code, device type or referrer host.
+  key            String
+  views          Int           @default(0)
+  outboundClicks Int           @default(0)
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([listingId, date, dimension, key])
+  @@index([date, dimension])
+}
+
+/// Aggregated, de-identified search terms for trends and autocomplete.
+model SearchQueryDailyStat {
+  date        DateTime @db.Date
+  /// Normalised query (lower-case, trimmed). Queries containing emails/URLs/
+  /// long digit runs are dropped before aggregation.
+  query       String
+  count       Int      @default(0)
+  zeroResults Int      @default(0)
+
+  @@id([date, query])
+  @@index([query])
+}
+
+/// Personalisation signals for a signed-in user. User-clearable; retention ≤ 180 days.
+model InteractionEvent {
+  id         BigInt          @id @default(autoincrement())
+  userId     String
+  type       InteractionType
+  listingId  String?
+  categoryId String?
+  query      String?
+  dwellMs    Int?
+  createdAt  DateTime        @default(now()) @db.Timestamptz
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing  Listing?  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model UserInterest {
+  userId     String
+  categoryId String
+  source     InterestSource
+  weight     Float          @default(1)
+  updatedAt  DateTime       @updatedAt @db.Timestamptz
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([userId, categoryId, source])
+}
