@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import type { AgeRating } from "@/generated/prisma/enums";
 import { env } from "@/lib/env";
+import { getCurrentUser } from "@/server/auth/session";
 
 export interface ViewerContext {
   /** ISO 3166-1 alpha-2, or null when unknown (best effort; VPNs bypass this). */
@@ -21,10 +22,15 @@ export function normalizeCountry(value: string | null | undefined): string | nul
 export async function getViewerContext(): Promise<ViewerContext> {
   const h = await headers();
   const e = env();
+  const user = await getCurrentUser();
+  // 18+ content requires a signed-in user who chose it and self-confirmed their age.
+  // This is a self-declaration, not age verification.
+  const maxAgeRating: AgeRating = user ? (user.maxAgeRating === "AGE_18_PLUS" && !user.adultConfirmedAt ? "AGE_16_PLUS" : user.maxAgeRating) : "AGE_16_PLUS";
   return {
-    country: normalizeCountry(h.get(e.GEO_COUNTRY_HEADER)),
-    // Phase 2 adds signed-in preferences; 18+ opt-in requires an account.
-    maxAgeRating: "AGE_16_PLUS",
+    // The detected country takes precedence for legal restrictions; a user's stated
+    // country is only used when nothing is detected.
+    country: normalizeCountry(h.get(e.GEO_COUNTRY_HEADER)) ?? normalizeCountry(user?.preferredCountry),
+    maxAgeRating,
     unknownCountryPolicy: e.GEO_UNKNOWN_POLICY,
   };
 }

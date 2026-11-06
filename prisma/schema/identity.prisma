@@ -46,6 +46,10 @@ model User {
   /// ISO country the user selected; overrides IP-derived country for display filters.
   preferredCountry       String?   @db.Char(2)
   locale                 String?
+  /// Email notifications for replies and listing updates (in-app always on).
+  emailNotifications     Boolean   @default(true)
+  /// Self-declared 18+ confirmation time (NOT age verification).
+  adultConfirmedAt       DateTime? @db.Timestamptz
 
   createdAt DateTime  @default(now()) @db.Timestamptz
   updatedAt DateTime  @updatedAt @db.Timestamptz
@@ -146,6 +150,34 @@ model AuthEvent {
 
   @@index([userId, createdAt])
   @@index([type, createdAt])
+}
+
+/// Rate-limit state used by the auth library (Better Auth "database" storage).
+model AuthRateLimit {
+  id          String @id @default(uuid(7))
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+}
+
+/// Outgoing email queue. Delivered by the job runner via SMTP; with
+/// EMAIL_TRANSPORT=log (development/tests) messages are only recorded.
+model EmailMessage {
+  id        String    @id @default(uuid(7))
+  to        String
+  subject   String
+  text      String
+  html      String?
+  /// e.g. "verify-email", "reset-password", "review-reply"
+  template  String
+  status    String    @default("PENDING")
+  attempts  Int       @default(0)
+  lastError String?
+  sentAt    DateTime? @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+
+  @@index([status, createdAt])
+  @@index([to, createdAt])
 }
 
 /// Generic fixed-window rate-limit buckets (no Redis on shared hosting).

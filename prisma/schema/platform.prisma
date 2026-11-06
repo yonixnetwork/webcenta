@@ -151,13 +151,16 @@ model DeveloperSubscription {
 /// A paid promotion request. Payment never bypasses listing moderation:
 /// only PUBLISHED listings in good security standing can become ACTIVE.
 model Sponsorship {
-  id        String            @id @default(uuid(7))
-  orgId     String
-  listingId String
-  status    SponsorshipStatus @default(PENDING_REVIEW)
-  startsAt  DateTime?         @db.Timestamptz
-  endsAt    DateTime?         @db.Timestamptz
-  createdAt DateTime          @default(now()) @db.Timestamptz
+  id            String            @id @default(uuid(7))
+  orgId         String
+  listingId     String
+  status        SponsorshipStatus @default(PENDING_REVIEW)
+  slot          PlacementSlot     @default(HOME_FEATURED)
+  startsAt      DateTime?         @db.Timestamptz
+  endsAt        DateTime?         @db.Timestamptz
+  message       String?
+  decisionNotes String?
+  createdAt     DateTime          @default(now()) @db.Timestamptz
 
   org        DeveloperOrg        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   listing    Listing             @relation(fields: [listingId], references: [id], onDelete: Cascade)

@@ -110,9 +110,10 @@ export async function getHomepage(ctx: ViewerContext): Promise<{ rails: HomeRail
 }
 
 export async function getPublicCollection(ctx: ViewerContext, slug: string) {
+  // Editorial collections and users' collections that were shared (public or unlisted).
   const c = await db.collection.findFirst({
-    where: { slug, isEditorial: true, visibility: { in: ["PUBLIC", "UNLISTED"] } },
-    include: { items: { orderBy: { sortOrder: "asc" }, select: { listingId: true, note: true } } },
+    where: { slug, visibility: { in: ["PUBLIC", "UNLISTED"] }, OR: [{ isEditorial: true }, { owner: { status: "ACTIVE" } }] },
+    include: { items: { orderBy: { sortOrder: "asc" }, select: { listingId: true, note: true } }, owner: { select: { name: true } } },
   });
   if (!c) return null;
   const items = await cardsByIds(ctx, c.items.map((i) => i.listingId));

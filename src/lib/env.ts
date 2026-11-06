@@ -29,6 +29,43 @@ const schema = z.object({
   JOBS_TICK_BUDGET_MS: z.coerce.number().int().min(1000).max(120_000).default(25_000),
 
   MEDIA_PUBLIC_BASE_URL: z.string().url().optional(),
+
+  // --- Auth ---
+  USER_AUTH_SECRET: z.string().optional(),
+  ADMIN_AUTH_SECRET: z.string().optional(),
+  FIELD_ENCRYPTION_KEY: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  APPLE_CLIENT_ID: z.string().optional(),
+  APPLE_CLIENT_SECRET: z.string().optional(),
+  APPLE_APP_BUNDLE_IDENTIFIER: z.string().optional(),
+  /** Comma-separated IPs/CIDR-free exact IPs allowed to reach admin (optional). */
+  ADMIN_IP_ALLOWLIST: z.string().optional(),
+
+  // --- Email ---
+  EMAIL_TRANSPORT: z.enum(["log", "smtp"]).default("log"),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  SMTP_SECURE: z.enum(["true", "false"]).optional(),
+  EMAIL_FROM: z.string().default("WebCenter <no-reply@webcenter.com>"),
+
+  // --- Storage ---
+  STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+  STORAGE_LOCAL_DIR: z.string().default("./storage"),
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_REGION: z.string().default("auto"),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+
+  // --- Security scanning providers (optional; checks are skipped and marked so when absent) ---
+  GOOGLE_WEB_RISK_API_KEY: z.string().optional(),
+  URLHAUS_AUTH_KEY: z.string().optional(),
+  VIRUSTOTAL_API_KEY: z.string().optional(),
+  /** Test-only: allow scanning hosts on loopback (NEVER set in production). */
+  SCANNER_ALLOW_PRIVATE_FOR_TESTS: z.enum(["true", "false"]).optional(),
 });
 
 export type Env = z.infer<typeof schema>;

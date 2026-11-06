@@ -4,6 +4,8 @@ import { publicListingWhere } from "@/server/catalog/visibility";
 import { normalizeWebsiteUrl } from "@/lib/url";
 import { parseSurface, recordOutboundClick } from "@/server/analytics/outbound";
 import { getViewerContext } from "@/server/viewer";
+import { getCurrentUser } from "@/server/auth/session";
+import { recordInteraction } from "@/server/personalization/signals";
 
 /**
  * Tracked outbound redirect. The destination is ALWAYS the listing's stored
@@ -21,7 +23,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const form = await request.formData().catch(() => null);
   try {
-    await recordOutboundClick(listing.id, request.headers, parseSurface(form?.get("surface")));
+    const counted = await recordOutboundClick(listing.id, request.headers, parseSurface(form?.get("surface")));
+    const user = await getCurrentUser();
+    if (user && counted) await recordInteraction(user.id, { type: "OUTBOUND_CLICK", listingId: listing.id });
   } catch (err) {
     // Never block the user's navigation because analytics failed.
     console.error("outbound click not recorded", err);

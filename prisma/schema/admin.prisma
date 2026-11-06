@@ -32,6 +32,8 @@ model AdminUser {
   /// TOTP seed encrypted with FIELD_ENCRYPTION_KEY (AES-256-GCM).
   totpSecretEnc     String?
   totpEnabledAt     DateTime?   @db.Timestamptz
+  /// Last accepted TOTP time-step (prevents code replay).
+  totpLastStep      Int?
   failedLoginCount  Int         @default(0)
   lockedUntil       DateTime?   @db.Timestamptz
   lastLoginAt       DateTime?   @db.Timestamptz
@@ -88,18 +90,21 @@ model AdminSession {
 }
 
 model AdminInvitation {
-  id          String    @id @default(uuid(7))
-  email       String
-  role        AdminRole
+  id             String    @id @default(uuid(7))
+  email          String
+  role           AdminRole
+  /// Set while the invitee enrols TOTP (encrypted); moved to AdminUser on acceptance.
+  pendingTotpEnc String?
   /// SHA-256 of the single-use invitation token.
-  tokenHash   String    @unique
-  invitedById String
-  expiresAt   DateTime  @db.Timestamptz
-  acceptedAt  DateTime? @db.Timestamptz
-  revokedAt   DateTime? @db.Timestamptz
-  createdAt   DateTime  @default(now()) @db.Timestamptz
+  tokenHash      String    @unique
+  /// Null only for the bootstrap Super Administrator created by the provisioning CLI.
+  invitedById    String?
+  expiresAt      DateTime  @db.Timestamptz
+  acceptedAt     DateTime? @db.Timestamptz
+  revokedAt      DateTime? @db.Timestamptz
+  createdAt      DateTime  @default(now()) @db.Timestamptz
 
-  invitedBy AdminUser @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Cascade)
+  invitedBy AdminUser? @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Cascade)
 
   @@index([email])
 }

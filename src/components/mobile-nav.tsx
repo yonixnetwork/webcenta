@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Compass, LayoutGrid, Search } from "lucide-react";
+import { Compass, LayoutGrid, Search, UserRound } from "lucide-react";
 
 /** App-style bottom navigation on small screens. */
 export function MobileNav() {
@@ -10,6 +10,7 @@ export function MobileNav() {
         <Link href="/" className={item}><Compass className="size-5" aria-hidden />Discover</Link>
         <Link href="/categories" className={item}><LayoutGrid className="size-5" aria-hidden />Categories</Link>
         <Link href="/search" className={item}><Search className="size-5" aria-hidden />Search</Link>
+        <Link href="/account" className={item}><UserRound className="size-5" aria-hidden />Account</Link>
       </div>
     </nav>
   );

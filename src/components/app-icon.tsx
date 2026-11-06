@@ -1,4 +1,5 @@
 import { cn } from "./ui/cn";
+import { mediaUrl } from "@/server/storage";
 
 const PALETTE = [
   "from-indigo-500 to-violet-500", "from-sky-500 to-cyan-400", "from-emerald-500 to-teal-400", "from-amber-500 to-orange-400",
@@ -15,11 +16,10 @@ const SIZES = { sm: "size-10 rounded-xl text-sm", md: "size-14 rounded-2xl text-
 
 /** Listing logo from object storage, or a deterministic monogram when none was provided. */
 export function AppIcon({ name, storageKey, size = "md" }: { name: string; storageKey?: string | null; size?: keyof typeof SIZES }) {
-  const base = process.env.MEDIA_PUBLIC_BASE_URL?.replace(/\/$/, "");
-  if (storageKey && base) {
+  if (storageKey) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- media host is configured at runtime
-      <img src={`${base}/${storageKey}`} alt="" loading="lazy" decoding="async"
+      <img src={mediaUrl(storageKey)} alt="" loading="lazy" decoding="async"
         className={cn("shrink-0 border border-border bg-surface object-cover", SIZES[size])} />
     );
   }

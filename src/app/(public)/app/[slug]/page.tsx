@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowUpRight, BadgeCheck, CalendarCheck, ChevronRight, Globe, Heart, ShieldCheck, ShieldQuestion, Star, TriangleAlert, UserRound } from "lucide-react";
+import { ArrowUpRight, BadgeCheck, CalendarCheck, ChevronRight, Globe, ShieldCheck, ShieldQuestion, Star, TriangleAlert, UserRound } from "lucide-react";
 import { AppIcon } from "@/components/app-icon";
 import { RelatedRails } from "@/components/listing-sections";
 import { ReportForm } from "@/components/report-form";
@@ -15,8 +15,15 @@ import { getPublicListing, MIN_RATINGS_FOR_DISPLAY } from "@/server/catalog/list
 import { submitListingReport } from "@/server/catalog/report-action";
 import { LISTING_REPORT_REASONS } from "@/server/moderation/reports";
 import { getViewerContext } from "@/server/viewer";
+import { getCurrentUser } from "@/server/auth/session";
+import { db } from "@/server/db";
+import { FavoriteButton } from "@/components/community/favorite-button";
+import { AddToCollection } from "@/components/community/add-to-collection";
+import { ReviewsSection } from "@/components/community/reviews-section";
+import { ViewTracker } from "@/components/community/view-tracker";
+import { mediaUrl } from "@/server/storage";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ sort?: string; rpage?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -41,11 +48,18 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-export default async function AppPage({ params }: Props) {
+export default async function AppPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const sp = (await searchParams) ?? {};
   const ctx = await getViewerContext();
   const listing = await getPublicListing(ctx, slug);
   if (!listing) notFound();
+  const user = await getCurrentUser();
+  const [favorite, myCollections, membership] = user ? await Promise.all([
+    db.favorite.findUnique({ where: { userId_listingId: { userId: user.id, listingId: listing.id } } }),
+    db.collection.findMany({ where: { ownerId: user.id }, select: { id: true, title: true }, orderBy: { updatedAt: "desc" } }),
+    listing.developerId ? db.developerMember.findUnique({ where: { orgId_userId: { orgId: listing.developerId, userId: user.id } } }) : null,
+  ]) : [null, [], null];
 
   const related = await getRelated(ctx, listing);
   const origin = process.env.PUBLIC_ORIGIN || "http://localhost:3000";
@@ -53,7 +67,6 @@ export default async function AppPage({ params }: Props) {
   const security = SECURITY_LABEL[listing.securityStatus];
   const logo = listing.media.find((m) => m.kind === "LOGO");
   const screenshots = listing.media.filter((m) => m.kind === "SCREENSHOT" || m.kind === "PREVIEW");
-  const mediaBase = process.env.MEDIA_PUBLIC_BASE_URL?.replace(/\/$/, "");
   const showRating = listing.ratingCount >= MIN_RATINGS_FOR_DISPLAY;
   const verification = listing.developer ? VERIFICATION_LABEL[listing.developer.verificationLevel] : "Unclaimed listing";
   const reportAction = submitListingReport.bind(null, listing.slug);
@@ -73,6 +86,7 @@ export default async function AppPage({ params }: Props) {
 
   return (
     <article className="space-y-12">
+      <ViewTracker slug={listing.slug} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
 
       <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-muted">
@@ -112,9 +126,8 @@ export default async function AppPage({ params }: Props) {
           <p className="text-center text-xs text-subtle lg:w-64">Opens {domain} · you’ll see a notice before leaving WebCenter</p>
           <div className="flex gap-2 sm:ml-2 lg:ml-0">
             <ShareButton url={`${origin}/app/${listing.slug}`} title={listing.name} />
-            <button type="button" disabled title="Accounts arrive in a later phase" className={buttonClass("secondary", "md")}>
-              <Heart className="size-4" aria-hidden /> Save
-            </button>
+            <FavoriteButton slug={listing.slug} initial={Boolean(favorite)} signedIn={Boolean(user)} />
+            {user && <AddToCollection slug={listing.slug} collections={myCollections} />}
           </div>
         </div>
       </header>
@@ -130,12 +143,12 @@ export default async function AppPage({ params }: Props) {
         <div className="space-y-10">
           <section aria-labelledby="screens">
             <h2 id="screens" className="mb-4 text-xl font-bold">Screenshots</h2>
-            {screenshots.length && mediaBase ? (
+            {screenshots.length ? (
               <ul className="scrollbar-none -mx-4 flex snap-x gap-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
                 {screenshots.map((s) => (
                   <li key={s.id} className="shrink-0 snap-start">
                     {/* eslint-disable-next-line @next/next/no-img-element -- media host configured at runtime */}
-                    <img src={`${mediaBase}/${s.asset.storageKey}`} alt={s.altText ?? `${listing.name} screenshot`} loading="lazy" decoding="async"
+                    <img src={mediaUrl(s.asset.storageKey)} alt={s.altText ?? `${listing.name} screenshot`} loading="lazy" decoding="async"
                       width={s.asset.width ?? undefined} height={s.asset.height ?? undefined}
                       className="h-56 w-auto rounded-2xl border border-border object-cover sm:h-72" />
                   </li>
@@ -162,12 +175,9 @@ export default async function AppPage({ params }: Props) {
             </section>
           )}
 
-          <section aria-labelledby="reviews">
-            <h2 id="reviews" className="mb-3 text-xl font-bold">Ratings & reviews</h2>
-            <p className="rounded-2xl border border-dashed border-border bg-surface p-6 text-sm text-muted">
-              {showRating ? `${listing.ratingAverage.toFixed(1)} out of 5 from ${listing.ratingCount} ratings.` : "No ratings yet."} Written reviews open when user accounts launch.
-            </p>
-          </section>
+          <ReviewsSection listing={listing} user={user} isMember={Boolean(membership)}
+            canReply={Boolean(membership && membership.role !== "ANALYST")}
+            sort={sp.sort === "newest" ? "newest" : "helpful"} page={Math.max(1, Number(sp.rpage) || 1)} />
         </div>
 
         <aside className="space-y-6">

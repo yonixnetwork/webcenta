@@ -66,6 +66,7 @@ model ListingEvent {
 
   @@index([listingId, occurredAt])
   @@index([occurredAt])
+  @@index([listingId, type, visitorHash, occurredAt])
 }
 
 model ListingDailyStat {
