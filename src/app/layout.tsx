@@ -11,6 +11,8 @@ export async function generateMetadata(): Promise<Metadata> {
     applicationName: "WebCenter",
     openGraph: { siteName: "WebCenter", type: "website" },
     twitter: { card: "summary_large_image" },
+    appleWebApp: { capable: true, title: "WebCenter", statusBarStyle: "default" },
+    icons: { icon: "/icon.svg", apple: "/icons/apple-touch-icon.png" },
   };
 }
 

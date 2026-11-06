@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { db } from "@/server/db";
 import { rateLimit } from "@/server/rate-limit";
 import { enqueueRecurring, runTick } from "@/server/jobs/runner";
-import { handlers } from "@/server/jobs/handlers";
+import { handlers, recurringJobs } from "@/server/jobs/handlers";
 import { recordOutboundClick } from "@/server/analytics/outbound";
 import { dailySalt, purgeOldSalts } from "@/server/analytics/visitor";
 import { createListingReport } from "@/server/moderation/reports";
@@ -20,15 +20,15 @@ describe("rate limiter", () => {
 
 describe("job runner", () => {
   it("enqueues recurring jobs once per window", async () => {
-    await db.job.deleteMany({ where: { type: { startsWith: "maintenance." } } });
+    await db.job.deleteMany({ where: { type: { in: recurringJobs.map((r) => r.type) } } });
     const now = new Date();
-    expect(await enqueueRecurring(now)).toBe(2);
+    expect(await enqueueRecurring(now)).toBe(recurringJobs.length);
     expect(await enqueueRecurring(now)).toBe(0);
   });
   it("runs due jobs and retries failures with backoff, then marks them dead", async () => {
     handlers["test.fail"] = async () => { throw new Error("boom"); };
     const failing = await db.job.create({ data: { type: "test.fail", payload: {}, maxAttempts: 2 } });
-    const r1 = await runTick(5000);
+    const r1 = await runTick(20000);
     expect(r1.processed).toBeGreaterThanOrEqual(2); // the maintenance jobs
     let j = await db.job.findUniqueOrThrow({ where: { id: failing.id } });
     expect(j).toMatchObject({ status: "PENDING", attempts: 1, lastError: "boom" });

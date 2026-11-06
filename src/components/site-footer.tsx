@@ -24,7 +24,9 @@ export function SiteFooter() {
           <h2 className="text-sm font-semibold">WebCenter</h2>
           <ul className="mt-3 space-y-2 text-sm text-muted">
             <li><Link href="/about" className="hover:text-text">About & how listings are checked</Link></li>
-            <li><span>Developer portal — coming soon</span></li>
+            <li><Link href="/developer" className="hover:text-text">Developer portal</Link></li>
+            <li><Link href="/contact" className="hover:text-text">Contact & support</Link></li>
+            <li><Link href="/legal/terms" className="hover:text-text">Terms</Link> · <Link href="/legal/privacy" className="hover:text-text">Privacy</Link> · <Link href="/legal/content" className="hover:text-text">Content policy</Link></li>
           </ul>
         </div>
       </div>

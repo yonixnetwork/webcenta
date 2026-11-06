@@ -8,10 +8,13 @@ import { EmptyState } from "@/components/states";
 import { getCategoryTree } from "@/server/catalog/categories";
 import { getHomepage } from "@/server/catalog/homepage";
 import { getViewerContext } from "@/server/viewer";
+import { getCurrentUser } from "@/server/auth/session";
+import { personalRails } from "@/server/personalization/recommend";
 
 export default async function HomePage() {
   const ctx = await getViewerContext();
-  const [{ rails, collections }, tree] = await Promise.all([getHomepage(ctx), getCategoryTree()]);
+  const user = await getCurrentUser();
+  const [{ rails, collections }, tree, personal] = await Promise.all([getHomepage(ctx), getCategoryTree(), user ? personalRails(user, ctx) : Promise.resolve([])]);
   const suggested = tree.slice(0, 6).map((c) => c.name);
 
   return (
@@ -49,6 +52,13 @@ export default async function HomePage() {
           ))}
         </ul>
       </section>
+
+      {personal.length > 0 && (
+        <div className="space-y-14">
+          {personal.map((r) => <Rail key={r.key} title={r.title} items={r.items} />)}
+          <p className="-mt-8 text-xs text-subtle">Personalised from your activity on WebCenter. <a href="/account/privacy" className="underline">Manage personalisation</a></p>
+        </div>
+      )}
 
       {rails.length === 0 && collections.length === 0 ? (
         <EmptyState title="The catalogue is being prepared">

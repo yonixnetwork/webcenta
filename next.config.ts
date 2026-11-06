@@ -6,7 +6,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   // node-postgres must stay a runtime dependency rather than being bundled.
-  serverExternalPackages: ["pg", "@prisma/adapter-pg"],
+  serverExternalPackages: ["pg", "@prisma/adapter-pg", "sharp"],
+  experimental: {
+    // Media uploads (logos/screenshots ≤ 6 MB, documents ≤ 10 MB) go through server actions.
+    serverActions: { bodySizeLimit: "12mb" },
+  },
   images: {
     // Listing media is served from object storage; the host is configured via env.
     remotePatterns: process.env.MEDIA_PUBLIC_BASE_URL
@@ -17,6 +21,7 @@ const nextConfig: NextConfig = {
     // Headers that do not depend on the request. CSP (with a per-request nonce)
     // is set in src/proxy.ts.
     return [
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Service-Worker-Allowed", value: "/" }] },
       {
         source: "/:path*",
         headers: [

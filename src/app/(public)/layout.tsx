@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { MobileNav } from "@/components/mobile-nav";
+import { PwaManager } from "@/components/pwa";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getCategoryTree } from "@/server/catalog/categories";
@@ -22,6 +23,7 @@ export default async function PublicLayout({ children }: { children: React.React
       <main id="main" className="mx-auto min-h-[60vh] max-w-7xl px-4 pb-24 pt-6 sm:px-6 sm:pb-10">{children}</main>
       <SiteFooter />
       <MobileNav />
+      <PwaManager />
     </>
   );
 }

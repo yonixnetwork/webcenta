@@ -77,8 +77,11 @@ describe("homepage", () => {
     const keys = rails.map((r) => r.key);
     expect(keys).toContain("featured");
     expect(keys).toContain("new");
-    expect(keys).not.toContain("trending"); // no scores yet
-    expect(keys).not.toContain("top-rated"); // no ratings yet
+    // Data-driven rails appear exactly when real data exists (never filled with fake items).
+    const anyTrending = (await db.listing.count({ where: { status: "PUBLISHED", trendingScore: { gt: 0 } } })) > 0;
+    const anyRated = (await db.listing.count({ where: { status: "PUBLISHED", ratingCount: { gte: 5 }, ratingAverage: { gte: 4 } } })) > 0;
+    expect(keys.includes("trending")).toBe(anyTrending);
+    expect(keys.includes("top-rated")).toBe(anyRated);
     expect(rails.find((r) => r.key === "recently-updated")?.items.map((i) => i.slug)).toEqual(expect.arrayContaining(["sample-lumen-notes", "sample-hookbin"]));
     expect(collections[0]?.items.length).toBeGreaterThan(0);
     for (const r of rails) for (const h of HIDDEN) expect(r.items.map((i) => i.slug)).not.toContain(h);

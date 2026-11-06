@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { ADMIN_PREFIX, DEVELOPER_PREFIX, buildCsp, classifyHost, hostConfigFromEnv, isInternalSurfacePath } from "@/lib/hosts";
+import { ADMIN_PREFIX, buildCsp, classifyHost, hostConfigFromEnv, isInternalSurfacePath } from "@/lib/hosts";
 
 /**
  * Edge of the application: host routing and per-request security headers.
@@ -21,6 +21,20 @@ export function proxy(request: NextRequest) {
     return new NextResponse(null, { status: 308, headers: { location: target.toString() } });
   }
 
+  // The developer portal lives at /developer on the public host (shared, host-only
+  // session cookie); developers.webcenter.com redirects there.
+  if (surface === "developer") {
+    const target = new URL(`/developer${url.pathname === "/" ? "" : url.pathname}${url.search}`, process.env.PUBLIC_ORIGIN || `https://${cfg.publicHost}`);
+    return new NextResponse(null, { status: 308, headers: { location: target.toString() } });
+  }
+
+  // Admin IP allow-list (optional, recommended behind Cloudflare or on a VPS).
+  if (surface === "admin" && process.env.ADMIN_IP_ALLOWLIST) {
+    const allowed = process.env.ADMIN_IP_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
+    const ip = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",").pop()?.trim() ?? "";
+    if (!allowed.includes(ip)) return new NextResponse("Not found", { status: 404 });
+  }
+
   // Internal surface folders must never be reachable by path on any host.
   if (isInternalSurfacePath(url.pathname)) {
     return NextResponse.rewrite(new URL("/__not-found", request.url), { status: 404 });
@@ -35,8 +49,8 @@ export function proxy(request: NextRequest) {
   requestHeaders.set("x-webcenter-surface", surface);
 
   let response: NextResponse;
-  if (surface === "admin" || surface === "developer") {
-    const prefix = surface === "admin" ? ADMIN_PREFIX : DEVELOPER_PREFIX;
+  if (surface === "admin") {
+    const prefix = ADMIN_PREFIX;
     const rewritten = new URL(prefix + (url.pathname === "/" ? "" : url.pathname) + url.search, request.url);
     response = NextResponse.rewrite(rewritten, { request: { headers: requestHeaders } });
   } else {
@@ -44,7 +58,7 @@ export function proxy(request: NextRequest) {
   }
 
   response.headers.set("content-security-policy", csp);
-  // Admin/developer portals and unknown hosts (e.g. a temporary hosting domain) are never indexed.
+  // The admin portal and unknown hosts (e.g. a temporary hosting domain) are never indexed.
   if (surface !== "public") response.headers.set("x-robots-tag", "noindex, nofollow");
   if (surface === "admin") response.headers.set("cache-control", "no-store");
   return response;
@@ -53,7 +67,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg).*)",
+      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|icons/|sw.js|manifest.webmanifest).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

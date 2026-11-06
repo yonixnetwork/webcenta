@@ -4,6 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/labels";
 import { db } from "@/server/db";
 import { requireUser } from "@/server/auth/session";
+import { ActionForm } from "@/components/ui/action-form";
+import { inputClass } from "@/components/ui/form";
+import { appealAction } from "@/server/actions/public";
 
 export default async function MyReviewsPage() {
   const user = await requireUser("/account/reviews");
@@ -23,6 +26,13 @@ export default async function MyReviewsPage() {
                 <span className="ml-auto text-xs text-subtle">{formatDate(r.createdAt)}</span>
               </div>
               {r.body && <p className="mt-2 line-clamp-3 text-sm text-muted">{r.body}</p>}
+              {(r.status === "HIDDEN" || r.status === "REMOVED") && (
+                <details className="mt-2 text-sm"><summary className="cursor-pointer text-brand">Appeal this removal</summary>
+                  <ActionForm action={appealAction.bind(null, { reviewId: r.id })} submitLabel="Submit appeal" hideOnSuccess className="mt-2">
+                    <textarea name="statement" aria-label="Appeal statement" required minLength={20} rows={3} className={inputClass} />
+                  </ActionForm>
+                </details>
+              )}
             </li>
           ))}
         </ul>
