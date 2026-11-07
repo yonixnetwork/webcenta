@@ -39,7 +39,7 @@ The required integrations were exercised end to end by the E2E journeys:
 | Backup → restore drill | 61 tables restored with identical row counts; RLS and search trigger intact (previous round; runs in CI on every push) |
 | Client bundle secret scan | no secrets, connection strings or source maps (33 files) |
 | `npm audit --omit=dev` (production dependencies) | 0 vulnerabilities |
-| **GitHub Actions CI on a clean runner** (all of the above plus the E2E suite) | previous round: passed, run #17 for `a61df60`. This round: run #22 for `43c3173` **failed** at the new brand-check step: the script reported a false hit on a clean checkout with no untracked files (its exit-code logic, not a real brand reference). Fixed in the next commit; see the latest run on the branch for the final result |
+| **GitHub Actions CI on a clean runner** (all of the above plus the E2E suite) | previous round: passed, run #17 for `a61df60`. This round: run #22 for `43c3173` **failed** at the new brand-check step: the script reported a false hit on a clean checkout with no untracked files (its exit-code logic, not a real brand reference). Fixed in `d2d51fa`: **run #23 passed** on a clean runner, every step green including the full E2E suite (https://github.com/yonixnetwork/webcenta/actions/runs/42355066522) |
 | `npm audit` (incl. dev tooling) | 8 moderate in ESLint tooling (`minimatch` via typescript-eslint); the only offered fix downgrades `eslint-config-next` across a major version. Dev-only, not shipped. |
 
 The E2E coverage:
