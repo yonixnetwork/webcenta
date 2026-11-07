@@ -4,7 +4,7 @@
 online services, AI products and digital platforms. You browse, compare and safely visit web apps,
 much as you would in an app store, but for the open web.
 
-> **Status: all planned phases implemented and integration-tested (182 unit/DB tests, 89 E2E tests).
+> **Status: all planned phases implemented and integration-tested (211 unit/DB tests, 112 E2E tests).
 > Not deployed.** See [docs/FINAL_REPORT.md](docs/FINAL_REPORT.md) for evidence and unverified items.
 
 | Desktop | Mobile |

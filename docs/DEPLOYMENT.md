@@ -77,8 +77,8 @@ The annotated list is in [`.env.example`](../.env.example).
 
 ## 4. Deploy procedure (after the owner's approval)
 
-1. **CI green** on the commit to deploy (`.github/workflows/ci.yml` runs lint, typecheck, 182 unit/DB
-   tests, the restore drill, the build, the bundle secret scan and 89 E2E tests).
+1. **CI green** on the commit to deploy (`.github/workflows/ci.yml` runs the brand check, lint, typecheck,
+   211 unit/DB tests, the restore drill, the build, the bundle secret scan and 112 E2E tests).
 2. **Supabase** (§2), then from a trusted machine with `DIRECT_URL`:
    ```bash
    npm ci

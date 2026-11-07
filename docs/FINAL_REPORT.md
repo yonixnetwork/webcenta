@@ -22,22 +22,24 @@ The required integrations were exercised end to end by the E2E journeys:
 - suspension and country/age rules → hidden from search, categories, recommendations, sitemap,
   autocomplete and direct URLs.
 
-## 2. Tests executed (final run, all on real PostgreSQL 16)
+## 2. Tests executed (final run after the brand correction, all on real PostgreSQL 16)
 
 | Suite | Result |
 | --- | --- |
 | ESLint (`eslint .`) | 0 errors, 0 warnings |
 | TypeScript (`tsc --noEmit`, strict) | 0 errors |
-| Unit + DB integration (Vitest, 14 files) | **182 passed, 0 failed** (passed twice consecutively on the same database) |
+| Unit + DB integration (Vitest, 16 files) | **211 passed, 0 failed** |
 | Schema smoke test | 13/13 passed |
 | Prisma migration drift (`migrate diff --exit-code`) | no drift |
 | Supabase-like role simulation (`anon` denied, no default grants) | passed |
 | `npm run db:check` (local) | all required checks passed |
-| E2E (Playwright/Chromium, fresh database) | **89 passed, 0 failed, 0 skipped** across the `journeys`, `desktop`, `tablet` (iPad landscape) and `mobile` (Pixel 7) projects |
-| Backup → restore drill | 61 tables restored with identical row counts; RLS and search trigger intact |
-| Client bundle secret scan | no secrets, connection strings or source maps (29 files) |
+| E2E (Playwright/Chromium, fresh database) | **112 passed, 0 failed, 0 skipped** across the `journeys` (9), `desktop` (50), `tablet` (24, iPad landscape) and `mobile` (29, Pixel 7) projects |
+| Brand check (`npm run brand:check`) | no references to the retired name |
+| Static error pages up to date | yes (also a unit test) |
+| Backup → restore drill | 61 tables restored with identical row counts; RLS and search trigger intact (previous round; runs in CI on every push) |
+| Client bundle secret scan | no secrets, connection strings or source maps (33 files) |
 | `npm audit --omit=dev` (production dependencies) | 0 vulnerabilities |
-| **GitHub Actions CI on a clean runner** (all of the above plus the E2E suite) | **passed**: run #17 for commit `a61df60` (https://github.com/yonixnetwork/webcenta/actions/runs/42325660895) |
+| **GitHub Actions CI on a clean runner** (all of the above plus the E2E suite) | previous round: passed, run #17 for `a61df60`. This round: run #22 for `43c3173` **failed** at the new brand-check step: the script reported a false hit on a clean checkout with no untracked files (its exit-code logic, not a real brand reference). Fixed in the next commit; see the latest run on the branch for the final result |
 | `npm audit` (incl. dev tooling) | 8 moderate in ESLint tooling (`minimatch` via typescript-eslint); the only offered fix downgrades `eslint-config-next` across a major version. Dev-only, not shipped. |
 
 The E2E coverage:
@@ -85,6 +87,9 @@ Found during the brand correction and its re-test:
     match the code. Both are corrected; `api.webcenta.com` now has a defined, tested behaviour.
 17. **Seven lint warnings** (unused code, stale disable directives) had crept in although the
     previous report said zero; fixed.
+18. **The new brand check failed on a clean CI checkout** (false positive when there were no
+    untracked files; it passed locally only because untracked files existed). Found by CI run #22;
+    the script now tests its output instead of `xargs`'s exit code, and was verified on a clean tree.
 
 ## 3a. Brand correction and user-experience additions
 
