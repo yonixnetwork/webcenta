@@ -19,7 +19,7 @@ export default async function PrivacyPage() {
         <h2 className="mb-3 font-semibold">Personalisation and history</h2>
         <ActionForm action={updatePrivacyAction} submitLabel="Save settings">
           <label className="flex items-start gap-3 text-sm"><input type="checkbox" name="personalizationEnabled" defaultChecked={user.personalizationEnabled} className={check} />
-            <span><strong>Personalised recommendations</strong><br /><span className="text-muted">Use my activity on WebCenter to recommend apps. Developers never see your activity.</span></span></label>
+            <span><strong>Personalised recommendations</strong><br /><span className="text-muted">Use my activity on Webcenta to recommend apps. Developers never see your activity.</span></span></label>
           <label className="flex items-start gap-3 text-sm"><input type="checkbox" name="historyEnabled" defaultChecked={user.historyEnabled} className={check} />
             <span><strong>Keep browsing history</strong><br /><span className="text-muted">Turning this off also deletes the existing history.</span></span></label>
           <label className="flex items-start gap-3 text-sm"><input type="checkbox" name="emailNotifications" defaultChecked={user.emailNotifications} className={check} />
@@ -56,7 +56,7 @@ export default async function PrivacyPage() {
       </Card>
       <Card>
         <h2 className="mb-1 font-semibold">Your data</h2>
-        <p className="mb-3 text-sm text-muted">Download a copy of the data WebCenter holds about your account.</p>
+        <p className="mb-3 text-sm text-muted">Download a copy of the data Webcenta holds about your account.</p>
         <a href="/account-export" className={buttonClass("secondary", "sm")} download>Download my data (JSON)</a>
       </Card>
       <Card className="border-danger/30">

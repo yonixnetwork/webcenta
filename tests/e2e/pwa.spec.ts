@@ -1,13 +1,13 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
-/** 10. A user installs WebCenter as a PWA and navigates through the marketplace. */
+/** 10. A user installs Webcenta as a PWA and navigates through the marketplace. */
 test.describe("PWA", () => {
   test("manifest and icons satisfy installability requirements", async ({ request }) => {
     const res = await request.get("/manifest.webmanifest");
     expect(res.status()).toBe(200);
     const m = await res.json();
-    expect(m).toMatchObject({ name: expect.stringContaining("WebCenter"), short_name: "WebCenter", start_url: expect.stringMatching(/^\//), scope: "/", display: "standalone" });
+    expect(m).toMatchObject({ name: expect.stringContaining("Webcenta"), short_name: "Webcenta", start_url: expect.stringMatching(/^\//), scope: "/", display: "standalone" });
     const sizes = m.icons.map((i: { sizes: string }) => i.sizes);
     expect(sizes).toEqual(expect.arrayContaining(["192x192", "512x512"]));
     expect(m.icons.some((i: { purpose?: string }) => i.purpose === "maskable")).toBe(true);
@@ -41,7 +41,7 @@ test.describe("PWA", () => {
     await expect(page.getByRole("heading", { name: "You are offline" })).toBeVisible();
     await context.setOffline(false);
     await page.goto("/about");
-    await expect(page.getByRole("heading", { level: 1, name: "About WebCenter" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "About Webcenta" })).toBeVisible();
   });
 
   test("an updated service worker triggers the update prompt and reload", async ({ page }) => {
@@ -53,7 +53,7 @@ test.describe("PWA", () => {
     try {
       writeFileSync("public/sw.js", original.replace('const VERSION = "wc-v1"', 'const VERSION = "wc-v2"'));
       await page.evaluate(async () => { const reg = await navigator.serviceWorker.getRegistration(); await reg?.update(); });
-      await expect(page.getByText("A new version of WebCenter is available.")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText("A new version of Webcenta is available.")).toBeVisible({ timeout: 15_000 });
       const reload = page.waitForEvent("load");
       await page.getByRole("button", { name: "Reload" }).click();
       await reload;
@@ -67,7 +67,7 @@ test.describe("PWA", () => {
     await page.goto("/");
     await page.evaluate(() => navigator.serviceWorker.ready); // the app's PWA handler is mounted
     // Chromium only fires beforeinstallprompt for real installable sites under engagement heuristics;
-    // dispatch an equivalent event to exercise WebCenter's handling of it.
+    // dispatch an equivalent event to exercise Webcenta's handling of it.
     await page.evaluate(() => {
       const e = new Event("beforeinstallprompt", { cancelable: true }) as Event & { prompt: () => Promise<void>; userChoice: Promise<unknown> };
       e.prompt = async () => { (window as unknown as { __prompted: boolean }).__prompted = true; };
@@ -95,7 +95,7 @@ test.describe("PWA on iOS Safari (emulated user agent)", () => {
     const banner = page.getByTestId("install-banner");
     await expect(banner).toBeVisible();
     await banner.getByRole("button", { name: "Install" }).click();
-    const dialog = page.getByRole("dialog", { name: "Add WebCenter to your Home Screen" });
+    const dialog = page.getByRole("dialog", { name: "Add Webcenta to your Home Screen" });
     await expect(dialog).toContainText("Add to Home Screen");
     await dialog.getByRole("button", { name: "Got it" }).click();
     await banner.getByRole("button", { name: "Dismiss" }).click();

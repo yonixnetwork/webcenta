@@ -3,7 +3,7 @@
 // * No public sign-up: accounts exist only via AdminInvitation or a one-off
 //   provisioning CLI run on the server (for the first Super Administrator).
 // * Mandatory TOTP (and optionally WebAuthn later); host-only cookie on
-//   admin.webcenter.com; short idle timeout.
+//   admin.webcenta.com; short idle timeout.
 // * Roles map to permissions in code (src/server/admin/permissions.ts, Phase 3).
 // -----------------------------------------------------------------------------
 

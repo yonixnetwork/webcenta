@@ -18,7 +18,7 @@ export default async function OrganizationPage() {
       <h1 className="text-2xl font-extrabold tracking-tight">Organisation</h1>
       <Card>
         <h2 className="mb-1 font-semibold">Verification</h2>
-        <p className="text-sm text-muted"><StatusPill status={o.verificationLevel} /> Domain verification is automatic. Business verification is performed by WebCenter staff using registration or licence documents you upload on a listing.</p>
+        <p className="text-sm text-muted"><StatusPill status={o.verificationLevel} /> Domain verification is automatic. Business verification is performed by Webcenta staff using registration or licence documents you upload on a listing.</p>
       </Card>
       <Card>
         <h2 className="mb-3 font-semibold">Public profile</h2>
@@ -47,7 +47,7 @@ export default async function OrganizationPage() {
           <h2 className="mb-3 font-semibold">Add a member</h2>
           <ActionForm action={addMemberAction} submitLabel="Add member">
             <div className="grid gap-3 sm:grid-cols-[1fr_200px]">
-              <Field label="Email of an existing WebCenter account"><input name="email" type="email" required className={inputClass} /></Field>
+              <Field label="Email of an existing Webcenta account"><input name="email" type="email" required className={inputClass} /></Field>
               <Field label="Role"><select name="role" className={inputClass}><option value="EDITOR">Editor</option><option value="ANALYST">Analyst (read-only)</option><option value="ADMIN">Admin</option></select></Field>
             </div>
           </ActionForm>

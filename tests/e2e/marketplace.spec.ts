@@ -7,7 +7,7 @@ test.describe("marketplace", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Find the right web app");
     await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "New on WebCenter" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New on Webcenta" })).toBeVisible();
     // Data-driven rails appear only when real data exists (never fabricated).
     const trending = Number((await sql<{ n: string }>(`select count(*) n from "Listing" where status = 'PUBLISHED' and "trendingScore" > 0`))[0]!.n);
     const rated = Number((await sql<{ n: string }>(`select count(*) n from "Listing" where status = 'PUBLISHED' and "ratingCount" >= 5 and "ratingAverage" >= 4`))[0]!.n);
@@ -60,11 +60,11 @@ test.describe("marketplace", () => {
     expect(ld).not.toContain("aggregateRating");
   });
 
-  test("visit website goes through the leaving-WebCenter notice", async ({ page, request }) => {
+  test("visit website goes through the leaving-Webcenta notice", async ({ page, request }) => {
     await page.goto("/app/sample-lumen-notes");
     await page.getByRole("link", { name: /Visit website/ }).click();
     await expect(page).toHaveURL(/\/go\/sample-lumen-notes$/);
-    await expect(page.getByRole("heading", { name: "You’re leaving WebCenter" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "You’re leaving Webcenta" })).toBeVisible();
     await expect(page.getByText("lumen-notes.example", { exact: true })).toBeVisible();
     const res = await request.post("/go/sample-lumen-notes/continue?url=https://evil.example", { maxRedirects: 0, form: { surface: "detail" } });
     expect(res.status()).toBe(303);

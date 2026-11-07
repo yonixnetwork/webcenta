@@ -8,7 +8,7 @@ export function SiteFooter() {
         <div className="space-y-3">
           <Logo />
           <p className="max-w-sm text-sm text-muted">
-            WebCenter helps you discover and compare web applications. Listings credit their original publishers.
+            Webcenta helps you discover and compare web applications. Listings credit their original publishers.
             Automated checks reduce risk but never guarantee that a website is safe.
           </p>
         </div>
@@ -21,7 +21,7 @@ export function SiteFooter() {
           </ul>
         </div>
         <div>
-          <h2 className="text-sm font-semibold">WebCenter</h2>
+          <h2 className="text-sm font-semibold">Webcenta</h2>
           <ul className="mt-3 space-y-2 text-sm text-muted">
             <li><Link href="/about" className="hover:text-text">About & how listings are checked</Link></li>
             <li><Link href="/developer" className="hover:text-text">Developer portal</Link></li>
@@ -30,7 +30,7 @@ export function SiteFooter() {
           </ul>
         </div>
       </div>
-      <p className="border-t border-border py-4 text-center text-xs text-subtle">© {new Date().getUTCFullYear()} WebCenter</p>
+      <p className="border-t border-border py-4 text-center text-xs text-subtle">© {new Date().getUTCFullYear()} Webcenta</p>
     </footer>
   );
 }

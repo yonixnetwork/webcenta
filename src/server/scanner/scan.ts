@@ -64,7 +64,7 @@ export async function runChecks(target: { url: string; domain: string; privacyPo
   const hostsToCheck = [...new Set([target.domain, ...hopHosts])];
   const intel = await Promise.all([blocklistCheck(hostsToCheck), googleWebRisk(res.finalUrl || target.url), urlhaus(target.url), virusTotal(target.url)]);
   for (const r of intel) {
-    checks.push({ check: r.provider === "webcenter-blocklist" ? "THREAT_INTEL_DOMAIN" : "THREAT_INTEL_URL", provider: r.provider, verdict: r.verdict, summary: r.summary, evidence: r.evidence, severity: r.verdict === "FAIL" ? "CRITICAL" : r.verdict === "WARN" ? "HIGH" : undefined });
+    checks.push({ check: r.provider === "webcenta-blocklist" ? "THREAT_INTEL_DOMAIN" : "THREAT_INTEL_URL", provider: r.provider, verdict: r.verdict, summary: r.summary, evidence: r.evidence, severity: r.verdict === "FAIL" ? "CRITICAL" : r.verdict === "WARN" ? "HIGH" : undefined });
   }
 
   // Phishing heuristics

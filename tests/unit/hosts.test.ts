@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { buildCsp, classifyHost, hostConfigFromEnv, isInternalSurfacePath } from "@/lib/hosts";
 
 const cfg = hostConfigFromEnv({
-  PUBLIC_ORIGIN: "https://webcenter.com", ADMIN_ORIGIN: "https://admin.webcenter.com", DEVELOPER_ORIGIN: "https://developers.webcenter.com",
+  PUBLIC_ORIGIN: "https://webcenta.com", ADMIN_ORIGIN: "https://admin.webcenta.com", DEVELOPER_ORIGIN: "https://developers.webcenta.com",
 });
 
 describe("classifyHost", () => {
   it.each([
-    ["webcenter.com", "public"], ["WWW.webcenter.com", "www"], ["admin.webcenter.com", "admin"],
-    ["developers.webcenter.com", "developer"], ["evil.com", "unknown"], ["admin.webcenter.com.evil.com", "unknown"],
+    ["webcenta.com", "public"], ["WWW.webcenta.com", "www"], ["admin.webcenta.com", "admin"],
+    ["developers.webcenta.com", "developer"], ["evil.com", "unknown"], ["admin.webcenta.com.evil.com", "unknown"],
     [null, "unknown"], ["", "unknown"],
   ] as const)("%s → %s", (host, surface) => expect(classifyHost(host, cfg)).toBe(surface));
 });

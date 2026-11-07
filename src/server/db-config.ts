@@ -54,7 +54,7 @@ export function buildPoolConfig(e: DbEnv): { pool: PoolConfig; sslMode: string }
     connectionTimeoutMillis: 10_000,
     // Supavisor transaction mode: keep statements short and avoid session state.
     statement_timeout: 15_000,
-    application_name: "webcenter",
+    application_name: "webcenta",
   };
   return { pool, sslMode: mode };
 }

@@ -14,7 +14,7 @@ function authorized(header: string | null, secret: string): boolean {
 
 /**
  * Scheduled-job entry point for Hostinger Cron Jobs:
- *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://webcenter.com/api/cron/tick
+ *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://webcenta.com/api/cron/tick
  */
 export async function POST(request: NextRequest) {
   const e = env();

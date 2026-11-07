@@ -108,7 +108,7 @@ export default async function AppPage({ params, searchParams }: Props) {
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
               <span className="font-medium text-brand">{listing.publisherName}</span>
               {listing.developer && listing.developer.verificationLevel !== "UNVERIFIED" && <BadgeCheck className="size-4 text-brand" aria-label={verification} />}
-              {listing.source === "EDITORIAL" && <span className="text-subtle">· Listed by WebCenter editors</span>}
+              {listing.source === "EDITORIAL" && <span className="text-subtle">· Listed by Webcenta editors</span>}
             </p>
             <div className="flex flex-wrap gap-1.5 pt-1">
               <Badge tone={listing.pricingModel === "FREE" ? "success" : "neutral"}>{PRICING_LABEL[listing.pricingModel]}</Badge>
@@ -126,7 +126,7 @@ export default async function AppPage({ params, searchParams }: Props) {
           <a href={`/go/${listing.slug}`} rel="nofollow" className={buttonClass("primary", "lg", "w-full sm:w-auto lg:w-64")}>
             Visit website <ArrowUpRight className="size-5" aria-hidden />
           </a>
-          <p className="text-center text-xs text-subtle lg:w-64">Opens {domain} · you’ll see a notice before leaving WebCenter</p>
+          <p className="text-center text-xs text-subtle lg:w-64">Opens {domain} · you’ll see a notice before leaving Webcenta</p>
           <div className="flex gap-2 sm:ml-2 lg:ml-0">
             <ShareButton url={`${origin}/app/${listing.slug}`} title={listing.name} />
             <FavoriteButton slug={listing.slug} initial={Boolean(favorite)} signedIn={Boolean(user)} />
@@ -199,7 +199,7 @@ export default async function AppPage({ params, searchParams }: Props) {
               <li className="flex gap-3">
                 <UserRound className="size-5 shrink-0 text-muted" aria-hidden />
                 <span><span className="font-medium">{verification}</span><br />
-                  <span className="text-muted">{listing.developer ? `Managed by ${listing.developer.displayName}` : "Added by WebCenter editors and credited to the original publisher. Developers will be able to claim listings after verifying ownership."}</span></span>
+                  <span className="text-muted">{listing.developer ? `Managed by ${listing.developer.displayName}` : "Added by Webcenta editors and credited to the original publisher. Developers will be able to claim listings after verifying ownership."}</span></span>
               </li>
             </ul>
           </section>

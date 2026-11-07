@@ -60,7 +60,7 @@ async function seedHomepageSections() {
     { key: "trending", title: "Trending now", type: "TRENDING" },
     { key: "popular", title: "Most popular", type: "POPULAR" },
     { key: "top-rated", title: "Highly rated", type: "TOP_RATED" },
-    { key: "new", title: "New on WebCenter", type: "NEW" },
+    { key: "new", title: "New on Webcenta", type: "NEW" },
     { key: "recently-updated", title: "Recently updated", type: "RECENTLY_UPDATED" },
     { key: "by-category", title: "By category", type: "BY_CATEGORY",
       config: { categorySlugs: ["ai", "productivity", "developer-tools", "education", "games"] } },
@@ -94,7 +94,7 @@ async function seedPlatformDefaults() {
   await db.developerPlan.upsert({ where: { code: "pro" }, create: { code: "pro", name: "Pro (planned)", entitlements: { listings: 100, analyticsHistoryDays: 365, sponsoredRequests: true }, isActive: false }, update: {} });
   // Legal policy templates are created as UNPUBLISHED drafts for review by a lawyer.
   const drafts: Array<[string, string, string]> = [
-    ["TERMS_OF_SERVICE", "Terms of Service", "DRAFT — requires legal review before publication.\n\n## Using WebCenter\nWebCenter lists third-party websites. We do not operate them.\n\n## Accounts\nKeep your credentials secure. We may suspend accounts that break these terms."],
+    ["TERMS_OF_SERVICE", "Terms of Service", "DRAFT — requires legal review before publication.\n\n## Using Webcenta\nWebcenta lists third-party websites. We do not operate them.\n\n## Accounts\nKeep your credentials secure. We may suspend accounts that break these terms."],
     ["PRIVACY_POLICY", "Privacy Policy", "DRAFT — requires legal review before publication.\n\n## What we collect\n- Account details you provide\n- Anonymous, daily-rotating visit counters (no IP addresses stored in analytics)\n- Browsing history only if you are signed in and keep it enabled\n\n## Your rights\nYou can export or delete your data from Account → Privacy & data."],
     ["CONTENT_POLICY", "Content Policy", "DRAFT — requires legal review before publication.\n\nProhibited: phishing, malware, fraud, impersonation, illegal marketplaces and content that exploits minors."],
     ["DEVELOPER_AGREEMENT", "Developer Agreement", "DRAFT — requires legal review before publication.\n\nSubmissions are reviewed and monitored. Payment never bypasses moderation."],

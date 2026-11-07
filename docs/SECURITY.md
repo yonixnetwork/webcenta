@@ -1,7 +1,7 @@
-# WebCenter — Security Design
+# Webcenta — Security Design
 
 Status: **implemented**. Evidence and remaining risks are in [FINAL_REPORT.md](FINAL_REPORT.md) §4.
-Implementation status per feature is in [ROADMAP.md](ROADMAP.md). WebCenter never claims complete
+Implementation status per feature is in [ROADMAP.md](ROADMAP.md). Webcenta never claims complete
 security, legal compliance or that a listed website is "guaranteed safe".
 
 ## 1. Assets and threats
@@ -29,7 +29,7 @@ security, legal compliance or that a listed website is "guaranteed safe".
 
 ### 2.2 Administrators (fully isolated)
 * Separate tables (`AdminUser`, `AdminSession`) and a separate cookie scoped **host-only** to
-  `admin.webcenter.com` (`__Host-wc_admin`, `SameSite=Strict`). A public user session can never
+  `admin.webcenta.com` (`__Host-wc_admin`, `SameSite=Strict`). A public user session can never
   authorise admin access, and an admin session is not sent to the public site.
 * **No public registration.** The first Super Administrator is created by a server-side CLI
   (`npm run admin:provision`) run from the hosting shell. Everyone else joins by `AdminInvitation`:
@@ -107,7 +107,7 @@ Nothing else in the app may fetch user-supplied URLs.
 
 | Check | Source |
 | --- | --- |
-| Domain ownership | `DomainVerification` (DNS TXT, meta tag or `/.well-known/webcenter-verification.txt`) |
+| Domain ownership | `DomainVerification` (DNS TXT, meta tag or `/.well-known/webcenta-verification.txt`) |
 | DNS resolution, HTTPS reachability, TLS validity and expiry, HSTS | Internal |
 | Redirect chain (off-domain hops, URL shorteners, too many hops) | Internal |
 | Known malicious URL or domain | Google **Web Risk** (commercial terms; the Safe Browsing v4 API is non-commercial only), abuse.ch **URLhaus**, optionally **VirusTotal** (commercial use needs a paid licence) |
@@ -198,7 +198,7 @@ material. CSAM is reported to the relevant authorities as legally required.
   jurisdictions that legally require verification need a third-party provider and legal review
   before enabling those categories there.
 * Country restrictions are best-effort, based on IP and user preference. VPNs can bypass them,
-  and WebCenter must not claim perfect geo-enforcement. Restricted categories stay
+  and Webcenta must not claim perfect geo-enforcement. Restricted categories stay
   `isRestricted = true` until legal review enables them for specific markets.
 
 ## 8. Incident response (outline)
@@ -210,7 +210,7 @@ material. CSAM is reported to the relevant authorities as legally required.
 
 ## 9. As-built notes (differences from the original design)
 
-* **Developer portal** is served at `webcenter.com/developer`; `developers.webcenter.com` redirects there.
+* **Developer portal** is served at `webcenta.com/developer`; `developers.webcenta.com` redirects there.
   Developer and user sessions therefore share one **host-only** cookie (no cross-subdomain cookie).
 * **Admin sessions** use a custom layer (scrypt passwords, SHA-256-hashed session tokens, AES-256-GCM
   encrypted TOTP seeds, TOTP replay protection), not the user auth library.

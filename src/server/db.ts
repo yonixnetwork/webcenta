@@ -18,11 +18,11 @@ function createClient() {
   });
 }
 
-const g = globalThis as unknown as { __webcenterPrisma?: PrismaClient };
+const g = globalThis as unknown as { __webcentaPrisma?: PrismaClient };
 
 function client(): PrismaClient {
-  g.__webcenterPrisma ??= createClient();
-  return g.__webcenterPrisma;
+  g.__webcentaPrisma ??= createClient();
+  return g.__webcentaPrisma;
 }
 
 export const db: PrismaClient = new Proxy({} as PrismaClient, {

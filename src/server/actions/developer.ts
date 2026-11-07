@@ -69,7 +69,7 @@ export async function addMemberAction(_s: ActionState, form: FormData): Promise<
     const email = String(form.get("email") ?? "").trim().toLowerCase();
     const role = z.enum(["ADMIN", "EDITOR", "ANALYST"]).parse(form.get("role"));
     const u = await db.user.findUnique({ where: { email } });
-    if (!u || !u.emailVerified) return fail("No verified WebCenter account exists with that email. Ask them to sign up first.");
+    if (!u || !u.emailVerified) return fail("No verified Webcenta account exists with that email. Ask them to sign up first.");
     await db.developerMember.upsert({ where: { orgId_userId: { orgId: ctx.org.id, userId: u.id } }, create: { orgId: ctx.org.id, userId: u.id, role }, update: { role } });
     await audit({ actorType: "DEVELOPER", actorUserId: ctx.user.id, action: "developer.member.add", targetType: "DeveloperOrg", targetId: ctx.org.id, metadata: { memberId: u.id, role } });
     revalidatePath("/developer/organization");

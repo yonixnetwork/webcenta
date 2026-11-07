@@ -1,4 +1,4 @@
-# WebCenter — Deployment
+# Webcenta — Deployment
 
 > **Status:** nothing has been deployed. Production deployment happens only after the owner
 > approves it. This document is the runbook for that moment.
@@ -15,7 +15,7 @@
 
 ### Hostinger Business constraints the code respects
 
-| Constraint | How WebCenter handles it |
+| Constraint | How Webcenta handles it |
 | --- | --- |
 | No permanent background workers | `Job` table + cron-triggered, time-boxed ticks (`JOBS_TICK_BUDGET_MS`, default 25 s). |
 | No Redis | Rate limits in Postgres (`RateLimitBucket`); in-process TTL caches. |
@@ -41,10 +41,10 @@ whether devDependencies are installed during the build (the build needs `prisma`
      purchased, and shared hosts are typically IPv4-only.
 3. **Database → SSL**: download the CA certificate and store its PEM as `DATABASE_SSL_CA`.
    Set `DATABASE_SSL=verify-full`. Optionally enable "Enforce SSL".
-4. **Data API (PostgREST)**: WebCenter never uses it. Either disable it (API settings) or leave
+4. **Data API (PostgREST)**: Webcenta never uses it. Either disable it (API settings) or leave
    it. Either way the baseline migration enables **RLS on every table** and **revokes all
    privileges** from the `anon` and `authenticated` roles (including default privileges for
-   future tables). Never put Supabase `service_role` or `anon` keys in WebCenter's environment.
+   future tables). Never put Supabase `service_role` or `anon` keys in Webcenta's environment.
 5. Run the compatibility check from a trusted machine (read-only):
    ```bash
    DATABASE_URL=... DIRECT_URL=... DATABASE_SSL=verify-full DATABASE_SSL_CA="$(cat prod-ca-2021.crt)" npm run db:check
@@ -61,14 +61,14 @@ The annotated list is in [`.env.example`](../.env.example).
 | `DIRECT_URL` | for migrations | Supabase **session** pooler (port 5432); used by `prisma migrate deploy`, `db:seed`, `admin:provision`, backups |
 | `DATABASE_SSL=verify-full`, `DATABASE_SSL_CA` | yes | PEM from Supabase; literal `\n` allowed |
 | `DATABASE_POOL_MAX` | no | default 5 |
-| `PUBLIC_ORIGIN`, `ADMIN_ORIGIN`, `DEVELOPER_ORIGIN` | yes | `https://webcenter.com`, `https://admin.webcenter.com`, `https://developers.webcenter.com` |
+| `PUBLIC_ORIGIN`, `ADMIN_ORIGIN`, `DEVELOPER_ORIGIN` | yes | `https://webcenta.com`, `https://admin.webcenta.com`, `https://developers.webcenta.com` |
 | `USER_AUTH_SECRET`, `ADMIN_AUTH_SECRET` | yes | ≥ 32 random characters each; the app refuses to start without the user secret |
 | `FIELD_ENCRYPTION_KEY` | yes | 32-byte base64; encrypts admin TOTP seeds; **never change after admins enrol** |
 | `CRON_SECRET` | yes | ≥ 32 characters; the cron endpoint is disabled otherwise |
 | `EMAIL_TRANSPORT=smtp`, `SMTP_*`, `EMAIL_FROM` | yes for real email | Hostinger mailbox SMTP works; `log` only records messages |
 | `STORAGE_DRIVER=s3`, `S3_*`, `MEDIA_PUBLIC_BASE_URL` | yes for uploads | Hostinger's app disk is not durable across redeploys |
-| `GOOGLE_CLIENT_ID/SECRET` | optional | Redirect URI `https://webcenter.com/api/auth/callback/google` |
-| `APPLE_CLIENT_ID/SECRET` (+ `APPLE_APP_BUNDLE_IDENTIFIER`) | optional | Return URL `https://webcenter.com/api/auth/callback/apple`; needs the paid Apple Developer Program |
+| `GOOGLE_CLIENT_ID/SECRET` | optional | Redirect URI `https://webcenta.com/api/auth/callback/google` |
+| `APPLE_CLIENT_ID/SECRET` (+ `APPLE_APP_BUNDLE_IDENTIFIER`) | optional | Return URL `https://webcenta.com/api/auth/callback/apple`; needs the paid Apple Developer Program |
 | `GOOGLE_WEB_RISK_API_KEY`, `URLHAUS_AUTH_KEY`, `VIRUSTOTAL_API_KEY` | recommended | Without at least one, every submission needs manual approval |
 | `GEO_COUNTRY_HEADER`, `GEO_UNKNOWN_POLICY`, `TRUSTED_PROXY_HOPS` | yes | `cf-ipcountry` behind Cloudflare; `deny` hides geo-restricted listings when the country is unknown |
 | `ADMIN_IP_ALLOWLIST` | optional | Comma-separated client IPs |
@@ -88,18 +88,18 @@ The annotated list is in [`.env.example`](../.env.example).
    **Never** pass `--fixtures` in production; the seed refuses without `ALLOW_DEV_FIXTURES=true`.
 3. **First Super Administrator:**
    ```bash
-   ADMIN_ORIGIN=https://admin.webcenter.com FIELD_ENCRYPTION_KEY=… npm run admin:provision -- --email you@yourcompany.com
+   ADMIN_ORIGIN=https://admin.webcenta.com FIELD_ENCRYPTION_KEY=… npm run admin:provision -- --email you@yourcompany.com
    ```
    Open the printed single-use link (valid 72 hours), set a password and enrol TOTP. Invite other
    administrators from Admin → Administrators.
 4. **Hostinger build settings:** Node 22.x; install `npm ci`; build `npm run build`; start `npm start`.
    Set all variables from §3 in hPanel.
-5. **Domains & SSL:** attach `webcenter.com`, `www.`, `admin.` and `developers.` to the app with HTTPS
+5. **Domains & SSL:** attach `webcenta.com`, `www.`, `admin.` and `developers.` to the app with HTTPS
    (Hostinger SSL or Cloudflare). The app redirects `www` → apex and `developers.` → `/developer`, and
    serves the admin portal only on `admin.`.
 6. **Cron** (hPanel → Advanced → Cron Jobs), every 10 minutes:
    ```bash
-   curl -fsS -m 60 -X POST -H "Authorization: Bearer <CRON_SECRET>" https://webcenter.com/api/cron/tick
+   curl -fsS -m 60 -X POST -H "Authorization: Bearer <CRON_SECRET>" https://webcenta.com/api/cron/tick
    ```
    Check Admin → Jobs & email: "Last scheduler run" should be recent.
 7. **Smoke test:** `/api/health` → `{"ok":true}`; register a test account (the email arrives); admin
@@ -111,7 +111,7 @@ The annotated list is in [`.env.example`](../.env.example).
    was damaged.
 
 ### Staging (recommended before production)
-Use a second Supabase project (or schema) and a Hostinger subdomain (e.g. `staging.webcenter.com`)
+Use a second Supabase project (or schema) and a Hostinger subdomain (e.g. `staging.webcenta.com`)
 with `SITE_BANNER="Staging"`, `EMAIL_TRANSPORT=log`, and a separate `CRON_SECRET`. Fictional
 fixtures may be loaded there **only** with `ALLOW_DEV_FIXTURES=true`. No staging environment was
 available to this build, so staging verification has **not** been performed.

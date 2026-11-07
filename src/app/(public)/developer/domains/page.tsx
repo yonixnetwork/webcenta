@@ -38,7 +38,7 @@ export default async function DomainsPage() {
             {d.status !== "VERIFIED" && (
               <div className="mt-3 space-y-2 text-sm">
                 {d.method === "DNS_TXT" && <p>Add a TXT record on <strong>{d.domain}</strong> with the value <code className={code} data-testid="challenge">{TXT_PREFIX}{d.challenge}</code></p>}
-                {d.method === "HTML_META" && <p>Add this tag inside <code className={code}>&lt;head&gt;</code> of https://{d.domain}/: <code className={code} data-testid="challenge">&lt;meta name=&quot;webcenter-verification&quot; content=&quot;{d.challenge}&quot;&gt;</code></p>}
+                {d.method === "HTML_META" && <p>Add this tag inside <code className={code}>&lt;head&gt;</code> of https://{d.domain}/: <code className={code} data-testid="challenge">&lt;meta name=&quot;webcenta-verification&quot; content=&quot;{d.challenge}&quot;&gt;</code></p>}
                 {d.method === "WELL_KNOWN_FILE" && <p>Serve a text file at <code className={code}>https://{d.domain}{WELL_KNOWN_PATH}</code> containing <code className={code} data-testid="challenge">{d.challenge}</code></p>}
                 {d.failureReason && <p className="text-danger">Last check: {d.failureReason}</p>}
               </div>

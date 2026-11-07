@@ -17,5 +17,5 @@ export async function GET() {
     db.authEvent.findMany({ where: { userId: u.id }, select: { type: true, createdAt: true, ipAddress: true, userAgent: true } }),
   ]);
   const body = JSON.stringify({ exportedAt: new Date(), user, favorites, collections, reviews, interests, history, notifications, reports, signInActivity: logins }, null, 2);
-  return new Response(body, { headers: { "content-type": "application/json", "content-disposition": 'attachment; filename="webcenter-data.json"', "cache-control": "no-store" } });
+  return new Response(body, { headers: { "content-type": "application/json", "content-disposition": 'attachment; filename="webcenta-data.json"', "cache-control": "no-store" } });
 }

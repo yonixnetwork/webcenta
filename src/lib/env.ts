@@ -49,7 +49,7 @@ const schema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   SMTP_SECURE: z.enum(["true", "false"]).optional(),
-  EMAIL_FROM: z.string().default("WebCenter <no-reply@webcenter.com>"),
+  EMAIL_FROM: z.string().default("Webcenta <no-reply@webcenta.com>"),
 
   // --- Storage ---
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),

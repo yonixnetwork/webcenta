@@ -20,8 +20,8 @@ export async function blocklistCheck(hosts: string[]): Promise<ProviderResult> {
   const list = new Set(((row?.value as string[] | undefined) ?? []).map((d) => d.toLowerCase()));
   const hits = hosts.filter((h) => list.has(h.toLowerCase()) || list.has(registrableDomain(h)));
   return hits.length
-    ? { provider: "webcenter-blocklist", verdict: "FAIL", summary: `Listed on the WebCenter blocklist: ${hits.join(", ")}`, evidence: { hits } }
-    : { provider: "webcenter-blocklist", verdict: "PASS", summary: "Not on the WebCenter blocklist" };
+    ? { provider: "webcenta-blocklist", verdict: "FAIL", summary: `Listed on the Webcenta blocklist: ${hits.join(", ")}`, evidence: { hits } }
+    : { provider: "webcenta-blocklist", verdict: "PASS", summary: "Not on the Webcenta blocklist" };
 }
 
 /** Google Web Risk (commercial terms). https://cloud.google.com/web-risk/docs/lookup-api */

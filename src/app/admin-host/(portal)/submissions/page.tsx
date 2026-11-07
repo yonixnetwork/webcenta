@@ -23,7 +23,7 @@ export default async function SubmissionsPage({ searchParams }: { searchParams: 
           <tr key={r.id}>
             <td className={td}><Link href={`/submissions/${r.id}`} className="font-semibold text-brand hover:underline">{(r.data as { name?: string }).name ?? r.listing.name}</Link></td>
             <td className={td}>{r.listing.publishedAt ? `Update #${r.revisionNumber}` : r.listing.source === "EDITORIAL" ? "Editorial" : "New"}</td>
-            <td className={td}>{r.listing.developer?.displayName ?? "WebCenter editors"}</td>
+            <td className={td}>{r.listing.developer?.displayName ?? "Webcenta editors"}</td>
             <td className={td}><StatusPill status={r.listing.riskTier} /></td>
             <td className={td}>{r.scans[0] ? <StatusPill status={r.scans[0].overallVerdict ?? r.scans[0].status} /> : "—"}</td>
             <td className={td}><StatusPill status={r.status} /></td>

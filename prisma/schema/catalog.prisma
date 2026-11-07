@@ -34,7 +34,7 @@ enum RevisionStatus {
 enum ListingSource {
   /// Submitted by a verified developer organisation.
   DEVELOPER_SUBMITTED
-  /// Added by WebCenter editors; credited to the original publisher, claimable.
+  /// Added by Webcenta editors; credited to the original publisher, claimable.
   EDITORIAL
 }
 
@@ -98,6 +98,8 @@ model Category {
   description String?
   /// Icon identifier from the UI icon set (not a URL).
   icon        String?
+  /// Optional emoji used sparingly for visual personality in category browsing (never for controls).
+  emoji       String?
   parentId    String?
   sortOrder   Int     @default(0)
   isEnabled   Boolean @default(true)

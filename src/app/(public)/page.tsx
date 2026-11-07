@@ -32,7 +32,7 @@ export default async function HomePage() {
           </p>
           <div className="mx-auto mt-8 max-w-2xl text-left"><SearchBox size="lg" suggested={suggested} /></div>
           <p className="mt-4 text-balance text-xs text-subtle">
-            <ShieldCheck className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />Every listing credits its publisher, and you see a notice before leaving WebCenter.
+            <ShieldCheck className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />Every listing credits its publisher, and you see a notice before leaving Webcenta.
           </p>
         </div>
       </section>
@@ -56,7 +56,7 @@ export default async function HomePage() {
       {personal.length > 0 && (
         <div className="space-y-14">
           {personal.map((r) => <Rail key={r.key} title={r.title} items={r.items} />)}
-          <p className="-mt-8 text-xs text-subtle">Personalised from your activity on WebCenter. <a href="/account/privacy" className="underline">Manage personalisation</a></p>
+          <p className="-mt-8 text-xs text-subtle">Personalised from your activity on Webcenta. <a href="/account/privacy" className="underline">Manage personalisation</a></p>
         </div>
       )}
 

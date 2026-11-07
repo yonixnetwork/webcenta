@@ -21,17 +21,17 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: webcenter
+          POSTGRES_USER: webcenta
           POSTGRES_PASSWORD: ci-only-password
-          POSTGRES_DB: webcenter_ci
+          POSTGRES_DB: webcenta_ci
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U webcenter"
+          --health-cmd "pg_isready -U webcenta"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       # CI-only, disposable values. No real credentials are used in CI.
-      DATABASE_URL: postgresql://webcenter:ci-only-password@localhost:5432/webcenter_ci
-      E2E_DATABASE_URL: postgresql://webcenter:ci-only-password@localhost:5432/webcenter_e2e
+      DATABASE_URL: postgresql://webcenta:ci-only-password@localhost:5432/webcenta_ci
+      E2E_DATABASE_URL: postgresql://webcenta:ci-only-password@localhost:5432/webcenta_e2e
       PGPASSWORD: ci-only-password
       PUBLIC_ORIGIN: http://localhost:3100
       ADMIN_ORIGIN: http://admin.localhost:3100
@@ -54,7 +54,7 @@ jobs:
 
       - name: Simulate Supabase roles and default privileges
         run: |
-          psql -h localhost -U webcenter -d webcenter_ci -v ON_ERROR_STOP=1 <<'SQL'
+          psql -h localhost -U webcenta -d webcenta_ci -v ON_ERROR_STOP=1 <<'SQL'
           CREATE ROLE anon NOLOGIN;
           CREATE ROLE authenticated NOLOGIN;
           ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;
@@ -66,7 +66,7 @@ jobs:
         run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code
       - name: Data API roles cannot read data
         run: |
-          out=$(psql -h localhost -U webcenter -d webcenter_ci -c 'SET ROLE anon; SELECT 1 FROM "Listing" LIMIT 1;' 2>&1 || true)
+          out=$(psql -h localhost -U webcenta -d webcenta_ci -c 'SET ROLE anon; SELECT 1 FROM "Listing" LIMIT 1;' 2>&1 || true)
           echo "$out"; echo "$out" | grep -q "permission denied"
       - name: Seed (twice, to prove idempotence)
         run: |
@@ -81,16 +81,16 @@ jobs:
 
       - name: Backup and restore drill
         run: |
-          psql -h localhost -U webcenter -d webcenter_ci -qc "CREATE DATABASE webcenter_restore"
+          psql -h localhost -U webcenta -d webcenta_ci -qc "CREATE DATABASE webcenta_restore"
           F=$(DIRECT_URL="$DATABASE_URL" bash scripts/backup.sh ./backups)
-          SOURCE_URL="$DATABASE_URL" SCRATCH_URL="postgresql://webcenter:ci-only-password@localhost:5432/webcenter_restore" bash scripts/restore-drill.sh "$F"
+          SOURCE_URL="$DATABASE_URL" SCRATCH_URL="postgresql://webcenta:ci-only-password@localhost:5432/webcenta_restore" bash scripts/restore-drill.sh "$F"
 
       - run: npm run build
       - run: bash scripts/check-bundle-secrets.sh
 
       - name: Prepare E2E (fresh database, fixture certificates, port 443 for fixture sites)
         run: |
-          psql -h localhost -U webcenter -d webcenter_ci -qc "CREATE DATABASE webcenter_e2e"
+          psql -h localhost -U webcenta -d webcenta_ci -qc "CREATE DATABASE webcenta_e2e"
           sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
           bash tests/e2e/prepare.sh
       - name: Install Playwright browser

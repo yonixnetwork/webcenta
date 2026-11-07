@@ -1,4 +1,4 @@
-# WebCenter — Architecture
+# Webcenta — Architecture
 
 Status: **Phase 1 implemented** (marketplace foundation). This document describes the target architecture. Only items marked
 ✅ in [ROADMAP.md](ROADMAP.md) are implemented.
@@ -16,7 +16,7 @@ Status: **Phase 1 implemented** (marketplace foundation). This document describe
 
 ```
                     ┌──────────────────────────── one Next.js deployment ───────────────────────────┐
- webcenter.com ───► │  proxy.ts (host routing, security headers, rate limits, geo/age context)    │
+ webcenta.com ───► │  proxy.ts (host routing, security headers, rate limits, geo/age context)    │
  admin.…       ───► │   ├─ app/(public)      marketplace pages (SSR/ISR)                            │
  developers.…  ───► │   ├─ app/(developer)   developer portal                                        │
  api.…         ───► │   ├─ app/(admin)       admin portal  (separate auth, MFA, host-only cookie)   │
@@ -42,11 +42,11 @@ Hostinger Business runs a single Node.js app, so all four hostnames start out se
 
 | Host | Route group | Notes |
 | --- | --- | --- |
-| `webcenter.com` | `(public)` | Canonical public site. |
-| `www.webcenter.com` | — | Permanent 308 redirect to `https://webcenter.com`. |
-| `admin.webcenter.com` | `app/admin-host` (internal rewrite) | Only reachable on this host; requesting `/admin-host/…` directly on any host returns 404. Separate cookie, separate user table, MFA. `noindex`. |
-| `developers.webcenter.com` | `app/developer-host` (internal rewrite) | Uses the public user account (developers are users who belong to a developer organisation). |
-| `api.webcenter.com` | `app/api` | Optional. Same handlers are also reachable at `webcenter.com/api` at first; split later if a mobile client or third parties need it. |
+| `webcenta.com` | `(public)` | Canonical public site. |
+| `www.webcenta.com` | — | Permanent 308 redirect to `https://webcenta.com`. |
+| `admin.webcenta.com` | `app/admin-host` (internal rewrite) | Only reachable on this host; requesting `/admin-host/…` directly on any host returns 404. Separate cookie, separate user table, MFA. `noindex`. |
+| `developers.webcenta.com` | `app/developer-host` (internal rewrite) | Uses the public user account (developers are users who belong to a developer organisation). |
+| `api.webcenta.com` | `app/api` | Optional. Same handlers are also reachable at `webcenta.com/api` at first; split later if a mobile client or third parties need it. |
 
 Isolation does **not** rely on hidden links. Admin authorisation is enforced on every admin route
 and server action, on the server. When traffic or risk justifies it, `(admin)` can become a second
@@ -135,7 +135,7 @@ PUBLISHED ──(monitoring alert ≥ threshold)──► SUSPENDED (auto-restri
 2. The handler looks up the listing. If it is not `PUBLISHED`, or its security status is
    `RESTRICTED`, it shows a notice instead of redirecting.
 3. It records an `OUTBOUND_CLICK` `ListingEvent` (privacy-preserving visitor hash) and shows an
-   interstitial: "You are leaving WebCenter for example.com". The user continues with a click; an
+   interstitial: "You are leaving Webcenta for example.com". The user continues with a click; an
    optional auto-continue is allowed only for low-risk listings.
 4. The external link uses `rel="noopener noreferrer nofollow"` (sponsored links also get
    `rel="sponsored"`).

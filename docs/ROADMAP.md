@@ -1,4 +1,4 @@
-# WebCenter — Implementation Status
+# Webcenta — Implementation Status
 
 Legend: ✅ implemented and covered by automated tests · 🟡 implemented, needs external configuration
 or real-world verification · ⬜ not implemented
@@ -15,7 +15,7 @@ the list of unverified items.
 | Search (FTS + trigram, typo/prefix), autocomplete, suggested searches, filters (pricing, open source, browser, mobile, PWA, verified developer, recently updated, highly rated, platform, country), sorting, pagination | ✅ |
 | App pages: trust panel (honest wording), screenshots, features, info, tags, JSON-LD, share, save, collections, report, reviews | ✅ |
 | Similar apps, competitors, free / open-source / better-rated alternatives, alternatives page | ✅ |
-| Leaving-WebCenter interstitial and tracked, non-open redirect | ✅ |
+| Leaving-Webcenta interstitial and tracked, non-open redirect | ✅ |
 | Country (listing and category) and age restrictions enforced everywhere | ✅ (country detection needs a geo header, e.g. Cloudflare 🟡) |
 
 ## Accounts & community
@@ -49,7 +49,7 @@ the list of unverified items.
 | Feature | Status |
 | --- | --- |
 | SSRF-safe fetcher (DNS pinning, private ranges, redirect re-validation, timeouts, size caps) | ✅ |
-| Checks: DNS, HTTP, redirects, TLS, phishing heuristics, impersonation, downloads, policy pages, domain ownership, identity/DNS change detection, WebCenter blocklist | ✅ |
+| Checks: DNS, HTTP, redirects, TLS, phishing heuristics, impersonation, downloads, policy pages, domain ownership, identity/DNS change detection, Webcenta blocklist | ✅ |
 | Google Web Risk, URLhaus, VirusTotal adapters | 🟡 implemented; need API keys; not tested against the live APIs |
 | Risk-based approval (auto-approval only with an external provider), scheduled re-scans per tier, deduplicated alerts, auto-restriction, investigation, suspension and reinstatement | ✅ |
 | Scanner isolation on a separate host | ⬜ planned for the VPS stage (runs in-process with guards on Hostinger) |

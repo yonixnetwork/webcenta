@@ -1,4 +1,4 @@
-# WebCenter — Final Integrated Verification Report
+# Webcenta — Final Integrated Verification Report
 
 Date: 2026-11-07 · Branch: `claude/youthful-cerf-4xclco` · Status: **ready for staging, then production
 deployment after owner approval**. Nothing has been deployed. No paid service has been activated.
@@ -6,7 +6,7 @@ deployment after owner approval**. Nothing has been deployed. No paid service ha
 ## 1. What was built
 
 One integrated Next.js 16 application with a PostgreSQL schema of 61 tables and 2 migrations:
-- **Public marketplace** on `webcenter.com`.
+- **Public marketplace** on `webcenta.com`.
 - **Developer portal** at `/developer` (`developers.` redirects there).
 - **Admin portal** on `admin.` with a separate identity system.
 - **Cron-driven job runner** and **SSRF-safe security scanner**.

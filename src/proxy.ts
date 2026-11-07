@@ -22,7 +22,7 @@ export function proxy(request: NextRequest) {
   }
 
   // The developer portal lives at /developer on the public host (shared, host-only
-  // session cookie); developers.webcenter.com redirects there.
+  // session cookie); developers.webcenta.com redirects there.
   if (surface === "developer") {
     const target = new URL(`/developer${url.pathname === "/" ? "" : url.pathname}${url.search}`, process.env.PUBLIC_ORIGIN || `https://${cfg.publicHost}`);
     return new NextResponse(null, { status: 308, headers: { location: target.toString() } });
@@ -46,7 +46,7 @@ export function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
-  requestHeaders.set("x-webcenter-surface", surface);
+  requestHeaders.set("x-webcenta-surface", surface);
 
   let response: NextResponse;
   if (surface === "admin") {

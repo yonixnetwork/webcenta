@@ -8,7 +8,7 @@ export default function OfflinePage() {
       {/* eslint-disable-next-line @next/next/no-img-element -- precached icon */}
       <img src="/icons/icon-192.png" alt="" width={72} height={72} className="rounded-2xl" />
       <h1 className="text-2xl font-extrabold tracking-tight">You are offline</h1>
-      <p className="text-muted">WebCenter needs an internet connection to load apps and search. Pages you opened recently may still be available.</p>
+      <p className="text-muted">Webcenta needs an internet connection to load apps and search. Pages you opened recently may still be available.</p>
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- full reload is intended when offline */}
       <a href="/" className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-contrast">Try again</a>
     </main>

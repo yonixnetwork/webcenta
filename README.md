@@ -1,6 +1,6 @@
-# WebCenter
+# Webcenta
 
-**WebCenter** (`webcenter.com`) is a global discovery marketplace for websites, web applications,
+**Webcenta** (`webcenta.com`) is a global discovery marketplace for websites, web applications,
 online services, AI products and digital platforms. You browse, compare and safely visit web apps,
 much as you would in an app store, but for the open web.
 

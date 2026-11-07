@@ -6,7 +6,7 @@ import type { TLSSocket } from "node:tls";
 import { isBlockedHostname, isBlockedIp, testModeAllowsLoopback } from "./net";
 
 /**
- * The ONLY way WebCenter fetches user-submitted URLs.
+ * The ONLY way Webcenta fetches user-submitted URLs.
  *  - http/https only, default ports only, no credentials
  *  - DNS resolved here; every address must be public; the connection is then
  *    PINNED to the vetted address (no second lookup → no DNS rebinding)
@@ -76,7 +76,7 @@ function requestOnce(url: URL, ip: string, deadline: number): Promise<{ status: 
       lookup: pinned,
       agent: false,
       timeout: Math.min(LIMITS.connectTimeoutMs, remaining),
-      headers: { "user-agent": "WebCenterSecurityScanner/1.0 (+https://webcenter.com/about)", accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5", "accept-encoding": "identity" },
+      headers: { "user-agent": "WebcentaSecurityScanner/1.0 (+https://webcenta.com/about)", accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5", "accept-encoding": "identity" },
       servername: isIP(url.hostname) ? undefined : url.hostname,
     });
     const timer = setTimeout(() => req.destroy(new SafeFetchError("TIMEOUT", "Request timed out")), remaining);

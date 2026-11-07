@@ -7,8 +7,8 @@ import { safeFetch } from "@/server/scanner/safe-fetch";
 import { isBlockedHostname } from "@/server/scanner/net";
 import { testModeAllowsLoopback } from "@/server/scanner/net";
 
-export const WELL_KNOWN_PATH = "/.well-known/webcenter-verification.txt";
-export const TXT_PREFIX = "webcenter-verification=";
+export const WELL_KNOWN_PATH = "/.well-known/webcenta-verification.txt";
+export const TXT_PREFIX = "webcenta-verification=";
 
 export function normalizeDomain(input: string): string | null {
   const raw = input.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");

@@ -1,4 +1,4 @@
-# WebCenter — Testing
+# Webcenta — Testing
 
 All suites run against **real PostgreSQL** (no SQL mocks). E2E tests use an **isolated, freshly created
 database** and **local fixture websites**; they never touch production data or real third-party services.
@@ -27,7 +27,7 @@ E2E_DB_BASE=postgresql://postgres@localhost:5432 bash tests/e2e/run-fresh.sh    
 E2E_DB_BASE=postgresql://postgres@localhost:5432 bash tests/e2e/run-fresh.sh --project=journeys
 ```
 
-`run-fresh.sh` creates a new database (`webcenter_e2e_<timestamp>`). `prepare.sh` refuses non-empty or
+`run-fresh.sh` creates a new database (`webcenta_e2e_<timestamp>`). `prepare.sh` refuses non-empty or
 non-test databases. Fixture sites (`*.localhost` on :443, control API on :4599) use a throwaway CA trusted
 only by the app under test (`NODE_EXTRA_CA_CERTS`). The scanner may reach loopback **only** when
 `SCANNER_ALLOW_PRIVATE_FOR_TESTS=true` **and** the app's `PUBLIC_ORIGIN` is a localhost origin.

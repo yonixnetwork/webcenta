@@ -7,7 +7,7 @@ export default function NotFound() {
       <p className="text-sm font-semibold text-brand">404</p>
       <h1 className="text-3xl font-extrabold tracking-tight">Page not found</h1>
       <p className="text-muted">The page you are looking for doesn’t exist, or the listing is not available in your region.</p>
-      <Link href="/" className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-contrast">Back to WebCenter</Link>
+      <Link href="/" className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-contrast">Back to Webcenta</Link>
     </main>
   );
 }

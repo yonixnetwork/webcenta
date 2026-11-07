@@ -2,7 +2,7 @@ import type { AgeRating, RiskTier } from "@/generated/prisma/enums";
 import { slugify } from "@/lib/url";
 
 /**
- * WebCenter category taxonomy — real platform configuration (not fake data).
+ * Webcenta category taxonomy — real platform configuration (not fake data).
  * Seeded idempotently by `npm run db:seed`; administrators manage it afterwards
  * (Phase 3). Icons are lucide-react icon names.
  *

@@ -45,7 +45,7 @@ export default async function DevListingPage({ params, searchParams }: { params:
       {(() => {
         const pending = l.revisions.find((r) => ["SUBMITTED", "AUTOMATED_CHECKS", "UNDER_REVIEW"].includes(r.status));
         if (!pending) return null;
-        const text = pending.status === "UNDER_REVIEW" ? "Automated checks are complete. A WebCenter moderator is reviewing it." : "Automated security checks are running. This usually takes a few minutes.";
+        const text = pending.status === "UNDER_REVIEW" ? "Automated checks are complete. A Webcenta moderator is reviewing it." : "Automated security checks are running. This usually takes a few minutes.";
         return <FormMessage tone="info">Revision #{pending.revisionNumber} was submitted on {formatDate(pending.submittedAt)} and is being reviewed. {text} You will be notified of the decision.</FormMessage>;
       })()}
       {draft && editor && (
@@ -88,7 +88,7 @@ export default async function DevListingPage({ params, searchParams }: { params:
       {(needsDocs || l.complianceDocs.length > 0) && (
         <Card>
           <h2 className="mb-1 font-semibold">Licences & compliance documents</h2>
-          <p className="mb-3 text-sm text-muted">This category requires evidence such as an operating licence. Documents are private and only visible to WebCenter moderators.</p>
+          <p className="mb-3 text-sm text-muted">This category requires evidence such as an operating licence. Documents are private and only visible to Webcenta moderators.</p>
           <ul className="mb-4 space-y-1 text-sm">{l.complianceDocs.map((d) => <li key={d.id}>{d.type.replace(/_/g, " ").toLowerCase()} {d.referenceNo ? `(${d.referenceNo})` : ""} <StatusPill status={d.decision} /></li>)}</ul>
           {editor && (
             <ActionForm action={complianceDocAction.bind(null, id)} submitLabel="Upload document">

@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!cat) return { title: "Category not found", robots: { index: false } };
   return {
     title: `${cat.name} — web apps and websites`,
-    description: cat.seoDescription ?? cat.description ?? `Discover and compare ${cat.name.toLowerCase()} web apps on WebCenter.`,
+    description: cat.seoDescription ?? cat.description ?? `Discover and compare ${cat.name.toLowerCase()} web apps on Webcenta.`,
     alternates: { canonical: `/c/${cat.slug}` },
   };
 }

@@ -56,7 +56,7 @@ describe("phishing heuristics inputs", () => {
   it("detects seed-phrase harvesting forms and verification meta tags", () => {
     expect(analyzeHtml(`<title>x</title><p>Enter your 12-word seed phrase to restore</p><textarea></textarea>`).asksForSeedPhrase).toBe(true);
     expect(analyzeHtml(`<p>Never share your seed phrase.</p>`).asksForSeedPhrase).toBe(false);
-    expect(analyzeHtml(`<head><meta name="webcenter-verification" content="wc-abc"></head>`).metaVerification).toEqual(["wc-abc"]);
+    expect(analyzeHtml(`<head><meta name="webcenta-verification" content="wc-abc"></head>`).metaVerification).toEqual(["wc-abc"]);
     expect(analyzeHtml(`<form action="https://evil.example/x"><input type="password"></form>`).passwordForms[0]?.action).toBe("https://evil.example/x");
   });
   it("detects look-alike domains", () => {

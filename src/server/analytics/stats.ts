@@ -27,7 +27,7 @@ export async function rollupDay(day: Date): Promise<number> {
       FROM "ListingEvent"
       WHERE "occurredAt" >= ${from} AND "occurredAt" < ${to} AND device <> 'BOT'
       GROUP BY "listingId"`;
-    for (const [dim, col] of [["COUNTRY", Prisma.sql`coalesce("countryCode", 'unknown')`], ["DEVICE", Prisma.sql`device::text`], ["REFERRER", Prisma.sql`coalesce("referrerHost", 'direct / webcenter')`]] as const) {
+    for (const [dim, col] of [["COUNTRY", Prisma.sql`coalesce("countryCode", 'unknown')`], ["DEVICE", Prisma.sql`device::text`], ["REFERRER", Prisma.sql`coalesce("referrerHost", 'direct / webcenta')`]] as const) {
       await tx.$executeRaw`
         INSERT INTO "ListingDailyDimensionStat" ("listingId", date, dimension, key, views, "outboundClicks")
         SELECT "listingId", ${from}::date, ${dim}::"StatDimension", ${col},

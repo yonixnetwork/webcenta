@@ -46,7 +46,7 @@ export async function getHomepage(ctx: ViewerContext): Promise<{ rails: HomeRail
         break;
       }
       case "EDITORS_PICKS":
-        rails.push({ key: s.key, title: s.title, subtitle: "Chosen by the WebCenter editorial team", sponsoredIds: [],
+        rails.push({ key: s.key, title: s.title, subtitle: "Chosen by the Webcenta editorial team", sponsoredIds: [],
           items: await listCards(ctx, { where: { isEditorsPick: true }, orderBy: [{ publishedAt: "desc" }], take }) });
         break;
       case "NEW":

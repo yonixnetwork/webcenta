@@ -1,5 +1,5 @@
 // =============================================================================
-// WebCenter — database schema (PostgreSQL)
+// Webcenta — database schema (PostgreSQL)
 // -----------------------------------------------------------------------------
 // The schema is split by domain into several files in this folder:
 //   base.prisma       generator, datasource, shared enums
@@ -38,7 +38,7 @@ enum RiskTier {
   LOW
   MEDIUM
   HIGH
-  /// Category/listing type WebCenter does not accept at all.
+  /// Category/listing type Webcenta does not accept at all.
   PROHIBITED
 }
 

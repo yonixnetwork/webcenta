@@ -1,4 +1,4 @@
-/* WebCenter service worker.
+/* Webcenta service worker.
  * - Precaches the offline page and icons.
  * - Static assets (/_next/static, /icons): cache-first (content-hashed).
  * - Public page navigations: network-first, falling back to the offline page.

@@ -10,7 +10,7 @@ Administrators must be completely separated from public accounts, invitation-onl
 * **Public users and developers:** Better Auth (self-hosted, Prisma adapter). The `User`,
   `Session`, `Account` and `Verification` tables follow its expected shape.
 * **Administrators:** a small dedicated session layer over `AdminUser` and `AdminSession`. It uses
-  hashed session tokens, a host-only `__Host-` cookie on `admin.webcenter.com`, and mandatory
+  hashed session tokens, a host-only `__Host-` cookie on `admin.webcenta.com`, and mandatory
   TOTP. Accounts are created only by the provisioning CLI or by invitation.
 
 ## Consequences

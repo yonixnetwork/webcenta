@@ -14,10 +14,10 @@ export default async function ClaimsPage() {
   return (
     <>
       <h1 className="text-2xl font-extrabold tracking-tight">Claim an editorial listing</h1>
-      <p className="text-sm text-muted">If WebCenter editors listed your app, you can take over its management after verifying ownership of its domain.</p>
+      <p className="text-sm text-muted">If Webcenta editors listed your app, you can take over its management after verifying ownership of its domain.</p>
       <Card>
         <ActionForm action={claimListingAction} submitLabel="Request claim">
-          <Field label="Listing URL or slug"><input name="slug" required placeholder="https://webcenter.com/app/your-app" className={inputClass} /></Field>
+          <Field label="Listing URL or slug"><input name="slug" required placeholder="https://webcenta.com/app/your-app" className={inputClass} /></Field>
           <Field label="Additional evidence (optional)"><textarea name="evidence" rows={2} maxLength={2000} className={inputClass} /></Field>
         </ActionForm>
       </Card>

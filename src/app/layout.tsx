@@ -6,12 +6,12 @@ export async function generateMetadata(): Promise<Metadata> {
   const origin = process.env.PUBLIC_ORIGIN || "http://localhost:3000";
   return {
     metadataBase: new URL(origin),
-    title: { default: "WebCenter — Discover the best web apps", template: "%s · WebCenter" },
+    title: { default: "Webcenta — Discover the best web apps", template: "%s · Webcenta" },
     description: "Discover, compare and safely visit websites, web apps, AI tools and online services from around the world.",
-    applicationName: "WebCenter",
-    openGraph: { siteName: "WebCenter", type: "website" },
+    applicationName: "Webcenta",
+    openGraph: { siteName: "Webcenta", type: "website" },
     twitter: { card: "summary_large_image" },
-    appleWebApp: { capable: true, title: "WebCenter", statusBarStyle: "default" },
+    appleWebApp: { capable: true, title: "Webcenta", statusBarStyle: "default" },
     icons: { icon: "/icon.svg", apple: "/icons/apple-touch-icon.png" },
   };
 }

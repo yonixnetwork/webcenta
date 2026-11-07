@@ -433,7 +433,7 @@ export async function supportReplyAction(caseId: string, _s: ActionState, f: For
     await db.supportCaseMessage.create({ data: { caseId, fromAdminId: a.id, body, isInternal: internal } });
     await db.supportCase.update({ where: { id: caseId }, data: { status: internal ? c.status : "PENDING_USER", assignedAdminId: c.assignedAdminId ?? a.id } });
     if (!internal) {
-      const m = actionEmail({ title: `Re: ${c.subject}`, intro: body, actionLabel: "Visit WebCenter", url: process.env.PUBLIC_ORIGIN || "http://localhost:3000" });
+      const m = actionEmail({ title: `Re: ${c.subject}`, intro: body, actionLabel: "Visit Webcenta", url: process.env.PUBLIC_ORIGIN || "http://localhost:3000" });
       await sendEmail({ to: c.contactEmail, subject: `Re: ${c.subject}`, template: "support-reply", ...m });
     }
     await audit({ actorType: "ADMIN", adminId: a.id, action: internal ? "support.note" : "support.reply", targetType: "SupportCase", targetId: caseId });

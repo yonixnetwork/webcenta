@@ -1,8 +1,8 @@
 {
-  "name": "webcenter",
+  "name": "webcenta",
   "version": "0.0.0",
   "private": true,
-  "description": "WebCenter — global web application discovery marketplace",
+  "description": "Webcenta — global web application discovery marketplace",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {

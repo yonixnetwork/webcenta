@@ -55,7 +55,7 @@ test("1. visitor discovers an app, opens its details and visits the official web
   await expect(page.getByText("Trust & safety")).toBeVisible();
   const before = Number((await sql<{ n: string }>(`select count(*) n from "ListingEvent" le join "Listing" l on l.id = le."listingId" where l.slug = 'sample-skyline-weather' and le.type = 'OUTBOUND_CLICK'`))[0]!.n);
   await page.getByRole("link", { name: /Visit website/ }).click();
-  await expect(page.getByRole("heading", { name: "You’re leaving WebCenter" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "You’re leaving Webcenta" })).toBeVisible();
   await page.getByRole("button", { name: /Continue to good-app.localhost/ }).click();
   await page.waitForURL("https://good-app.localhost/");
   await expect(page.getByRole("heading", { name: "good-app" })).toBeVisible();

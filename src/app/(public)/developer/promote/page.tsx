@@ -21,7 +21,7 @@ export default async function PromotePage() {
       <h1 className="text-2xl font-extrabold tracking-tight">Plans & promotion</h1>
       <Card>
         <h2 className="mb-1 font-semibold">Your plan: {subs[0]?.plan.name ?? "Free"}</h2>
-        <p className="text-sm text-muted">Listing on WebCenter is free. Paid plans are not available yet: pricing and billing have not been launched.</p>
+        <p className="text-sm text-muted">Listing on Webcenta is free. Paid plans are not available yet: pricing and billing have not been launched.</p>
         {plans.length > 0 && <ul className="mt-3 grid gap-3 sm:grid-cols-3">{plans.map((p) => (
           <li key={p.id} className="rounded-xl border border-border p-3 text-sm"><strong>{p.name}</strong><p className="text-muted">{p.isActive && p.priceCents != null ? `${(p.priceCents / 100).toFixed(2)} ${p.currency}` : "Not available yet"}</p></li>
         ))}</ul>}

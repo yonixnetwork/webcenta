@@ -1,4 +1,4 @@
-# WebCenter — Database Design
+# Webcenta — Database Design
 
 Engine: **PostgreSQL 15+** (production: **Supabase**) · ORM: **Prisma 7** · Schema: [`prisma/schema/`](../prisma/schema)
 
@@ -55,7 +55,7 @@ Prisma cannot express these, so they are appended to the generated migration and
 | What | Why |
 | --- | --- |
 | `CREATE SCHEMA extensions; CREATE EXTENSION pg_trgm WITH SCHEMA extensions` | Supabase convention; trigram search and autocomplete. Queries use `extensions.similarity(...)`. |
-| `Listing.searchVector` filled by trigger `webcenter_listing_search_vector()` | Weighted FTS (name A; tagline/publisher B; features C; description D) using the `'simple'` config for a multilingual catalogue. A trigger is used because a generated column cannot call the non-IMMUTABLE `array_to_string`. |
+| `Listing.searchVector` filled by trigger `webcenta_listing_search_vector()` | Weighted FTS (name A; tagline/publisher B; features C; description D) using the `'simple'` config for a multilingual catalogue. A trigger is used because a generated column cannot call the non-IMMUTABLE `array_to_string`. |
 | GIN indexes on `searchVector` and on `name` (`extensions.gin_trgm_ops`) | Declared in the Prisma schema too, so there is no drift. The schema names the opclass unqualified because that is what introspection reports. |
 | CHECK constraints: rating 1–5, geo restriction has exactly one target, ISO country format, no self-parent category, slug format, `https://` website URLs, rating-average range | Integrity at the database level. Prisma ignores CHECKs in diffs. |
 | `ENABLE ROW LEVEL SECURITY` on every table in `public` | Supabase exposes `public` via its Data API. With RLS and no policies, those roles see nothing. The app connects as the table owner, which bypasses RLS. |
@@ -78,9 +78,9 @@ Prisma cannot express these, so they are appended to the generated migration and
 
 ## 5. Production database roles
 
-* `webcenter_migrate`: owns the schema and runs `prisma migrate deploy` during deployment.
-* `webcenter_app`: DML only. `INSERT, SELECT` on `AuditLog` (no `UPDATE` or `DELETE`). No DDL.
-* `webcenter_readonly`: for analytics and backups verification.
+* `webcenta_migrate`: owns the schema and runs `prisma migrate deploy` during deployment.
+* `webcenta_app`: DML only. `INSERT, SELECT` on `AuditLog` (no `UPDATE` or `DELETE`). No DDL.
+* `webcenta_readonly`: for analytics and backups verification.
 
 ## 6. Backups
 
