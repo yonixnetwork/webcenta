@@ -22,25 +22,32 @@ The required integrations were exercised end to end by the E2E journeys:
 - suspension and country/age rules → hidden from search, categories, recommendations, sitemap,
   autocomplete and direct URLs.
 
-## 2. Tests executed (final run after the brand correction, all on real PostgreSQL 16)
+## 2. Tests executed (final run after the move to MySQL / MariaDB)
+
+Local runs used MariaDB 10.11.14 (the engine Hostinger runs) and MySQL 8.0.46, each reached over
+TCP at `127.0.0.1` with a password user, as on Hostinger. E2E ran against the Next.js **standalone
+server** built with `next build --webpack`, as Hostinger builds and runs it.
 
 | Suite | Result |
 | --- | --- |
 | ESLint (`eslint .`) | 0 errors, 0 warnings |
 | TypeScript (`tsc --noEmit`, strict) | 0 errors |
-| Unit + DB integration (Vitest, 16 files) | **211 passed, 0 failed** |
-| Schema smoke test | 13/13 passed |
-| Prisma migration drift (`migrate diff --exit-code`) | no drift |
-| Supabase-like role simulation (`anon` denied, no default grants) | passed |
-| `npm run db:check` (local) | all required checks passed |
-| E2E (Playwright/Chromium, fresh database) | **112 passed, 0 failed, 0 skipped** across the `journeys` (9), `desktop` (50), `tablet` (24, iPad landscape) and `mobile` (29, Pixel 7) projects |
+| Unit + DB integration (Vitest, 17 files) | **224 passed, 0 failed on MariaDB 10.11** and **224 passed, 0 failed on MySQL 8.0** |
+| Migrations | baseline applies to empty MariaDB and MySQL databases |
+| Prisma migration drift (`migrate diff --exit-code`) | no drift on either engine |
+| Seed twice (idempotence) | passed |
+| Schema smoke test | 13/13 passed on both engines |
+| `npm run db:check` | all required checks passed on both engines |
+| Backup → restore drill | 61 tables, identical exact row counts; CHECK constraints, 97 foreign keys, 3 FULLTEXT indexes and binary collations identical — on both engines |
+| Build (`next build --webpack`, standalone, no database access) | passed |
+| E2E (Playwright/Chromium, fresh MariaDB database, standalone server) | **112 passed, 0 failed, 0 skipped** across the `journeys` (9), `desktop` (50), `tablet` (24, iPad landscape) and `mobile` (29, Pixel 7) projects |
+| www redirect on the standalone server | absolute 308 to `https://webcenta.com/…` |
 | Brand check (`npm run brand:check`) | no references to the retired name |
 | Static error pages up to date | yes (also a unit test) |
-| Backup → restore drill | 61 tables restored with identical row counts; RLS and search trigger intact (previous round; runs in CI on every push) |
-| Client bundle secret scan | no secrets, connection strings or source maps (33 files) |
+| Client bundle secret scan | no secrets, connection strings or source maps (124 files) |
 | `npm audit --omit=dev` (production dependencies) | 0 vulnerabilities |
-| **GitHub Actions CI on a clean runner** (all of the above plus the E2E suite) | previous round: passed, run #17 for `a61df60`. This round: run #22 for `43c3173` **failed** at the new brand-check step: the script reported a false hit on a clean checkout with no untracked files (its exit-code logic, not a real brand reference). Fixed in `d2d51fa`: **run #23 passed** on a clean runner, every step green including the full E2E suite (https://github.com/yonixnetwork/webcenta/actions/runs/42355066522) |
 | `npm audit` (incl. dev tooling) | 8 moderate in ESLint tooling (`minimatch` via typescript-eslint); the only offered fix downgrades `eslint-config-next` across a major version. Dev-only, not shipped. |
+| **GitHub Actions CI on clean runners** | Run #25 (`8ecbaf0`): MySQL 8.0 job **passed** every step; the MariaDB job passed every step through the build, bundle scan and E2E preparation, then was cancelled automatically by a newer push (superseded, not failed). The result for the final commit is recorded on the branch's latest run. |
 
 The E2E coverage:
 - **10 user journeys:** see [TESTING.md](TESTING.md).
@@ -90,6 +97,21 @@ Found during the brand correction and its re-test:
 18. **The new brand check failed on a clean CI checkout** (false positive when there were no
     untracked files; it passed locally only because untracked files existed). Found by CI run #22;
     the script now tests its output instead of `xargs`'s exit code, and was verified on a clean tree.
+
+Found during the move to MySQL / MariaDB and its re-test:
+
+19. **The Better Auth adapter was still configured for PostgreSQL** after the switch; set to `mysql`.
+20. **Two CHECK constraints are impossible on MySQL and MariaDB** (columns with foreign-key actions);
+    both engines rejected the migration. The rules (one geo-restriction target; no self-parent
+    category) are now enforced in the Prisma client extension and tested.
+21. **Hostinger-style standalone serving broke a PWA test**: the update test edited `public/sw.js`,
+    but the standalone server serves its own copy. The test now edits the copy actually served.
+22. **MySQL's `mysqldump` against MariaDB** needs `--column-statistics=0`; the backup script detects it.
+23. **The standalone server bound only to IPv4 or failed on hosts without IPv6**; the E2E
+    configuration now chooses the address from the machine's interfaces.
+24. **Favourite-toggle failures were silent** (one intermittent E2E failure that did not reproduce in
+    three later runs: journey 2 alone, journeys 1–2, and the full suite). The action now logs unexpected errors server-side, which shows up in
+    Hostinger's logs.
 
 ## 3a. Brand correction and user-experience additions
 
