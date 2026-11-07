@@ -4,8 +4,9 @@ import { env } from "@/lib/env";
 import { buildPoolConfig } from "./db-config";
 
 /**
- * Single Prisma client per process. Runtime traffic uses DATABASE_URL — on
- * Supabase this is the Supavisor *transaction* pooler (port 6543). Migrations use
+ * Single Prisma client per process, created lazily on first use (so `next build`
+ * never needs database credentials). Runtime traffic uses DATABASE_URL — on
+ * Supabase the Supavisor *transaction* pooler (port 6543). Migrations use
  * DIRECT_URL (session pooler, port 5432) via prisma.config.ts.
  */
 function createClient() {
@@ -17,8 +18,17 @@ function createClient() {
   });
 }
 
-const globalForPrisma = globalThis as unknown as { __webcenterPrisma?: PrismaClient };
+const g = globalThis as unknown as { __webcenterPrisma?: PrismaClient };
 
-export const db: PrismaClient = globalForPrisma.__webcenterPrisma ?? createClient();
+function client(): PrismaClient {
+  g.__webcenterPrisma ??= createClient();
+  return g.__webcenterPrisma;
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.__webcenterPrisma = db;
+export const db: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const c = client();
+    const value = Reflect.get(c, prop, c);
+    return typeof value === "function" ? value.bind(c) : value;
+  },
+});
