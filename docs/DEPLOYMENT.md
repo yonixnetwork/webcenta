@@ -72,7 +72,8 @@ The annotated list is in [`.env.example`](../.env.example).
 | `GOOGLE_WEB_RISK_API_KEY`, `URLHAUS_AUTH_KEY`, `VIRUSTOTAL_API_KEY` | recommended | Without at least one, every submission needs manual approval |
 | `GEO_COUNTRY_HEADER`, `GEO_UNKNOWN_POLICY`, `TRUSTED_PROXY_HOPS` | yes | `cf-ipcountry` behind Cloudflare; `deny` hides geo-restricted listings when the country is unknown |
 | `ADMIN_IP_ALLOWLIST` | optional | Comma-separated client IPs |
-| `SCANNER_ALLOW_PRIVATE_FOR_TESTS` | **must be unset** | Test only |
+| `MAINTENANCE_MODE`, `MAINTENANCE_RETRY_AFTER` | no | `true` serves a 503 page with `Retry-After` (seconds, default 600) to all public requests; admin and cron keep working (§5a) |
+| `SCANNER_ALLOW_PRIVATE_FOR_TESTS`, `ENABLE_TEST_ERROR_ROUTES` | **must be unset** | Test only (both are also ignored unless `PUBLIC_ORIGIN` is localhost) |
 
 ## 4. Deploy procedure (after the owner's approval)
 
@@ -96,7 +97,10 @@ The annotated list is in [`.env.example`](../.env.example).
    Set all variables from §3 in hPanel.
 5. **Domains & SSL:** attach `webcenta.com`, `www.`, `admin.` and `developers.` to the app with HTTPS
    (Hostinger SSL or Cloudflare). The app redirects `www` → apex and `developers.` → `/developer`, and
-   serves the admin portal only on `admin.`.
+   serves the admin portal only on `admin.`. `api.webcenta.com` is optional: if attached, it serves
+   `/api/*` only (public endpoints; no session cookies reach it) and redirects every other path to
+   `webcenta.com`. The site itself always calls `webcenta.com/api`.
+   Optionally upload `public/errors/*.html` as the host's or Cloudflare's custom error pages (§5a).
 6. **Cron** (hPanel → Advanced → Cron Jobs), every 10 minutes:
    ```bash
    curl -fsS -m 60 -X POST -H "Authorization: Bearer <CRON_SECRET>" https://webcenta.com/api/cron/tick
@@ -115,6 +119,38 @@ Use a second Supabase project (or schema) and a Hostinger subdomain (e.g. `stagi
 with `SITE_BANNER="Staging"`, `EMAIL_TRANSPORT=log`, and a separate `CRON_SECRET`. Fictional
 fixtures may be loaded there **only** with `ALLOW_DEV_FIXTURES=true`. No staging environment was
 available to this build, so staging verification has **not** been performed.
+
+## 5a. Error pages, maintenance and outages
+
+What the application itself guarantees (tested E2E):
+
+| Situation | Response |
+| --- | --- |
+| Unknown URL, unknown or hidden app, unknown category | **404**, branded page with search and popular categories; for `/app/…`, suggestions from the same category and alternatives, with a generic reason (no moderation details) |
+| Unknown `/api/…` path | **404** JSON `{"error":"Not found"}` |
+| Admin role lacks a permission; developer role too low | **403** page at the requested URL; admin denials are written to the audit log |
+| Unhandled server error | **500** branded page with a "Try again" button and an error reference (says "offline" instead if the browser has no connection) |
+| `MAINTENANCE_MODE=true` | **503** with `Retry-After`, served by `src/proxy.ts` without touching the database; JSON 503 for `/api/*`; admin portal and `/api/cron/*` still work |
+| Visitor's device is offline | Service worker shows the precached offline page with a Retry that checks the network |
+
+**When the Node.js app itself is down or unreachable**, the app cannot answer, so whatever sits in
+front of it decides what visitors see. Hostinger's generic error page will appear unless one of these
+is configured. The self-contained pages in `public/errors/` (`404`, `500`, `502`, `503`; inline CSS,
+no scripts, no external requests; regenerate with `npm run errors:generate`) are meant for that:
+
+1. **Hostinger:** whether a Node.js web app on the Business plan can use custom error pages for
+   upstream failures is **not verified** (no hPanel access during the build). Check hPanel; if it
+   accepts custom pages, upload `public/errors/502.html` and `503.html`.
+2. **Cloudflare in front of Hostinger (D8):** Cloudflare can show custom pages for 5xx and
+   connection errors. Which error types can be customised depends on the Cloudflare plan; check
+   current pricing before relying on it, and treat any paid plan as an owner decision. Upload or
+   point Cloudflare to the `public/errors/*.html` pages.
+3. **Neither configured:** visitors see the hosting provider's page during an outage. Use an external
+   uptime monitor to find out quickly.
+
+Limits, stated plainly: the `public/errors/*.html` files are served by the app too
+(`/errors/503.html`), so they only help during an outage if the host or Cloudflare stores its own copy.
+Changing `MAINTENANCE_MODE` requires setting the variable in hPanel and restarting the app.
 
 ## 5. Backups
 

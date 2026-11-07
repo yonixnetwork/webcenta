@@ -7,6 +7,7 @@ export interface CategoryNode {
   slug: string;
   name: string;
   icon: string | null;
+  emoji: string | null;
   description: string | null;
   children: CategoryNode[];
 }
@@ -25,7 +26,7 @@ export async function getCategoryTree(): Promise<CategoryNode[]> {
   const rows = await db.category.findMany({
     where: publicCategoryWhere(),
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    select: { id: true, slug: true, name: true, icon: true, description: true, parentId: true },
+    select: { id: true, slug: true, name: true, icon: true, emoji: true, description: true, parentId: true },
   });
   const nodes = new Map<string, CategoryNode>(rows.map((r) => [r.id, { ...r, children: [] }]));
   const roots: CategoryNode[] = [];

@@ -119,3 +119,12 @@ export async function signIn(page: Page, email: string, password: string, next =
 export async function categoryId(slug: string) {
   return (await sql<{ id: string }>(`select id from "Category" where slug = $1`, [slug]))[0]!.id;
 }
+
+/**
+ * Waits for web fonts and short CSS colour transitions (150–200 ms) to finish so
+ * accessibility scans measure the final, user-visible colours.
+ */
+export async function settle(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(300);
+}

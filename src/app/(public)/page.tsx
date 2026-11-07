@@ -56,7 +56,7 @@ export default async function HomePage() {
       {personal.length > 0 && (
         <div className="space-y-14">
           {personal.map((r) => <Rail key={r.key} title={r.title} items={r.items} />)}
-          <p className="-mt-8 text-xs text-subtle">Personalised from your activity on Webcenta. <a href="/account/privacy" className="underline">Manage personalisation</a></p>
+          <p className="-mt-8 text-xs text-subtle">Personalised from your activity on Webcenta. <Link href="/account/privacy" className="underline">Manage personalisation</Link></p>
         </div>
       )}
 

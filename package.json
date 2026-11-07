@@ -23,6 +23,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "db:seed": "tsx scripts/seed.ts",
+    "errors:generate": "tsx scripts/generate-error-pages.ts",
+    "brand:check": "bash scripts/check-brand.sh",
     "db:check": "tsx scripts/db-check.ts",
     "jobs:tick": "tsx scripts/jobs-tick.ts",
     "postinstall": "prisma generate",

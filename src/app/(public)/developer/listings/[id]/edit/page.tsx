@@ -3,14 +3,14 @@ import { notFound } from "next/navigation";
 import { ListingEditor } from "@/components/portal/listing-editor";
 import { db } from "@/server/db";
 import { getCategoryTree } from "@/server/catalog/categories";
-import { requireDev } from "@/server/developer/context";
+import { requireDevPage } from "@/server/developer/context";
 import { revisionMedia } from "@/server/developer/media";
 import type { ListingInput } from "@/server/listings/input";
 import { saveListingAction, uploadMediaAction } from "@/server/actions/developer";
 
 export default async function EditListingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const ctx = await requireDev("EDITOR", `/developer/listings/${id}/edit`);
+  const ctx = await requireDevPage("EDITOR", `/developer/listings/${id}/edit`);
   const listing = await db.listing.findFirst({ where: { id, developerId: ctx.org.id }, include: { revisions: { orderBy: { revisionNumber: "desc" }, take: 1 } } });
   if (!listing) notFound();
   const latest = listing.revisions[0];

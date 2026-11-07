@@ -70,6 +70,45 @@ All of these were fixed and re-verified by the failing test and its related suit
 11. **Recommendations returned short lists** when interest matches ran out (now backfilled).
 12. **Soft-404s:** hidden pages returned 200 under a group loading boundary (Phase 1).
 
+Found during the brand correction and its re-test:
+
+13. **The logo still read "Web…Center".** The wordmark is split across two elements, so the textual
+    rename missed it. The new brand check (`npm run brand:check`, in CI) catches split wordmarks.
+14. **Rated cards widened the page on phones by about 1,100 px.** Screen-reader text on a rated card
+    inside a horizontal rail was positioned outside the scroller. Only visible once a listing had
+    ratings; caught by the mobile overflow test and now covered explicitly in the reviews spec.
+15. **Admin permission denials were redirects with status 200 and were not audited** (and the
+    E2E assertion for the audit entry was vacuous: `>= 0`). They now return a real 403 and every
+    page-level denial is audited; the test asserts exactly five entries.
+16. **Documentation drift:** `SECURITY.md` listed a "same network" review heuristic that does not
+    exist, and `ARCHITECTURE.md` described a `developers.` host rewrite and an `api.` host that did not
+    match the code. Both are corrected; `api.webcenta.com` now has a defined, tested behaviour.
+17. **Seven lint warnings** (unused code, stale disable directives) had crept in although the
+    previous report said zero; fixed.
+
+## 3a. Brand correction and user-experience additions
+
+- **Brand:** the product is **Webcenta** at **webcenta.com** everywhere: code, metadata, Open Graph,
+  manifest, service worker, emails, seed data, scripts, CI, tests, docs and screenshots. Identifiers
+  changed include the database trigger function (`webcenta_listing_search_vector`; the baseline
+  migration was edited, which is safe only because nothing has been deployed), the domain-verification
+  prefix (`webcenta-verification`). The cookie prefix `wc` and theme cookie `wc-theme` were already
+  brand-neutral and are unchanged.
+- **No decorative photography:** Lucide icons throughout, one emoji per top-level category
+  (`Category.emoji`, editable by admins), real developer logos and screenshots only.
+- **Reviews:** "★★★★★ 4.8/5 · Based on N reviews", per-star counts and percentages (always summing to
+  100), dated reviews, developer replies, edit/delete/helpful/report, honest empty state. The average
+  is shown from the first published review (with its count beside it), on the app page, cards and
+  JSON-LD. Held reviews are never counted.
+- **Offline:** branded page ("You're currently offline.") precached with its CSS and JS. Retry checks
+  the network and reloads the requested page, which also happens automatically when the connection
+  returns. It states which features need a connection.
+- **Error pages:** 404 / 403 / 500 / maintenance 503 with correct status codes; JSON 404 for unknown API
+  paths; "application unavailable" page with same-category and alternative suggestions and no
+  moderation details; static fallback pages for the host or CDN. See
+  [DEPLOYMENT.md §5a](DEPLOYMENT.md) for what happens when the app itself is down and the limits of
+  each option.
+
 ## 4. Security assessment
 
 **Tested and passing:**

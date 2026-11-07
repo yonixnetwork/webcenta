@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { formatDate } from "@/lib/labels";
@@ -26,7 +27,7 @@ export default async function LegalPage({ params }: Props) {
           <p className="mt-2 text-sm text-muted">Version {policy.version} · effective {formatDate(policy.effectiveAt)}</p>
           <div className="mt-6 space-y-4 leading-relaxed text-muted [&_a]:text-brand [&_a]:underline [&_h2]:mt-6 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-text [&_h3]:font-semibold [&_h3]:text-text [&_strong]:text-text [&_ul]:list-disc [&_ul]:pl-6" dangerouslySetInnerHTML={{ __html: renderMarkdown(policy.body) }} />
         </>
-      ) : <p className="mt-4 rounded-xl bg-warning-soft p-4 text-sm text-warning">This policy is being finalised with legal counsel and has not been published yet. Contact us via the <a href="/contact" className="underline">contact form</a> with any questions.</p>}
+      ) : <p className="mt-4 rounded-xl bg-warning-soft p-4 text-sm text-warning">This policy is being finalised with legal counsel and has not been published yet. Contact us via the <Link href="/contact" className="underline">contact form</Link> with any questions.</p>}
     </article>
   );
 }

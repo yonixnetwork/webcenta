@@ -11,7 +11,7 @@ import { buttonClass } from "@/components/ui/button";
 import { AGE_LABEL, PLATFORM_LABEL, PRICING_LABEL, SECURITY_LABEL, VERIFICATION_LABEL, formatDate, isSampleListing } from "@/lib/labels";
 import { displayDomain } from "@/lib/url";
 import { getRelated } from "@/server/catalog/alternatives";
-import { getPublicListing, MIN_RATINGS_FOR_DISPLAY } from "@/server/catalog/listings";
+import { getPublicListing } from "@/server/catalog/listings";
 import { submitListingReport } from "@/server/catalog/report-action";
 import { LISTING_REPORT_REASONS } from "@/server/moderation/reports";
 import { getViewerContext } from "@/server/viewer";
@@ -67,7 +67,7 @@ export default async function AppPage({ params, searchParams }: Props) {
   const security = SECURITY_LABEL[listing.securityStatus];
   const logo = listing.media.find((m) => m.kind === "LOGO");
   const screenshots = listing.media.filter((m) => m.kind === "SCREENSHOT" || m.kind === "PREVIEW");
-  const showRating = listing.ratingCount >= MIN_RATINGS_FOR_DISPLAY;
+  const showRating = listing.ratingCount > 0;
   const verification = listing.developer ? VERIFICATION_LABEL[listing.developer.verificationLevel] : "Unclaimed listing";
   const reportAction = submitListingReport.bind(null, listing.slug);
 
@@ -81,7 +81,7 @@ export default async function AppPage({ params, searchParams }: Props) {
     operatingSystem: listing.platforms.map((p) => PLATFORM_LABEL[p]).join(", "),
     author: { "@type": "Organization", name: listing.publisherName },
     ...(listing.pricingModel === "FREE" ? { offers: { "@type": "Offer", price: "0", priceCurrency: "USD" } } : {}),
-    ...(showRating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: listing.ratingAverage.toFixed(1), ratingCount: listing.ratingCount } } : {}),
+    ...(showRating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: Number(listing.ratingAverage.toFixed(1)), bestRating: 5, worstRating: 1, ratingCount: listing.ratingCount, reviewCount: listing.ratingCount } } : {}),
   };
 
   return (
@@ -115,14 +115,13 @@ export default async function AppPage({ params, searchParams }: Props) {
               {listing.isOpenSource && <Badge tone="brand">Open source</Badge>}
               {listing.isPwaInstallable && <Badge>Installable PWA</Badge>}
               <Badge tone="outline">Age {AGE_LABEL[listing.ageRating]}</Badge>
-              {showRating && <Badge><Star className="size-3 fill-current text-amber-500" aria-hidden /> {listing.ratingAverage.toFixed(1)} ({listing.ratingCount})</Badge>}
+              {showRating && <a href="#reviews" className="inline-flex"><Badge><Star className="size-3 fill-current text-amber-500" aria-hidden /> {listing.ratingAverage.toFixed(1)}/5 · {listing.ratingCount} review{listing.ratingCount === 1 ? "" : "s"}</Badge></a>}
             </div>
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row lg:w-auto lg:flex-col">
           {/* Full-page navigation on purpose: the interstitial must load as its own document so
               its CSP (form-action allowing the https redirect) applies. */}
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href={`/go/${listing.slug}`} rel="nofollow" className={buttonClass("primary", "lg", "w-full sm:w-auto lg:w-64")}>
             Visit website <ArrowUpRight className="size-5" aria-hidden />
           </a>

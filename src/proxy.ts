@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_PREFIX, buildCsp, classifyHost, hostConfigFromEnv, isInternalSurfacePath } from "@/lib/hosts";
+import { STATIC_ERROR_CSP, staticErrorPage } from "@/lib/static-error-pages";
 
 /**
  * Edge of the application: host routing and per-request security headers.
@@ -28,11 +29,33 @@ export function proxy(request: NextRequest) {
     return new NextResponse(null, { status: 308, headers: { location: target.toString() } });
   }
 
+  // api.webcenta.com is reserved for the HTTP API: it serves /api/* only (no
+  // session cookies reach it; the site itself calls webcenta.com/api). Any other
+  // path is redirected to the same path on the main site.
+  if (surface === "api" && !url.pathname.startsWith("/api/")) {
+    const target = new URL(url.pathname + url.search, process.env.PUBLIC_ORIGIN || `https://${cfg.publicHost}`);
+    return new NextResponse(null, { status: 308, headers: { location: target.toString() } });
+  }
+
   // Admin IP allow-list (optional, recommended behind Cloudflare or on a VPS).
   if (surface === "admin" && process.env.ADMIN_IP_ALLOWLIST) {
     const allowed = process.env.ADMIN_IP_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
     const ip = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",").pop()?.trim() ?? "";
     if (!allowed.includes(ip)) return new NextResponse("Not found", { status: 404 });
+  }
+
+  // Maintenance mode: every public request gets a real 503 with Retry-After,
+  // served without touching the app or the database. The admin portal and the
+  // cron endpoint keep working so the team can finish the maintenance.
+  if (process.env.MAINTENANCE_MODE === "true" && surface !== "admin" && !url.pathname.startsWith("/api/cron/")) {
+    const headers = { "retry-after": process.env.MAINTENANCE_RETRY_AFTER || "600", "cache-control": "no-store", "x-robots-tag": "noindex" };
+    if (url.pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Service temporarily unavailable", maintenance: true }, { status: 503, headers });
+    }
+    return new NextResponse(staticErrorPage("503"), {
+      status: 503,
+      headers: { ...headers, "content-type": "text/html; charset=utf-8", "content-security-policy": STATIC_ERROR_CSP },
+    });
   }
 
   // Internal surface folders must never be reachable by path on any host.
@@ -47,6 +70,8 @@ export function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
   requestHeaders.set("x-webcenta-surface", surface);
+  // Lets not-found boundaries (which receive no params) know which URL failed.
+  requestHeaders.set("x-pathname", url.pathname);
 
   let response: NextResponse;
   if (surface === "admin") {
@@ -61,13 +86,15 @@ export function proxy(request: NextRequest) {
   // The admin portal and unknown hosts (e.g. a temporary hosting domain) are never indexed.
   if (surface !== "public") response.headers.set("x-robots-tag", "noindex, nofollow");
   if (surface === "admin") response.headers.set("cache-control", "no-store");
+  // Pages rendered for a signed-in visitor are never stored by the service worker.
+  if (request.cookies.getAll().some((c) => c.name.endsWith("session_token"))) response.headers.set("x-wc-personal", "1");
   return response;
 }
 
 export const config = {
   matcher: [
     {
-      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|icons/|sw.js|manifest.webmanifest).*)",
+      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|icons/|errors/|sw.js|manifest.webmanifest).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

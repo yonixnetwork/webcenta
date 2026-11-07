@@ -1,14 +1,14 @@
 import { AnalyticsView } from "@/components/portal/analytics-view";
 import { DataTable, td } from "@/components/portal/table";
 import { db } from "@/server/db";
-import { requireDev } from "@/server/developer/context";
+import { requireDevPage } from "@/server/developer/context";
 import { listingStats } from "@/server/analytics/stats";
 
 export const metadata = { title: "Analytics" };
 
 export default async function DevAnalyticsPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
   const days = [7, 30, 90].includes(Number((await searchParams).days)) ? Number((await searchParams).days) : 30;
-  const ctx = await requireDev("ANALYST", "/developer/analytics");
+  const ctx = await requireDevPage("ANALYST", "/developer/analytics");
   const listings = await db.listing.findMany({ where: { developerId: ctx.org.id }, select: { id: true, name: true } });
   const stats = await listingStats(listings.map((l) => l.id), days);
   return (

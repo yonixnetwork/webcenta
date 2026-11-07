@@ -10,6 +10,7 @@ much as you would in an app store, but for the open web.
 | Desktop | Mobile |
 | --- | --- |
 | ![Home, dark](docs/screenshots/home-desktop-dark.png) | ![App page, dark](docs/screenshots/app-mobile-dark.png) |
+| ![Categories, light](docs/screenshots/categories-desktop-light.png) | ![Page not found, dark](docs/screenshots/not-found-mobile-dark.png) |
 
 ## Stack
 
@@ -52,6 +53,8 @@ Admin portal: run `npm run admin:provision -- --email you@example.com`, open the
 | `npm run build && E2E_DB_BASE=… bash tests/e2e/run-fresh.sh` | Production build and the full Playwright suite on a fresh DB (see docs/TESTING.md) |
 | `npm run db:check` | Read-only compatibility report for a target DB (e.g. Supabase) |
 | `npm run db:seed` | Seed real configuration (taxonomy, homepage sections, monitoring policy) |
+| `npm run brand:check` | Fail if the retired product name appears anywhere |
+| `npm run errors:generate` | Regenerate the static fallback error pages in `public/errors/` |
 
 ## Security
 

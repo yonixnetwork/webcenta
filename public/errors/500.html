@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<title>Something went wrong · Webcenta</title>
+<style>
+:root{--bg:#f7f7fb;--surface:#fff;--text:#0f1222;--muted:#4b5065;--border:#e3e5ee;--brand:#4f46e5;--brand-soft:#eef0ff;--brand-contrast:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#0b0c11;--surface:#13151d;--text:#eceef6;--muted:#a3a8bd;--border:#262a37;--brand:#8b93ff;--brand-soft:#1c1f3a;--brand-contrast:#0b0c11}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:40rem;margin:0 auto;padding:2rem 1rem 3rem}
+.logo{display:inline-flex;align-items:center;gap:.5rem;color:var(--text);text-decoration:none;font-weight:800;font-size:1.15rem;letter-spacing:-.01em}
+.logo b{color:var(--brand)}
+main{text-align:center;margin-top:3rem}
+.icon{display:grid;place-items:center;width:4rem;height:4rem;margin:0 auto;border-radius:1rem;background:var(--brand-soft);color:var(--brand)}
+.code{margin:1.25rem 0 0;font-size:.8rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--brand)}
+h1{margin:.25rem 0 0;font-size:clamp(1.6rem,5vw,2.2rem);line-height:1.2;letter-spacing:-.02em}
+p{color:var(--muted);margin:.75rem auto 0;max-width:32rem}
+.actions{display:flex;flex-wrap:wrap;gap:.75rem;justify-content:center;margin-top:1.5rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:2.5rem;padding:0 1rem;border-radius:.75rem;font-weight:600;font-size:.9rem;text-decoration:none;border:1px solid var(--border);background:var(--surface);color:var(--text)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-contrast)}
+.btn:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+form{display:flex;gap:.5rem;max-width:32rem;margin:2.5rem auto 0}
+input{flex:1;min-width:0;height:2.75rem;padding:0 .75rem;border-radius:.75rem;border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-size:.9rem}
+button{height:2.75rem;padding:0 1rem;border-radius:.75rem;border:0;background:var(--brand);color:var(--brand-contrast);font:inherit;font-weight:600;font-size:.9rem;cursor:pointer}
+h2{margin:2.5rem 0 0;text-align:center;font-size:.9rem;color:var(--muted)}
+ul{list-style:none;padding:0;margin:.75rem 0 0;display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}
+ul a{display:inline-block;padding:.45rem .85rem;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);text-decoration:none;font-size:.85rem;font-weight:500}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+footer{margin-top:3rem;text-align:center;font-size:.75rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><a class="logo" href="/" aria-label="Webcenta home"><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#g)"/><path d="M8 11l3 10 3-7 2 0 3 7 3-10" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Web<b>centa</b></span></a></header>
+<main>
+<div class="icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 10H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M6 14H4a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2h-2"/><path d="M6 6h.01"/><path d="M6 18h.01"/><path d="m13 6-4 6h6l-4 6"/></svg></div>
+<p class="code">Error 500</p>
+<h1>Something went wrong on our side</h1>
+<p>An unexpected error stopped this page from loading. Please try again in a moment.</p>
+<div class="actions"><a class="btn primary" href="">Try again</a><a class="btn" href="/">Go to the homepage</a></div>
+
+</main>
+<footer>Webcenta · webcenta.com</footer>
+</div>
+</body>
+</html>

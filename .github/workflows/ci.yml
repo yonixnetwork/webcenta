@@ -73,6 +73,12 @@ jobs:
           npm run db:seed -- --fixtures
           npm run db:seed -- --fixtures
 
+      - name: Brand check (no references to the retired name)
+        run: npm run brand:check
+      - name: Static error pages are up to date
+        run: |
+          npm run errors:generate
+          git diff --exit-code -- public/errors
       - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm test
@@ -95,7 +101,7 @@ jobs:
           bash tests/e2e/prepare.sh
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
-      - name: E2E (journeys, marketplace, security, PWA, responsive on desktop/tablet/mobile)
+      - name: E2E (journeys, marketplace, reviews, error pages, security, PWA, responsive on desktop/tablet/mobile)
         run: npx playwright test
       - name: www redirect is absolute in production-like config
         run: bash scripts/check-www-redirect.sh

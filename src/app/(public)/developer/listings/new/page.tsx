@@ -1,12 +1,12 @@
 import { ListingEditor } from "@/components/portal/listing-editor";
 import { getCategoryTree } from "@/server/catalog/categories";
-import { requireDev } from "@/server/developer/context";
+import { requireDevPage } from "@/server/developer/context";
 import { saveListingAction, uploadMediaAction } from "@/server/actions/developer";
 
 export const metadata = { title: "Submit an app" };
 
 export default async function NewListingPage() {
-  const ctx = await requireDev("EDITOR", "/developer/listings/new");
+  const ctx = await requireDevPage("EDITOR", "/developer/listings/new");
   const tree = await getCategoryTree();
   return (
     <>

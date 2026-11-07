@@ -12,9 +12,8 @@ const PAGES = ["/", "/categories", "/c/productivity", "/search?q=notes", "/app/s
     await cdp.send("Network.enable");
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 }); // mid-range phone
     await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 150, downloadThroughput: 1.6e6 / 8, uploadThroughput: 750e3 / 8 }); // "Fast 3G"-like
-    let jsBytes = 0, totalBytes = 0;
+    let totalBytes = 0;
     cdp.on("Network.loadingFinished", (e) => { totalBytes += e.encodedDataLength; });
-    page.on("response", async (r) => { if (r.url().endsWith(".js")) { const h = await r.headerValue("content-length"); jsBytes += Number(h || 0); } });
     await page.addInitScript(() => {
       window.__lcp = 0; window.__cls = 0;
       new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lcp = e.startTime; }).observe({ type: "largest-contentful-paint", buffered: true });

@@ -8,7 +8,7 @@ const cfg = hostConfigFromEnv({
 describe("classifyHost", () => {
   it.each([
     ["webcenta.com", "public"], ["WWW.webcenta.com", "www"], ["admin.webcenta.com", "admin"],
-    ["developers.webcenta.com", "developer"], ["evil.com", "unknown"], ["admin.webcenta.com.evil.com", "unknown"],
+    ["developers.webcenta.com", "developer"], ["api.webcenta.com", "api"], ["api.admin.webcenta.com", "unknown"], ["evil.com", "unknown"], ["admin.webcenta.com.evil.com", "unknown"],
     [null, "unknown"], ["", "unknown"],
   ] as const)("%s → %s", (host, surface) => expect(classifyHost(host, cfg)).toBe(surface));
 });

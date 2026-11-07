@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { sql } from "./helpers";
+import { settle, sql } from "./helpers";
 
 test.describe("marketplace", () => {
   test("homepage shows real rails and no fabricated sections", async ({ page }) => {
@@ -52,7 +52,8 @@ test.describe("marketplace", () => {
     await expect(page.getByText(/^Security scan: (Not yet scanned|No issues detected|Warning|Under investigation)$/)).toBeVisible();
     await expect(page.getByText("Last verified")).toBeVisible();
     await expect(page.getByText(/guaranteed safe/i)).toHaveCount(0);
-    await expect(page.getByText("No reviews yet. Be the first to share your experience.")).toBeVisible();
+    await expect(page.getByText("No reviews yet. Be the first to review this application.")).toBeVisible();
+    await expect(page.getByTestId("rating-summary")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Competitors" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Free alternatives to CodeWisp/ })).toBeVisible();
     const ld = await page.locator('script[type="application/ld+json"]').textContent();
@@ -99,6 +100,7 @@ test.describe("marketplace", () => {
   test("no serious accessibility violations on key pages", async ({ page }) => {
     for (const path of ["/", "/categories", "/c/ai", "/app/sample-lumen-notes", "/search?q=notes", "/go/sample-lumen-notes", "/signin", "/signup", "/forgot-password", "/contact", "/legal/terms", "/about", "/offline"]) {
       await page.goto(path);
+      await settle(page);
       const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
       const serious = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
       expect(serious.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`), path).toEqual([]);
@@ -144,5 +146,89 @@ test.describe("hosts and SEO", () => {
     const ok = await request.post("/api/cron/tick", { headers: { authorization: `Bearer ${process.env.APP_CRON_SECRET}` } });
     expect(ok.status()).toBe(200);
     expect(await ok.json()).toHaveProperty("runId");
+  });
+});
+
+test.describe("error pages", () => {
+  test("invalid URLs return a real 404 with the branded page, search and popular categories", async ({ page }) => {
+    for (const path of ["/does-not-exist", "/a/b/c/d", "/c/not-a-category", "/collections/nope-nope", "/legal/not-a-policy", "/search/extra", "/%E2%98%83", "/app/"]) {
+      const res = await page.goto(path);
+      expect(res!.status(), path).toBe(404);
+      await expect(page.getByRole("heading", { level: 1 }), path).toHaveText(/Page not found|Application not found/);
+      await expect(page.getByRole("link", { name: /Go to the homepage/ }), path).toBeVisible();
+      await expect(page.locator('meta[name="robots"]').first(), path).toHaveAttribute("content", /noindex/);
+    }
+    await page.goto("/does-not-exist");
+    await expect(page.getByRole("navigation", { name: "Popular categories" }).getByRole("link")).toHaveCount(8);
+    await page.getByRole("searchbox", { name: "Search Webcenta" }).fill("notes");
+    await page.getByRole("searchbox", { name: "Search Webcenta" }).press("Enter");
+    await expect(page).toHaveURL(/\/search\?q=notes/);
+    await page.goto("/does-not-exist");
+    await page.getByRole("navigation", { name: "Popular categories" }).getByRole("link", { name: "Productivity" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Productivity" })).toBeVisible();
+  });
+
+  test("unknown API paths return JSON 404, not HTML", async ({ request }) => {
+    const res = await request.get("/api/does-not-exist/at/all");
+    expect(res.status()).toBe(404);
+    expect(res.headers()["content-type"]).toContain("application/json");
+    expect(await res.json()).toEqual({ error: "Not found" });
+    expect((await request.post("/api/nope")).status()).toBe(404);
+  });
+
+  test("an unavailable app suggests alternatives without revealing moderation details", async ({ page }) => {
+    // Published once, now hidden (restricted category) → named, generic reason, suggestions.
+    const res = await page.goto("/app/sample-hidden-exchange");
+    expect(res!.status()).toBe(404);
+    const h1 = page.getByRole("heading", { level: 1 });
+    await expect(h1).toHaveText(/isn’t available$/);
+    await expect(page.getByText(/may have been removed, may be temporarily unavailable, or may not be offered in your region/)).toBeVisible();
+    const main = (await page.locator("main").innerText()).toLowerCase();
+    for (const word of ["suspend", "restricted category", "legal review", "malware", "phishing", "moderat", "investigat", "violation"]) expect(main, word).not.toContain(word);
+    await expect(page.getByRole("heading", { level: 2 }).filter({ hasText: /More in|Similar apps|Popular on Webcenta/ }).first()).toBeVisible();
+    // Every suggestion is itself publicly reachable.
+    const hrefs = await page.locator('main a[href^="/app/"]').evaluateAll((as) => as.map((a) => a.getAttribute("href")!));
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const h of new Set(hrefs)) expect((await page.request.get(h)).status(), h).toBe(200);
+
+    // Never published (under review) → not named at all.
+    expect((await page.goto("/app/sample-pending-review"))!.status()).toBe(404);
+    await expect(h1).toHaveText("Application not found");
+    expect(await page.locator("main").innerText()).not.toContain("Pending");
+
+    // Unknown slug → generic, with popular apps.
+    expect((await page.goto("/app/zz-no-such-app"))!.status()).toBe(404);
+    await expect(h1).toHaveText("Application not found");
+    await expect(page.getByRole("heading", { name: "Popular on Webcenta" })).toBeVisible();
+  });
+
+  test("server errors render the branded 500 page with a working retry", async ({ page }) => {
+    const res = await page.goto("/e2e-test/server-error");
+    expect(res!.status()).toBe(500);
+    await expect(page.getByRole("heading", { level: 1, name: "Something went wrong on our side" })).toBeVisible();
+    await expect(page.getByText(/Reference:/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Something went wrong on our side" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Go to the homepage/ })).toBeVisible();
+  });
+
+  test("static fallback error pages are self-contained with a strict CSP", async ({ page, request }) => {
+    for (const code of ["404", "500", "502", "503"]) {
+      const res = await request.get(`/errors/${code}.html`);
+      expect(res.status(), code).toBe(200);
+      expect(res.headers()["content-security-policy"], code).toContain("default-src 'none'");
+      expect(res.headers()["x-robots-tag"], code).toBe("noindex");
+      const html = await res.text();
+      expect(html, code).toContain(`Error ${code}`);
+      expect(html, code).not.toContain("<script");
+    }
+    const failed: string[] = [];
+    page.on("requestfailed", (r) => failed.push(r.url()));
+    page.on("console", (m) => { if (m.type() === "error") failed.push(m.text()); });
+    await page.goto("/errors/503.html");
+    await expect(page.getByRole("heading", { level: 1, name: "Webcenta is temporarily unavailable" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Try again" })).toHaveAttribute("href", "");
+    expect(failed).toEqual([]);
   });
 });

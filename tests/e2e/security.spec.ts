@@ -140,6 +140,9 @@ test("broken access control: users cannot reach others' data or portals", async 
   const col = (await sql<{ id: string; slug: string }>(`select c.id, c.slug from "Collection" c join "User" u on u.id = c."ownerId" where u.email = $1`, [B.email]))[0]!;
   expect((await alice.request.get(`${BASE}/account/collections/${col.id}`)).status()).toBe(404);
   expect((await alice.request.get(`${BASE}/collections/${col.slug}`)).status()).toBe(404); // private
+  // Pages rendered for a signed-in visitor are flagged so the service worker never stores them.
+  expect((await alice.request.get(`${BASE}/categories`)).headers()["x-wc-personal"]).toBe("1");
+  expect((await request.get(`${BASE}/categories`)).headers()["x-wc-personal"]).toBeUndefined();
   // Bob (no developer org) cannot open another org's listing in the developer portal.
   const foreign = (await sql<{ id: string }>(`select id from "Listing" where "developerId" is not null limit 1`))[0];
   if (foreign) {
@@ -201,13 +204,16 @@ test("admin privilege escalation and RBAC", async ({ browser }) => {
   await expect(viewer.getByRole("link", { name: "Analytics" })).toBeVisible();
   await expect(viewer.getByRole("link", { name: /Submissions/ })).toHaveCount(0);
   for (const p of ["/submissions", "/admins", "/audit", "/settings", "/users"]) {
-    await viewer.goto(`${ADMIN}${p}`);
-    await expect(viewer).toHaveURL(`${ADMIN}/forbidden`);
+    const res = await viewer.goto(`${ADMIN}${p}`);
+    expect(res!.status(), p).toBe(403); // a real 403, rendered at the requested URL
+    await expect(viewer).toHaveURL(`${ADMIN}${p}`);
+    await expect(viewer.getByRole("heading", { level: 1, name: "Access denied" })).toBeVisible();
+    await expect(viewer.getByText(/recorded in the audit log/)).toBeVisible();
   }
   await viewer.goto(`${ADMIN}/analytics`);
   await expect(viewer.getByRole("heading", { name: "Platform analytics" })).toBeVisible();
-  const denied = await sql(`select 1 from "AuditLog" where action = 'admin.permission.denied'`);
-  expect(denied.length).toBeGreaterThanOrEqual(0); // page-level denials redirect; action-level denials are audited
+  const denied = await sql(`select 1 from "AuditLog" a join "AdminUser" u on u.id = a."adminId" where a.action = 'admin.permission.denied' and u.email = $1`, [VIEWER.email]);
+  expect(denied.length).toBe(5); // every page-level denial is audited
   await viewer.close();
   await sup.close();
 });

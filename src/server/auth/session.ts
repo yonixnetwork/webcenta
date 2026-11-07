@@ -29,7 +29,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       maxAgeRating: true, adultConfirmedAt: true, preferredCountry: true, emailNotifications: true },
   });
   if (!u || u.status !== "ACTIVE") return null;
-  const { status: _status, ...rest } = u;
+  const rest: Omit<typeof u, "status"> & { status?: unknown } = { ...u };
+  delete rest.status;
   return rest;
 });
 

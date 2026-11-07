@@ -7,6 +7,12 @@ committed migration; `db push` is for local experiments only. CI applies the mig
 database that simulates Supabase's `anon`/`authenticated` roles, then checks for drift
 (`prisma migrate diff --exit-code`) and RLS coverage.
 
+Migrations so far: `*_init` (baseline), `*_m2_auth_email_admin` (auth rate limits, email outbox,
+admin TOTP replay protection and invitations) and `*_category_emoji` (optional `Category.emoji`,
+filled by the seed for top-level categories only where empty, so an administrator's choice is never
+overwritten). The baseline was edited once, before any deployment, to rename the search trigger
+function to `webcenta_listing_search_vector` during the brand correction.
+
 ## 1. Domain map
 
 | File | Tables | Purpose |

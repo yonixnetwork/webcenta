@@ -33,15 +33,29 @@ test.describe("PWA", () => {
     // Previously visited page still works offline.
     await page.goto("/categories");
     await expect(page.getByRole("heading", { level: 1, name: "All categories" })).toBeVisible();
-    // Never-visited page → offline fallback.
-    await page.goto("/about");
-    await expect(page.getByRole("heading", { name: "You are offline" })).toBeVisible();
     // Account/auth pages are never cached; offline they show the fallback, not stale private data.
     await page.goto("/signin");
-    await expect(page.getByRole("heading", { name: "You are offline" })).toBeVisible();
-    await context.setOffline(false);
+    await expect(page.getByRole("heading", { name: "You're currently offline." })).toBeVisible();
+    // Never-visited page → branded offline fallback, fully styled from the precache.
     await page.goto("/about");
+    await expect(page.getByRole("heading", { level: 1, name: "You're currently offline." })).toBeVisible();
+    await expect(page.getByText("Please check your internet connection and try again.")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Webcenta home" })).toBeVisible();
+    const retry = page.getByRole("button", { name: "Retry" });
+    expect(await retry.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+    // Retry really checks the network: still offline → it says so and stays here.
+    await retry.click();
+    await expect(page.getByText(/Still no connection/)).toBeVisible();
+    expect(page.url()).toMatch(/\/about$/);
+    // Back online → the page that was originally requested loads again automatically.
+    await context.setOffline(false);
     await expect(page.getByRole("heading", { level: 1, name: "About Webcenta" })).toBeVisible();
+    expect(page.url()).toMatch(/\/about$/);
+    // Manual Retry with a working connection: from /offline itself it continues to the homepage.
+    await page.goto("/offline");
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Find the right web app");
   });
 
   test("an updated service worker triggers the update prompt and reload", async ({ page }) => {
@@ -51,13 +65,13 @@ test.describe("PWA", () => {
     // Publish a new service-worker version (as a deployment would), then restore it.
     const original = readFileSync("public/sw.js", "utf8");
     try {
-      writeFileSync("public/sw.js", original.replace('const VERSION = "wc-v1"', 'const VERSION = "wc-v2"'));
+      writeFileSync("public/sw.js", original.replace('const VERSION = "wc-v2"', 'const VERSION = "wc-v3"'));
       await page.evaluate(async () => { const reg = await navigator.serviceWorker.getRegistration(); await reg?.update(); });
       await expect(page.getByText("A new version of Webcenta is available.")).toBeVisible({ timeout: 15_000 });
       const reload = page.waitForEvent("load");
       await page.getByRole("button", { name: "Reload" }).click();
       await reload;
-      await expect.poll(() => page.evaluate(async () => (await caches.keys()).some((k) => k.startsWith("wc-v2")))).toBe(true);
+      await expect.poll(() => page.evaluate(async () => (await caches.keys()).some((k) => k.startsWith("wc-v3")))).toBe(true);
     } finally {
       writeFileSync("public/sw.js", original);
     }

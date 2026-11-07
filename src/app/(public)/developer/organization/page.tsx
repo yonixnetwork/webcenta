@@ -3,13 +3,13 @@ import { buttonClass } from "@/components/ui/button";
 import { Card, Field, inputClass } from "@/components/ui/form";
 import { DataTable, StatusPill, td } from "@/components/portal/table";
 import { db } from "@/server/db";
-import { canRole, requireDev } from "@/server/developer/context";
+import { canRole, requireDevPage } from "@/server/developer/context";
 import { addMemberAction, removeMemberAction, updateOrgAction } from "@/server/actions/developer";
 
 export const metadata = { title: "Organisation" };
 
 export default async function OrganizationPage() {
-  const ctx = await requireDev("ANALYST", "/developer/organization");
+  const ctx = await requireDevPage("ANALYST", "/developer/organization");
   const members = await db.developerMember.findMany({ where: { orgId: ctx.org.id }, include: { user: { select: { name: true, email: true } } } });
   const admin = canRole(ctx.role, "ADMIN");
   const o = ctx.org;

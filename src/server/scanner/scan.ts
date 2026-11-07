@@ -6,7 +6,6 @@ import { analyzeHtml } from "./html";
 import { blocklistCheck, externalProvidersConfigured, googleWebRisk, urlhaus, virusTotal, type Verdict } from "./providers";
 import { safeFetch, type SafeResponse } from "./safe-fetch";
 import { brandLabel, levenshtein, PROTECTED_BRANDS, registrableDomain, skeleton } from "./domains";
-import { isBlockedIp } from "./net";
 
 export interface CheckOutcome { check: CheckType; provider: string; verdict: Verdict; summary: string; evidence?: Record<string, unknown>; severity?: AlertSeverity }
 

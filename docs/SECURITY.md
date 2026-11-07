@@ -173,7 +173,7 @@ material. CSAM is reported to the relevant authorities as legally required.
 | Headers | HSTS (preload after launch), CSP, `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `frame-ancestors 'none'`. |
 | Secrets | Environment variables only; `.env*` git-ignored; GitHub secret scanning and push protection enabled; keys rotated on staff changes. |
 | Dependencies | Lockfile committed; `npm audit` and Dependabot in CI. |
-| Abuse | Rate limits on reviews, reports, sign-ups, search and `/go`; review spam heuristics (new account, burst, duplicate text, same network); held reviews go to moderation. |
+| Abuse | Rate limits on reviews, reports, sign-ups, search and `/go`; review spam heuristics (account younger than 24 h, links in the text, a burst of reviews, text duplicated from another user); held reviews go to moderation. One review per user per listing (database unique constraint); a second submission edits the first. |
 | Logging | Structured logs without secrets, tokens or full IPs in application logs. |
 
 ## 6. Privacy
@@ -219,5 +219,16 @@ material. CSAM is reported to the relevant authorities as legally required.
   POST endpoint only ever redirects to the listing's stored `https://` website.
 * **The scanner** runs in-process on shared hosting (guards in §3), with test-only loopback access gated
   by `SCANNER_ALLOW_PRIVATE_FOR_TESTS` **and** a localhost `PUBLIC_ORIGIN`.
+* **Error responses** use real status codes: 404 (pages and `/api/*` as JSON), 403 via `forbidden()`
+  (`experimental.authInterrupts`; admin page denials are audited), 500 from error boundaries, and a
+  maintenance 503 with `Retry-After` served by the proxy. The "application unavailable" page never
+  names a listing that was never published and never shows moderation reasons.
+* **Static fallback pages** (`public/errors/*.html`) carry their own CSP (`default-src 'none'`, inline
+  styles only) because they bypass the proxy.
+* **Service worker** never stores pages rendered for a signed-in visitor: the proxy adds
+  `x-wc-personal: 1` when a session cookie is present, in addition to the path exclusions.
+* **Test-only routes** (`/e2e-test/*`) need `ENABLE_TEST_ERROR_ROUTES=true` **and** a localhost
+  `PUBLIC_ORIGIN`; otherwise they return 404.
+* **`api.webcenta.com`** (optional) serves `/api/*` only; host-only session cookies never reach it.
 * **Every migration** ends with the standard RLS and Data API privilege-revocation footer
   (`prisma/rls-footer.sql`).

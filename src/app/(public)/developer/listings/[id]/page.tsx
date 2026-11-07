@@ -6,14 +6,14 @@ import { Card, Field, FormMessage, inputClass } from "@/components/ui/form";
 import { DataTable, StatusPill, td } from "@/components/portal/table";
 import { formatDate } from "@/lib/labels";
 import { db } from "@/server/db";
-import { requireDev, canRole } from "@/server/developer/context";
+import { requireDevPage, canRole } from "@/server/developer/context";
 import { complianceDocAction, reopenRevisionAction, submitListingAction } from "@/server/actions/developer";
 import { appealAction } from "@/server/actions/public";
 
 export default async function DevListingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string }> }) {
   const { id } = await params;
   const { saved } = await searchParams;
-  const ctx = await requireDev("ANALYST", `/developer/listings/${id}`);
+  const ctx = await requireDevPage("ANALYST", `/developer/listings/${id}`);
   const l = await db.listing.findFirst({
     where: { id, developerId: ctx.org.id },
     include: {

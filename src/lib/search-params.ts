@@ -8,8 +8,7 @@ export type SortKey = (typeof SORTS)[number];
 
 /** Removes NUL and other control characters (PostgreSQL rejects NUL in text). */
 export function cleanText(v: string): string {
-  // eslint-disable-next-line no-control-regex
-  return v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  return v.replace(new RegExp("[\\u0000-\\u001f\\u007f]", "g"), " ").replace(/\s+/g, " ").trim();
 }
 
 const flag = z.preprocess((v) => v === "1" || v === "true", z.boolean()).catch(false);

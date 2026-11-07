@@ -3,13 +3,13 @@ import { Card, Field, inputClass } from "@/components/ui/form";
 import { StatusPill } from "@/components/portal/table";
 import { formatDate } from "@/lib/labels";
 import { db } from "@/server/db";
-import { requireDev } from "@/server/developer/context";
+import { requireDevPage } from "@/server/developer/context";
 import { claimListingAction } from "@/server/actions/developer";
 
 export const metadata = { title: "Claim a listing" };
 
 export default async function ClaimsPage() {
-  const ctx = await requireDev("ANALYST", "/developer/claims");
+  const ctx = await requireDevPage("ANALYST", "/developer/claims");
   const claims = await db.listingClaim.findMany({ where: { orgId: ctx.org.id }, include: { listing: { select: { name: true, domain: true } } }, orderBy: { createdAt: "desc" } });
   return (
     <>

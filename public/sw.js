@@ -1,19 +1,33 @@
 /* Webcenta service worker.
- * - Precaches the offline page and icons.
+ * - Precaches the offline page together with the CSS/JS it references, so the
+ *   offline screen is fully styled and its Retry button works without a network.
  * - Static assets (/_next/static, /icons): cache-first (content-hashed).
  * - Public page navigations: network-first, falling back to the offline page.
- * - NEVER caches: /api/*, /account*, /developer*, /go/*, auth pages, or non-GET requests.
+ * - NEVER caches: /api/*, /account*, /developer*, /go/*, auth pages, non-GET requests,
+ *   or any page rendered for a signed-in visitor (marked x-wc-personal by the proxy).
  * Bump VERSION to roll out a new cache; clients are prompted to reload.
  */
-const VERSION = "wc-v1";
+const VERSION = "wc-v2";
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = "/offline";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/icons/icon-512.png", "/manifest.webmanifest"];
 const NO_CACHE = [/^\/api\//, /^\/account/, /^\/developer/, /^\/go\//, /^\/signin/, /^\/signup/, /^\/reset-password/, /^\/forgot-password/, /^\/account-export/, /^\/media\//];
 
+async function precache() {
+  const cache = await caches.open(STATIC_CACHE);
+  await cache.addAll(PRECACHE);
+  // Also cache the offline page's own stylesheets and scripts (content-hashed).
+  const res = await cache.match(OFFLINE_URL);
+  if (!res) return;
+  const html = await res.text();
+  const assets = new Set();
+  for (const m of html.matchAll(/(?:href|src)="(\/_next\/static\/[^"]+)"/g)) assets.add(m[1].replace(/&amp;/g, "&"));
+  await Promise.all([...assets].map((u) => cache.add(u).catch(() => undefined)));
+}
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(STATIC_CACHE).then((c) => c.addAll(PRECACHE)));
+  event.waitUntil(precache());
 });
 
 self.addEventListener("activate", (event) => {
@@ -49,7 +63,7 @@ self.addEventListener("fetch", (event) => {
       try {
         const res = await fetch(req);
         // Cache only successful, non-personalised public pages (no Set-Cookie).
-        if (res.ok && !res.headers.get("set-cookie")) { const copy = res.clone(); caches.open(PAGE_CACHE).then((c) => c.put(req, copy)); }
+        if (res.ok && !res.headers.get("set-cookie") && !res.headers.get("x-wc-personal")) { const copy = res.clone(); caches.open(PAGE_CACHE).then((c) => c.put(req, copy)); }
         return res;
       } catch {
         return (await caches.match(req)) || (await caches.match(OFFLINE_URL));

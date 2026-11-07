@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { ADMIN, BASE, categoryId, closeDb, freshTotp, markTotpUsed, emailLink, pngBuffer, provisionAdmin, registerUser, runCron, setSite, signIn, sql, totp } from "./helpers";
+import { ADMIN, BASE, categoryId, closeDb, freshTotp, markTotpUsed, pngBuffer, provisionAdmin, registerUser, runCron, setSite, signIn, sql, totp } from "./helpers";
 
 /**
  * The ten end-to-end user journeys, executed in order against the real app,

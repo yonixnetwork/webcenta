@@ -11,7 +11,7 @@ export function Logo() {
         <rect width="32" height="32" rx="9" fill="url(#wc-g)" />
         <path d="M8 11l3 10 3-7 2 0 3 7 3-10" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="text-lg font-extrabold tracking-tight">Web<span className="text-brand">Center</span></span>
+      <span className="text-lg font-extrabold tracking-tight">Web<span className="text-brand">centa</span></span>
     </span>
   );
 }

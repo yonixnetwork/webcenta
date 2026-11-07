@@ -11,7 +11,7 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { buildPoolConfig } from "../src/server/db-config";
-import { flattenTaxonomy } from "../src/server/catalog/taxonomy";
+import { CATEGORY_EMOJI, flattenTaxonomy } from "../src/server/catalog/taxonomy";
 import { FIXTURE_COLLECTIONS, FIXTURE_FEATURED, FIXTURE_LISTINGS, FIXTURE_RELATIONS } from "../prisma/seed/dev-fixtures";
 
 const { pool } = buildPoolConfig({
@@ -33,14 +33,17 @@ async function seedTaxonomy() {
     const parent = n.parentSlug ? flat.find((p) => p.slug === n.parentSlug) : undefined;
     // Children inherit the stricter of their own and their parent's settings.
     const risk = [n.riskTier ?? "LOW", parent?.riskTier ?? "LOW"].sort((a, b) => RISK_ORDER.indexOf(b) - RISK_ORDER.indexOf(a))[0]!;
-    const existing = await db.category.findUnique({ where: { slug: n.slug }, select: { id: true } });
+    const emoji = n.parentSlug ? null : (CATEGORY_EMOJI[n.slug] ?? null);
+    const existing = await db.category.findUnique({ where: { slug: n.slug }, select: { id: true, emoji: true } });
     if (existing) {
       ids.set(n.slug, existing.id);
+      // Fill in an emoji only where none is set; never overwrite an administrator's choice.
+      if (emoji && existing.emoji === null) await db.category.update({ where: { id: existing.id }, data: { emoji } });
       continue;
     }
     const row = await db.category.create({
       data: {
-        slug: n.slug, name: n.name, icon: n.icon, description: n.description ?? null, parentId, sortOrder: n.sortOrder,
+        slug: n.slug, name: n.name, icon: n.icon, emoji, description: n.description ?? null, parentId, sortOrder: n.sortOrder,
         riskTier: risk, defaultAgeRating: n.ageRating ?? parent?.ageRating ?? "ALL_AGES",
         isRestricted: Boolean(n.restricted || parent?.restricted),
         requiresManualReview: Boolean(n.manualReview || parent?.manualReview || risk === "HIGH"),

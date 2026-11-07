@@ -16,10 +16,10 @@ Status: **Phase 1 implemented** (marketplace foundation). This document describe
 
 ```
                     ┌──────────────────────────── one Next.js deployment ───────────────────────────┐
- webcenta.com ───► │  proxy.ts (host routing, security headers, rate limits, geo/age context)    │
- admin.…       ───► │   ├─ app/(public)      marketplace pages (SSR/ISR)                            │
- developers.…  ───► │   ├─ app/(developer)   developer portal                                        │
- api.…         ───► │   ├─ app/(admin)       admin portal  (separate auth, MFA, host-only cookie)   │
+ webcenta.com ───► │  proxy.ts (host routing, CSP nonce, maintenance 503, x-pathname)             │
+ admin.…       ───► │   ├─ app/(public)      marketplace + /developer portal (SSR)                   │
+ developers.…  ───► │   │                    (developers.… redirects to webcenta.com/developer)     │
+ api.…         ───► │   ├─ app/admin-host    admin portal  (separate auth, MFA, host-only cookie)   │
                     │   └─ app/api/*         JSON API (public read API, webhooks, cron endpoint)    │
                     │                                                                                │
                     │  src/server/<module>   domain services — the only code that touches the DB    │
@@ -45,8 +45,8 @@ Hostinger Business runs a single Node.js app, so all four hostnames start out se
 | `webcenta.com` | `(public)` | Canonical public site. |
 | `www.webcenta.com` | — | Permanent 308 redirect to `https://webcenta.com`. |
 | `admin.webcenta.com` | `app/admin-host` (internal rewrite) | Only reachable on this host; requesting `/admin-host/…` directly on any host returns 404. Separate cookie, separate user table, MFA. `noindex`. |
-| `developers.webcenta.com` | `app/developer-host` (internal rewrite) | Uses the public user account (developers are users who belong to a developer organisation). |
-| `api.webcenta.com` | `app/api` | Optional. Same handlers are also reachable at `webcenta.com/api` at first; split later if a mobile client or third parties need it. |
+| `developers.webcenta.com` | — | Permanent 308 redirect to `https://webcenta.com/developer` (the portal shares the public user session). |
+| `api.webcenta.com` | `app/api` | Optional. Serves `/api/*` only and redirects other paths to `webcenta.com`. The site calls `webcenta.com/api`; split later if a mobile client or third parties need it. |
 
 Isolation does **not** rely on hidden links. Admin authorisation is enforced on every admin route
 and server action, on the server. When traffic or risk justifies it, `(admin)` can become a second

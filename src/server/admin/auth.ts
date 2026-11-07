@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 import type { AdminRole } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import { audit } from "@/server/audit";
@@ -116,7 +116,11 @@ export async function pendingMfaSession() {
 export async function requireAdmin(perm?: Permission): Promise<CurrentAdmin> {
   const a = await getAdmin();
   if (!a) redirect("/login");
-  if (perm && !can(a.role, perm)) redirect("/forbidden");
+  if (perm && !can(a.role, perm)) {
+    // Page-level denial: record it, then render the 403 page (real 403 status).
+    await audit({ actorType: "ADMIN", adminId: a.id, action: "admin.permission.denied", metadata: { permission: perm, surface: "page" } });
+    forbidden();
+  }
   return a;
 }
 

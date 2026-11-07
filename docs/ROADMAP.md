@@ -15,6 +15,7 @@ the list of unverified items.
 | Search (FTS + trigram, typo/prefix), autocomplete, suggested searches, filters (pricing, open source, browser, mobile, PWA, verified developer, recently updated, highly rated, platform, country), sorting, pagination | ✅ |
 | App pages: trust panel (honest wording), screenshots, features, info, tags, JSON-LD, share, save, collections, report, reviews | ✅ |
 | Similar apps, competitors, free / open-source / better-rated alternatives, alternatives page | ✅ |
+| Error pages: branded 404 (search, popular categories), 403, 500, maintenance 503, JSON 404 for the API, "application unavailable" page with suggestions; static fallback pages for the host/CDN | ✅ (host/Cloudflare custom error page configuration 🟡) |
 | Leaving-Webcenta interstitial and tracked, non-open redirect | ✅ |
 | Country (listing and category) and age restrictions enforced everywhere | ✅ (country detection needs a geo header, e.g. Cloudflare 🟡) |
 
@@ -25,7 +26,7 @@ the list of unverified items.
 | Google and Apple sign-in | 🟡 implemented; requires OAuth credentials; not tested against the real providers |
 | Profile, privacy controls, personalisation/history toggles, clear history, interests, 18+ self-declaration, data export, account deletion (30-day purge) | ✅ |
 | Favourites, collections (private/unlisted/public) | ✅ |
-| Ratings, reviews (edit/delete), helpful votes, review reports, anti-spam holds, developer replies, notifications (in-app + email) | ✅ (email delivery via SMTP 🟡) |
+| Ratings, reviews (edit/delete), helpful votes, review reports, anti-spam holds, developer replies, notifications (in-app + email); rating summary with average, total, per-star counts and percentages | ✅ (email delivery via SMTP 🟡) |
 | Appeals (listings and reviews), contact/support desk | ✅ |
 
 ## Developer portal (`/developer`; `developers.` host redirects there)
@@ -65,7 +66,7 @@ the list of unverified items.
 ## Platform
 | Feature | Status |
 | --- | --- |
-| PWA: manifest, icons, service worker, offline fallback, update prompt, install prompt, iOS instructions | ✅ (Chromium-tested; real devices 🟡) |
+| PWA: manifest, icons, service worker, offline page with working Retry (precached with its assets), update prompt, install prompt, iOS instructions | ✅ (Chromium-tested; real devices 🟡) |
 | SEO: metadata, canonicals, sitemap, robots, JSON-LD, noindex where needed | ✅ |
 | Accessibility: axe WCAG 2.1 AA, no serious or critical violations on tested pages, both themes | ✅ |
 | Monetisation foundations: plans, sponsorship workflow, labelled sponsored placements | ✅ (billing intentionally inactive) |

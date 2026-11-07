@@ -3,13 +3,13 @@ import { Card, Field, inputClass } from "@/components/ui/form";
 import { DataTable, StatusPill, td } from "@/components/portal/table";
 import { formatDate } from "@/lib/labels";
 import { db } from "@/server/db";
-import { requireDev } from "@/server/developer/context";
+import { requireDevPage } from "@/server/developer/context";
 import { sponsorshipRequestAction } from "@/server/actions/developer";
 
 export const metadata = { title: "Plans & promotion" };
 
 export default async function PromotePage() {
-  const ctx = await requireDev("ANALYST", "/developer/promote");
+  const ctx = await requireDevPage("ANALYST", "/developer/promote");
   const [plans, subs, requests, listings] = await Promise.all([
     db.developerPlan.findMany({ orderBy: { createdAt: "asc" } }),
     db.developerSubscription.findMany({ where: { orgId: ctx.org.id }, include: { plan: true } }),

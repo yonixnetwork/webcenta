@@ -22,6 +22,7 @@ export const appEnv = {
   STORAGE_DRIVER: "local",
   STORAGE_LOCAL_DIR: "./.e2e-storage",
   SCANNER_ALLOW_PRIVATE_FOR_TESTS: "true",
+  ENABLE_TEST_ERROR_ROUTES: "true",
   NODE_EXTRA_CA_CERTS: path.resolve("tests/fixtures/.certs/ca.pem"),
   GEO_UNKNOWN_POLICY: "deny",
   ALLOW_DEV_FIXTURES: "",
@@ -39,7 +40,7 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${PORT}`, trace: "off", ignoreHTTPSErrors: true },
   projects: [
     { name: "journeys", testMatch: /journeys\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
-    { name: "desktop", testMatch: /(marketplace|responsive|security|pwa)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
+    { name: "desktop", testMatch: /(marketplace|responsive|security|pwa|reviews)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
     { name: "tablet", testMatch: /(marketplace|responsive)\.spec\.ts/, use: { ...devices["iPad (gen 7) landscape"], browserName: "chromium" } },
     { name: "mobile", testMatch: /(marketplace|responsive|pwa)\.spec\.ts/, use: { ...devices["Pixel 7"] } },
   ],
