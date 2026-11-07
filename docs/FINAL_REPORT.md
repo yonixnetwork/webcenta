@@ -37,6 +37,7 @@ The required integrations were exercised end to end by the E2E journeys:
 | Backup → restore drill | 61 tables restored with identical row counts; RLS and search trigger intact |
 | Client bundle secret scan | no secrets, connection strings or source maps (29 files) |
 | `npm audit --omit=dev` (production dependencies) | 0 vulnerabilities |
+| **GitHub Actions CI on a clean runner** (all of the above plus the E2E suite) | **passed**: run #17 for commit `a61df60` (https://github.com/yonixnetwork/webcenta/actions/runs/42325660895) |
 | `npm audit` (incl. dev tooling) | 8 moderate in ESLint tooling (`minimatch` via typescript-eslint); the only offered fix downgrades `eslint-config-next` across a major version. Dev-only, not shipped. |
 
 The E2E coverage:
