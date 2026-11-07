@@ -24,6 +24,13 @@ describe("prefixTsQuery", () => {
   it("keeps unicode letters", () => expect(prefixTsQuery("café 東京")).toBe("café:* & 東京:*"));
 });
 
+describe("cleanText", () => {
+  it("strips NUL and control characters", () => {
+    expect(parseFilters({ q: "no\u0000tes\u0007" }).q).toBe("no tes");
+    expect(parseFilters({ q: "\u0000" }).q).toBeUndefined();
+  });
+});
+
 describe("escapeLike", () => {
   it("escapes wildcards", () => expect(escapeLike("50%_off\\")).toBe("50\\%\\_off\\\\"));
 });

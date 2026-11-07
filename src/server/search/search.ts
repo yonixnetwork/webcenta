@@ -3,7 +3,7 @@ import { db } from "@/server/db";
 import type { ViewerContext } from "@/server/viewer";
 import { cardSelect, MIN_RATINGS_FOR_DISPLAY, type ListingCard } from "@/server/catalog/listings";
 import { publicListingWhere } from "@/server/catalog/visibility";
-import { escapeLike, normalizeQueryForStats, prefixTsQuery, type SearchFilters } from "@/lib/search-params";
+import { cleanText, escapeLike, normalizeQueryForStats, prefixTsQuery, type SearchFilters } from "@/lib/search-params";
 
 /**
  * Search provider (Postgres FTS + pg_trgm). The interface is deliberately small
@@ -55,7 +55,9 @@ function orderFor(sort: SearchFilters["sort"]): Prisma.ListingOrderByWithRelatio
 }
 
 /** Text-match candidates with a relevance score. Visibility is applied afterwards. */
-export async function textCandidates(q: string, limit = MAX_TEXT_CANDIDATES): Promise<Array<{ id: string; rank: number }>> {
+export async function textCandidates(rawQ: string, limit = MAX_TEXT_CANDIDATES): Promise<Array<{ id: string; rank: number }>> {
+  const q = cleanText(rawQ);
+  if (!q) return [];
   const tsq = prefixTsQuery(q);
   const like = `%${escapeLike(q)}%`;
   const prefix = `${escapeLike(q)}%`;
@@ -125,7 +127,7 @@ export interface Suggestions {
 }
 
 export async function suggest(ctx: ViewerContext, q: string): Promise<Suggestions> {
-  const query = q.trim().slice(0, 60);
+  const query = cleanText(q).slice(0, 60);
   if (query.length < 1) return { apps: [], categories: [] };
   const candidates = await textCandidates(query, 40);
   const [apps, categories] = await Promise.all([

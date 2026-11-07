@@ -12,7 +12,10 @@ const V4: Array<[string, number]> = [
   ["203.0.113.0", 24], ["224.0.0.0", 4], ["240.0.0.0", 4], ["255.255.255.255", 32],
 ];
 const V6: Array<[string, number]> = [
-  ["::", 128], ["::1", 128], ["::ffff:0:0", 96], ["64:ff9b::", 96], ["64:ff9b:1::", 48], ["100::", 64], ["2001::", 23],
+  // NOTE: do not list ::ffff:0:0/96 here — Node's BlockList checks IPv4 addresses against
+  // IPv6 rules through that mapping, which would block every IPv4 address. Mapped forms
+  // are handled explicitly by embeddedIpv4() below.
+  ["::", 128], ["::1", 128], ["64:ff9b::", 96], ["64:ff9b:1::", 48], ["100::", 64], ["2001::", 23],
   ["2001:db8::", 32], ["2002::", 16], ["fc00::", 7], ["fe80::", 10], ["fec0::", 10], ["ff00::", 8],
 ];
 for (const [a, p] of V4) blocked.addSubnet(a, p, "ipv4");

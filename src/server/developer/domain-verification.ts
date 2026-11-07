@@ -13,6 +13,8 @@ export const TXT_PREFIX = "webcenter-verification=";
 export function normalizeDomain(input: string): string | null {
   const raw = input.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");
   if (!/^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/.test(raw)) return null;
+  // IP literals are never valid domains (the top-level label must contain a letter).
+  if (!/[a-z]/.test(raw.split(".").pop() ?? "")) return null;
   if (isBlockedHostname(raw) && !(testModeAllowsLoopback() && raw.endsWith(".localhost"))) return null;
   return raw;
 }

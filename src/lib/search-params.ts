@@ -6,6 +6,12 @@ export const PLATFORMS = ["WEB", "ANDROID", "IOS", "WINDOWS", "MACOS", "LINUX", 
 export const SORTS = ["relevance", "newest", "updated", "rating", "name"] as const;
 export type SortKey = (typeof SORTS)[number];
 
+/** Removes NUL and other control characters (PostgreSQL rejects NUL in text). */
+export function cleanText(v: string): string {
+  // eslint-disable-next-line no-control-regex
+  return v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+}
+
 const flag = z.preprocess((v) => v === "1" || v === "true", z.boolean()).catch(false);
 const list = <T extends readonly [string, ...string[]]>(values: T) =>
   z.preprocess(
@@ -14,7 +20,7 @@ const list = <T extends readonly [string, ...string[]]>(values: T) =>
   );
 
 export const filtersSchema = z.object({
-  q: z.preprocess((v) => (typeof v === "string" ? v.trim().slice(0, 100) : undefined), z.string().optional()).catch(undefined),
+  q: z.preprocess((v) => (typeof v === "string" ? cleanText(v).slice(0, 100) || undefined : undefined), z.string().optional()).catch(undefined),
   category: z.string().regex(/^[a-z0-9-]{1,80}$/).optional().catch(undefined),
   pricing: list(PRICING).catch([]),
   platform: z.enum(PLATFORMS).optional().catch(undefined),

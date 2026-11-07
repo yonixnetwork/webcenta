@@ -45,6 +45,27 @@ export function totp(secret: string, offsetSteps = 0): string {
   return String((((h[o]! & 127) << 24) | (h[o + 1]! << 16) | (h[o + 2]! << 8) | h[o + 3]!) % 1e6).padStart(6, "0");
 }
 
+/**
+ * A TOTP code for a step not used before with this secret (the app rejects replays).
+ * Uses the current or next step; waits for the clock when both were already used.
+ */
+const usedSteps = new Map<string, number>();
+export async function freshTotp(secret: string): Promise<string> {
+  for (;;) {
+    const now = Math.floor(Date.now() / 30000);
+    const last = usedSteps.get(secret) ?? -1;
+    const step = Math.max(now, last + 1);
+    if (step <= now + 1) {
+      usedSteps.set(secret, step);
+      return totp(secret, step - now);
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+export function markTotpUsed(secret: string) {
+  usedSteps.set(secret, Math.max(usedSteps.get(secret) ?? -1, Math.floor(Date.now() / 30000)));
+}
+
 export async function setSite(host: string, patch: { mode?: string; verification?: string }) {
   const res = await fetch("http://127.0.0.1:4599/__control", { method: "POST", body: JSON.stringify({ host, ...patch }) });
   if (!res.ok) throw new Error("fixture control failed");

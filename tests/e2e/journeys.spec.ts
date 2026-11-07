@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { ADMIN, BASE, categoryId, closeDb, emailLink, pngBuffer, provisionAdmin, registerUser, runCron, setSite, signIn, sql, totp } from "./helpers";
+import { ADMIN, BASE, categoryId, closeDb, freshTotp, markTotpUsed, emailLink, pngBuffer, provisionAdmin, registerUser, runCron, setSite, signIn, sql, totp } from "./helpers";
 
 /**
  * The ten end-to-end user journeys, executed in order against the real app,
@@ -27,8 +27,7 @@ async function adminLogin(page: Page) {
   await page.getByLabel("Password").fill(ADMIN_USER.password);
   await page.getByRole("button", { name: "Continue" }).click();
   await page.waitForURL(/\/login\/mfa/);
-  // The code from enrolment was already used; use the next time-step (accepted ±1 step).
-  await page.getByLabel("Authentication code").fill(totp(ADMIN_USER.secret, 1));
+  await page.getByLabel("Authentication code").fill(await freshTotp(ADMIN_USER.secret));
   await page.getByRole("button", { name: "Verify" }).click();
   await page.waitForURL(`${ADMIN}/`);
 }
@@ -137,6 +136,7 @@ test("4. an administrator logs in, reviews the submission, approves and publishe
   await adminPage.getByLabel(/^Password/).fill(ADMIN_USER.password);
   await adminPage.getByLabel("Confirm password").fill(ADMIN_USER.password);
   await adminPage.getByLabel("Authenticator code").fill(totp(ADMIN_USER.secret));
+  markTotpUsed(ADMIN_USER.secret);
   await adminPage.getByRole("button", { name: "Create account" }).click();
   await adminPage.waitForURL(/\/login\?invited=1/);
   await adminLogin(adminPage);

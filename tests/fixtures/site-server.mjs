@@ -21,6 +21,10 @@ const site = https({ key: readFileSync(new URL("site.key", dir)), cert: readFile
   const host = (req.headers.host ?? "").split(":")[0];
   const s = get(host);
   const path = (req.url ?? "/").split("?")[0];
+  // Redirect/down/download modes apply to every path (including verification files).
+  if (s.mode === "redirect-private") { res.writeHead(302, { location: "http://169.254.169.254/latest/meta-data/" }); return res.end(); }
+  if (s.mode === "redirect-evil") { res.writeHead(302, { location: "https://evil-site.localhost/landing" }); return res.end(); }
+  if (s.mode === "down") { res.writeHead(503); return res.end("down"); }
   if (path === "/.well-known/webcenter-verification.txt") {
     res.writeHead(s.verification ? 200 : 404, { "content-type": "text/plain" });
     return res.end(s.verification || "not found");

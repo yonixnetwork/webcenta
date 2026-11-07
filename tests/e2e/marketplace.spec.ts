@@ -44,9 +44,11 @@ test.describe("marketplace", () => {
 
   test("detail page shows honest trust information and alternatives", async ({ page }) => {
     await page.goto("/app/sample-codewisp");
-    await expect(page.getByText("Security scan: Not yet scanned")).toBeVisible();
-    await expect(page.getByText("Not yet verified")).toBeVisible();
-    await expect(page.getByText("No ratings yet.")).toBeVisible();
+    // Status depends on whether monitoring has run yet; wording is never "safe".
+    await expect(page.getByText(/^Security scan: (Not yet scanned|No issues detected|Warning|Under investigation)$/)).toBeVisible();
+    await expect(page.getByText("Last verified")).toBeVisible();
+    await expect(page.getByText(/guaranteed safe/i)).toHaveCount(0);
+    await expect(page.getByText("No reviews yet. Be the first to share your experience.")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Competitors" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Free alternatives to CodeWisp/ })).toBeVisible();
     const ld = await page.locator('script[type="application/ld+json"]').textContent();
@@ -91,7 +93,7 @@ test.describe("marketplace", () => {
   });
 
   test("no serious accessibility violations on key pages", async ({ page }) => {
-    for (const path of ["/", "/categories", "/c/ai", "/app/sample-lumen-notes", "/search?q=notes", "/go/sample-lumen-notes"]) {
+    for (const path of ["/", "/categories", "/c/ai", "/app/sample-lumen-notes", "/search?q=notes", "/go/sample-lumen-notes", "/signin", "/signup", "/forgot-password", "/contact", "/legal/terms", "/about", "/offline"]) {
       await page.goto(path);
       const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
       const serious = results.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
@@ -107,9 +109,13 @@ test.describe("hosts and SEO", () => {
     // Next.js relativises same-origin Locations; with distinct production hosts it is absolute
     // (verified in CI by scripts/check-www-redirect.sh).
     expect(www.headers()["location"]).toMatch(/^(http:\/\/localhost:3100)?\/c\/ai\?x=1$/);
-    const admin = await request.get("/", { headers: { host: "admin.localhost:3100" } });
+    const admin = await request.get("/login", { headers: { host: "admin.localhost:3100" } });
     expect(admin.headers()["x-robots-tag"]).toContain("noindex");
-    expect(await admin.text()).toContain("Administration");
+    expect(await admin.text()).toContain("Administrator accounts are separate");
+    expect((await request.get("/", { headers: { host: "admin.localhost:3100" }, maxRedirects: 0 })).status()).toBe(307); // → /login
+    const dev = await request.get("/domains", { headers: { host: "developers.localhost:3100" }, maxRedirects: 0 });
+    expect(dev.status()).toBe(308);
+    expect(dev.headers()["location"]).toMatch(/\/developer\/domains$/);
     expect((await request.get("/app/sample-lumen-notes", { headers: { host: "admin.localhost:3100" } })).status()).toBe(404);
     expect((await request.get("/admin-host")).status()).toBe(404);
     expect(await (await request.get("/robots.txt", { headers: { host: "admin.localhost:3100" } })).text()).toContain("Disallow: /");
@@ -131,7 +137,7 @@ test.describe("hosts and SEO", () => {
   test("cron endpoint requires the secret", async ({ request }) => {
     expect((await request.post("/api/cron/tick")).status()).toBe(401);
     expect((await request.post("/api/cron/tick", { headers: { authorization: "Bearer wrong" } })).status()).toBe(401);
-    const ok = await request.post("/api/cron/tick", { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } });
+    const ok = await request.post("/api/cron/tick", { headers: { authorization: `Bearer ${process.env.APP_CRON_SECRET}` } });
     expect(ok.status()).toBe(200);
     expect(await ok.json()).toHaveProperty("runId");
   });
