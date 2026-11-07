@@ -52,7 +52,40 @@ function assertNotOwnParent(id: unknown, d: Data) {
  * with an open transaction), overlay the new values and write everything in
  * the same statement. The hourly maintenance job reconciles anything missed.
  */
-export function extendClient(base: PrismaClient): PrismaClient {
+/** Prisma's error code for a unique-constraint violation. */
+export function isUniqueViolation(e: unknown): boolean {
+  return Boolean(e && typeof e === "object" && (e as { code?: unknown }).code === "P2002");
+}
+
+/**
+ * On MySQL / MariaDB, Prisma runs `upsert` as a read followed by an insert (on
+ * PostgreSQL it is one atomic statement). Two concurrent upserts of the same
+ * missing row can therefore both try to insert, and one fails with a unique
+ * violation. Retrying is Prisma's documented remedy: on the retry the row exists
+ * and the update branch runs. A failed statement does not abort a MySQL
+ * transaction, so this is safe inside interactive transactions too.
+ */
+function withUpsertRetry(base: PrismaClient): PrismaClient {
+  return base.$extends({
+    query: {
+      $allModels: {
+        async upsert({ args, query }) {
+          for (let attempt = 1; ; attempt++) {
+            try {
+              return await query(args);
+            } catch (e) {
+              if (attempt >= 3 || !isUniqueViolation(e)) throw e;
+            }
+          }
+        },
+      },
+    },
+  }) as unknown as PrismaClient;
+}
+
+export function extendClient(raw: PrismaClient): PrismaClient {
+  // Order matters: the rules below wrap the retry layer, which wraps the database.
+  const base = withUpsertRetry(raw);
   const current = async (where: unknown): Promise<Data> =>
     ((await base.listing.findUnique({
       where: where as never,

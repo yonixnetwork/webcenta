@@ -73,6 +73,10 @@ MariaDB forbid CHECK constraints on columns with foreign-key actions, or because
 | A `Category` is never its own parent | `tests/db/schema.test.ts` |
 | `Listing.searchText` / `searchTrigrams` stay in sync with name, tagline, publisher, features and description (creates compute them; content updates recompute them from the current row in the same statement; `updateMany` on content is refused) | `tests/db/schema.test.ts`, `tests/unit/trigrams.test.ts` |
 
+**Upserts:** on MySQL / MariaDB Prisma runs `upsert` as a read followed by an insert, so two
+concurrent upserts of the same missing row can collide. The client extension retries an `upsert`
+that hits a unique violation (Prisma's documented remedy); `tests/db/concurrency.test.ts` covers it.
+
 The hourly maintenance job also re-derives search columns for recently changed listings
 (`reconcileSearchDocuments`), so a missed write path cannot leave search stale for long.
 

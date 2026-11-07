@@ -32,7 +32,7 @@ server** built with `next build --webpack`, as Hostinger builds and runs it.
 | --- | --- |
 | ESLint (`eslint .`) | 0 errors, 0 warnings |
 | TypeScript (`tsc --noEmit`, strict) | 0 errors |
-| Unit + DB integration (Vitest, 17 files) | **224 passed, 0 failed on MariaDB 10.11** and **224 passed, 0 failed on MySQL 8.0** |
+| Unit + DB integration (Vitest, 18 files) | **227 passed, 0 failed on MariaDB 10.11** and **227 passed, 0 failed on MySQL 8.0** |
 | Migrations | baseline applies to empty MariaDB and MySQL databases |
 | Prisma migration drift (`migrate diff --exit-code`) | no drift on either engine |
 | Seed twice (idempotence) | passed |
@@ -47,7 +47,7 @@ server** built with `next build --webpack`, as Hostinger builds and runs it.
 | Client bundle secret scan | no secrets, connection strings or source maps (124 files) |
 | `npm audit --omit=dev` (production dependencies) | 0 vulnerabilities |
 | `npm audit` (incl. dev tooling) | 8 moderate in ESLint tooling (`minimatch` via typescript-eslint); the only offered fix downgrades `eslint-config-next` across a major version. Dev-only, not shipped. |
-| **GitHub Actions CI on clean runners** | Run #25 (`8ecbaf0`): MySQL 8.0 job **passed** every step; the MariaDB job passed every step through the build, bundle scan and E2E preparation, then was cancelled automatically by a newer push (superseded, not failed). The result for the final commit is recorded on the branch's latest run. |
+| **GitHub Actions CI on clean runners** | Run #27 (`4b9b851`): MySQL 8.0 job passed; MariaDB job passed everything except 1 of 105 E2E tests (journey 2, "Save" a favourite), which exposed defect 24 below. The fix is in the next commit; its CI result is recorded on the branch's latest run. |
 
 The E2E coverage:
 - **10 user journeys:** see [TESTING.md](TESTING.md).
@@ -109,9 +109,15 @@ Found during the move to MySQL / MariaDB and its re-test:
 22. **MySQL's `mysqldump` against MariaDB** needs `--column-statistics=0`; the backup script detects it.
 23. **The standalone server bound only to IPv4 or failed on hosts without IPv6**; the E2E
     configuration now chooses the address from the machine's interfaces.
-24. **Favourite-toggle failures were silent** (one intermittent E2E failure that did not reproduce in
-    three later runs: journey 2 alone, journeys 1–2, and the full suite). The action now logs unexpected errors server-side, which shows up in
-    Hostinger's logs.
+24. **Concurrent upserts failed on MySQL** (found by CI run #27). On PostgreSQL, Prisma's `upsert`
+    is one atomic statement; on MySQL / MariaDB it is a read followed by an insert. A page view and
+    a "Save" click at the same moment both tried to create the same interest row, and one failed
+    with a unique violation, so the favourite was not saved. The same race affected the daily
+    analytics salt and search statistics. It was hard to see because the action swallowed the
+    error; it now logs it, and the CI log showed `Unique constraint failed on the constraint:
+    PRIMARY`. Fix: every `upsert` retries on a unique violation (Prisma's documented remedy), in
+    the client extension. `tests/db/concurrency.test.ts` fires 12 concurrent upserts at the same
+    new rows; it fails without the fix and passes with it on MariaDB and MySQL.
 
 ## 3a. Brand correction and user-experience additions
 
