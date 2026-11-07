@@ -53,8 +53,10 @@ describe("job runner", () => {
 describe("analytics privacy", () => {
   it("records outbound clicks without storing IP or user agent", async () => {
     const l = await db.listing.findUniqueOrThrow({ where: { slug: "sample-lumen-notes" } });
-    const h = new Headers({ "x-forwarded-for": "203.0.113.77", "user-agent": "Mozilla/5.0 (iPhone) Mobile", "cf-ipcountry": "gb" });
-    await recordOutboundClick(l.id, h, "detail");
+    const ua = `Mozilla/5.0 (iPhone) Mobile run-${Date.now()}`;
+    const h = new Headers({ "x-forwarded-for": "203.0.113.77", "user-agent": ua, "cf-ipcountry": "gb" });
+    expect(await recordOutboundClick(l.id, h, "detail")).toBe(true);
+    expect(await recordOutboundClick(l.id, h, "detail")).toBe(false); // same visitor within 30 min counts once
     const e = await db.listingEvent.findFirstOrThrow({ where: { listingId: l.id }, orderBy: { id: "desc" } });
     expect(e).toMatchObject({ type: "OUTBOUND_CLICK", countryCode: "GB", device: "MOBILE", surface: "detail" });
     expect(JSON.stringify(e, (_k, v) => (typeof v === "bigint" ? v.toString() : v))).not.toMatch(/203\.0\.113|iPhone/);

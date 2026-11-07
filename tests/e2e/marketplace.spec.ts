@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { sql } from "./helpers";
 
 test.describe("marketplace", () => {
   test("homepage shows real rails and no fabricated sections", async ({ page }) => {
@@ -7,8 +8,11 @@ test.describe("marketplace", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Find the right web app");
     await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "New on WebCenter" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Trending now" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Highly rated" })).toHaveCount(0);
+    // Data-driven rails appear only when real data exists (never fabricated).
+    const trending = Number((await sql<{ n: string }>(`select count(*) n from "Listing" where status = 'PUBLISHED' and "trendingScore" > 0`))[0]!.n);
+    const rated = Number((await sql<{ n: string }>(`select count(*) n from "Listing" where status = 'PUBLISHED' and "ratingCount" >= 5 and "ratingAverage" >= 4`))[0]!.n);
+    await expect(page.getByRole("heading", { name: "Trending now" })).toHaveCount(trending > 0 ? 1 : 0);
+    await expect(page.getByRole("heading", { name: "Highly rated" })).toHaveCount(rated > 0 ? 1 : 0);
     await expect(page.getByText("Sample", { exact: true }).first()).toBeVisible();
   });
 

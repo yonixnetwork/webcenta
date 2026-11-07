@@ -52,53 +52,69 @@ whether devDependencies are installed during the build (the build needs `prisma`
 
 ## 3. Environment variables (Hostinger hPanel → Node.js app → Environment)
 
-See [`.env.example`](../.env.example) for the full annotated list. Production minimum:
+The annotated list is in [`.env.example`](../.env.example).
 
-```
-NODE_ENV=production
-DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
-DIRECT_URL=postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
-DATABASE_SSL=verify-full
-DATABASE_SSL_CA=-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----
-PUBLIC_ORIGIN=https://webcenter.com
-ADMIN_ORIGIN=https://admin.webcenter.com
-DEVELOPER_ORIGIN=https://developers.webcenter.com
-CRON_SECRET=<openssl rand -hex 32>
-TRUSTED_PROXY_HOPS=1
-GEO_COUNTRY_HEADER=cf-ipcountry   # only meaningful behind Cloudflare
-GEO_UNKNOWN_POLICY=deny
-```
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `NODE_ENV=production` | yes | |
+| `DATABASE_URL` | yes | Supabase **transaction** pooler (port 6543) |
+| `DIRECT_URL` | for migrations | Supabase **session** pooler (port 5432); used by `prisma migrate deploy`, `db:seed`, `admin:provision`, backups |
+| `DATABASE_SSL=verify-full`, `DATABASE_SSL_CA` | yes | PEM from Supabase; literal `\n` allowed |
+| `DATABASE_POOL_MAX` | no | default 5 |
+| `PUBLIC_ORIGIN`, `ADMIN_ORIGIN`, `DEVELOPER_ORIGIN` | yes | `https://webcenter.com`, `https://admin.webcenter.com`, `https://developers.webcenter.com` |
+| `USER_AUTH_SECRET`, `ADMIN_AUTH_SECRET` | yes | ≥ 32 random characters each; the app refuses to start without the user secret |
+| `FIELD_ENCRYPTION_KEY` | yes | 32-byte base64; encrypts admin TOTP seeds; **never change after admins enrol** |
+| `CRON_SECRET` | yes | ≥ 32 characters; the cron endpoint is disabled otherwise |
+| `EMAIL_TRANSPORT=smtp`, `SMTP_*`, `EMAIL_FROM` | yes for real email | Hostinger mailbox SMTP works; `log` only records messages |
+| `STORAGE_DRIVER=s3`, `S3_*`, `MEDIA_PUBLIC_BASE_URL` | yes for uploads | Hostinger's app disk is not durable across redeploys |
+| `GOOGLE_CLIENT_ID/SECRET` | optional | Redirect URI `https://webcenter.com/api/auth/callback/google` |
+| `APPLE_CLIENT_ID/SECRET` (+ `APPLE_APP_BUNDLE_IDENTIFIER`) | optional | Return URL `https://webcenter.com/api/auth/callback/apple`; needs the paid Apple Developer Program |
+| `GOOGLE_WEB_RISK_API_KEY`, `URLHAUS_AUTH_KEY`, `VIRUSTOTAL_API_KEY` | recommended | Without at least one, every submission needs manual approval |
+| `GEO_COUNTRY_HEADER`, `GEO_UNKNOWN_POLICY`, `TRUSTED_PROXY_HOPS` | yes | `cf-ipcountry` behind Cloudflare; `deny` hides geo-restricted listings when the country is unknown |
+| `ADMIN_IP_ALLOWLIST` | optional | Comma-separated client IPs |
+| `SCANNER_ALLOW_PRIVATE_FOR_TESTS` | **must be unset** | Test only |
 
-`DATABASE_SSL_CA` may be given with literal `\n` sequences; they are converted to newlines.
+## 4. Deploy procedure (after the owner's approval)
 
-## 4. Deploy procedure (after approval)
-
-1. **CI green** on the commit to be deployed (`.github/workflows/ci.yml`).
-2. **Migrate** Supabase from a trusted machine, using `DIRECT_URL`:
+1. **CI green** on the commit to deploy (`.github/workflows/ci.yml` runs lint, typecheck, 182 unit/DB
+   tests, the restore drill, the build, the bundle secret scan and 89 E2E tests).
+2. **Supabase** (§2), then from a trusted machine with `DIRECT_URL`:
    ```bash
    npm ci
    npx prisma migrate deploy
-   npm run db:seed          # taxonomy, homepage sections, monitoring policy, safe to repeat
-   npm run db:check
+   npm run db:seed            # taxonomy, homepage sections, monitoring policy, plans, DRAFT legal templates
+   npm run db:check           # all required checks must PASS
    ```
-   Migrations are **not** run during the Hostinger build. This avoids partial migrations on
-   build retries and keeps database credentials with migration rights off the build pipeline.
-   A manual-approval GitHub Actions workflow can take over this step later.
-   **Never** run `db:seed -- --fixtures` against production; the script refuses unless
-   `ALLOW_DEV_FIXTURES=true` and `NODE_ENV` is not `production`.
-3. **Hostinger build settings:** install `npm ci`, build `npm run build` (runs `prisma generate`),
-   start `npm start`.
-4. **Domains:** attach `webcenter.com`, `www.webcenter.com`, `admin.webcenter.com` and
-   `developers.webcenter.com` to the same app, with HTTPS on all. The app handles the `www` → apex
-   308 redirect and host-based routing itself.
-5. **Cron:** in hPanel → Advanced → Cron Jobs, every 10 minutes:
+   **Never** pass `--fixtures` in production; the seed refuses without `ALLOW_DEV_FIXTURES=true`.
+3. **First Super Administrator:**
+   ```bash
+   ADMIN_ORIGIN=https://admin.webcenter.com FIELD_ENCRYPTION_KEY=… npm run admin:provision -- --email you@yourcompany.com
+   ```
+   Open the printed single-use link (valid 72 hours), set a password and enrol TOTP. Invite other
+   administrators from Admin → Administrators.
+4. **Hostinger build settings:** Node 22.x; install `npm ci`; build `npm run build`; start `npm start`.
+   Set all variables from §3 in hPanel.
+5. **Domains & SSL:** attach `webcenter.com`, `www.`, `admin.` and `developers.` to the app with HTTPS
+   (Hostinger SSL or Cloudflare). The app redirects `www` → apex and `developers.` → `/developer`, and
+   serves the admin portal only on `admin.`.
+6. **Cron** (hPanel → Advanced → Cron Jobs), every 10 minutes:
    ```bash
    curl -fsS -m 60 -X POST -H "Authorization: Bearer <CRON_SECRET>" https://webcenter.com/api/cron/tick
    ```
-6. **Smoke test:** `/api/health` returns `{"ok":true}`; the homepage, a category and the
-   `admin.` host (should be `noindex`) load; `/sitemap.xml` and `/robots.txt` are served.
-7. **Rollback:** redeploy the previous commit from Hostinger. Migrations are additive by policy.
-   A destructive migration needs a written rollback plan and a fresh backup first.
+   Check Admin → Jobs & email: "Last scheduler run" should be recent.
+7. **Smoke test:** `/api/health` → `{"ok":true}`; register a test account (the email arrives); admin
+   login with MFA; publish one real editorial listing and check its page, `/go/…`, sitemap and robots;
+   check that `admin.` responses carry `x-robots-tag: noindex`.
+8. **Backups:** schedule `scripts/backup.sh` (with `DIRECT_URL`) from a trusted machine or Supabase
+   backups; run `scripts/restore-drill.sh` quarterly.
+9. **Rollback:** redeploy the previous commit. Migrations are additive; restore from backup if data
+   was damaged.
+
+### Staging (recommended before production)
+Use a second Supabase project (or schema) and a Hostinger subdomain (e.g. `staging.webcenter.com`)
+with `SITE_BANNER="Staging"`, `EMAIL_TRANSPORT=log`, and a separate `CRON_SECRET`. Fictional
+fixtures may be loaded there **only** with `ALLOW_DEV_FIXTURES=true`. No staging environment was
+available to this build, so staging verification has **not** been performed.
 
 ## 5. Backups
 

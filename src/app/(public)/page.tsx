@@ -73,14 +73,13 @@ export default async function HomePage() {
           <h2 id="collections" className="text-xl font-bold tracking-tight sm:text-2xl">Curated collections</h2>
           <div className="grid gap-5 lg:grid-cols-2">
             {collections.map((c) => (
-              <Link key={c.slug} href={`/collections/${c.slug}`}
-                className="group rounded-3xl border border-border bg-gradient-to-br from-brand-soft to-surface p-5 shadow-card transition hover:shadow-pop">
-                <h3 className="text-lg font-bold group-hover:text-brand">{c.title}</h3>
+              <div key={c.slug} className="rounded-3xl border border-border bg-gradient-to-br from-brand-soft to-surface p-5 shadow-card">
+                <h3 className="text-lg font-bold"><Link href={`/collections/${c.slug}`} className="hover:text-brand">{c.title} →</Link></h3>
                 {c.description && <p className="mt-1 text-sm text-muted">{c.description}</p>}
                 <ul className="mt-4 grid grid-cols-2 gap-3">
-                  {c.items.slice(0, 4).map((a) => <li key={a.id} className="pointer-events-none"><AppCard app={a} compact /></li>)}
+                  {c.items.slice(0, 4).map((a) => <li key={a.id}><AppCard app={a} compact /></li>)}
                 </ul>
-              </Link>
+              </div>
             ))}
           </div>
         </section>

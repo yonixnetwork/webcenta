@@ -4,8 +4,8 @@
 online services, AI products and digital platforms. You browse, compare and safely visit web apps,
 much as you would in an app store, but for the open web.
 
-> **Status: Phase 1 (marketplace foundation) implemented. Not deployed.**
-> See [docs/ROADMAP.md](docs/ROADMAP.md) for exactly what exists and what does not.
+> **Status: all planned phases implemented and integration-tested (182 unit/DB tests, 89 E2E tests).
+> Not deployed.** See [docs/FINAL_REPORT.md](docs/FINAL_REPORT.md) for evidence and unverified items.
 
 | Desktop | Mobile |
 | --- | --- |
@@ -25,7 +25,9 @@ Hosting: Hostinger Business (Node.js), Hostinger Cron, GitHub. See [ADR-0007](do
 | [docs/DATABASE.md](docs/DATABASE.md) | Schema, hand-written SQL, Supabase safety (RLS), retention |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model, admin isolation, RBAC, SSRF-safe scanning, privacy |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Hostinger + Supabase runbook, env vars, cron, migration path |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Phases, implementation status, open decisions |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Implementation status, open decisions |
+| [docs/TESTING.md](docs/TESTING.md) | Test suites, E2E setup, the ten user journeys |
+| [docs/FINAL_REPORT.md](docs/FINAL_REPORT.md) | Final verification report, risks, deployment summary |
 | [docs/adr/](docs/adr/) | Architecture decision records |
 
 ## Local development
@@ -40,13 +42,14 @@ ALLOW_DEV_FIXTURES=true npm run db:seed -- --fixtures   # taxonomy + FICTIONAL s
 npm run dev                                   # http://localhost:3000
 ```
 
-Open `http://admin.localhost:3000` to see the admin host placeholder, which is `noindex` with no features yet.
+Admin portal: run `npm run admin:provision -- --email you@example.com`, open the printed link on
+`http://admin.localhost:3000`, set a password and enrol TOTP. Scheduled jobs: `npm run jobs:tick`.
 
 | Command | Purpose |
 | --- | --- |
 | `npm run lint` / `npx tsc --noEmit` | Lint and typecheck |
 | `npm test` | Unit and database integration tests (needs a migrated and seeded DB) |
-| `npm run build && npm run test:e2e` | Production build and Playwright E2E (desktop and mobile, axe) |
+| `npm run build && E2E_DB_BASE=… bash tests/e2e/run-fresh.sh` | Production build and the full Playwright suite on a fresh DB (see docs/TESTING.md) |
 | `npm run db:check` | Read-only compatibility report for a target DB (e.g. Supabase) |
 | `npm run db:seed` | Seed real configuration (taxonomy, homepage sections, monitoring policy) |
 

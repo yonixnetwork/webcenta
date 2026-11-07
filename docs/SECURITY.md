@@ -1,7 +1,7 @@
 # WebCenter — Security Design
 
-This is a **design document**. It describes controls to be built; it does not claim they exist.
-Implementation status is tracked in [ROADMAP.md](ROADMAP.md). WebCenter never claims complete
+Status: **implemented**. Evidence and remaining risks are in [FINAL_REPORT.md](FINAL_REPORT.md) §4.
+Implementation status per feature is in [ROADMAP.md](ROADMAP.md). WebCenter never claims complete
 security, legal compliance or that a listed website is "guaranteed safe".
 
 ## 1. Assets and threats
@@ -207,3 +207,17 @@ material. CSAM is reported to the relevant authorities as legally required.
 3. Investigate, using the audit log and scan evidence.
 4. Notify affected users or authorities where legally required.
 5. Write a post-mortem in `docs/operations/incidents/`.
+
+## 9. As-built notes (differences from the original design)
+
+* **Developer portal** is served at `webcenter.com/developer`; `developers.webcenter.com` redirects there.
+  Developer and user sessions therefore share one **host-only** cookie (no cross-subdomain cookie).
+* **Admin sessions** use a custom layer (scrypt passwords, SHA-256-hashed session tokens, AES-256-GCM
+  encrypted TOTP seeds, TOTP replay protection), not the user auth library.
+* **Admin forms** perform full-page navigations after redirects so the host rewrite always applies.
+* **The outbound interstitial** (`/go/:slug`) is the only page whose CSP allows `form-action https:`; its
+  POST endpoint only ever redirects to the listing's stored `https://` website.
+* **The scanner** runs in-process on shared hosting (guards in §3), with test-only loopback access gated
+  by `SCANNER_ALLOW_PRIVATE_FOR_TESTS` **and** a localhost `PUBLIC_ORIGIN`.
+* **Every migration** ends with the standard RLS and Data API privilege-revocation footer
+  (`prisma/rls-footer.sql`).

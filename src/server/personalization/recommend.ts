@@ -27,6 +27,11 @@ export function diversify<T extends { id: string }>(exploit: T[], explore: T[], 
     const item = pickExplore ? explore[j++] : ex[i++];
     if (item && !seen.has(item.id)) { seen.add(item.id); out.push(item); }
   }
+  // Not enough interest matches: backfill with further exploration items.
+  for (let k = nExplore; out.length < size && k < explore.length; k++) {
+    const item = explore[k]!;
+    if (!seen.has(item.id)) { seen.add(item.id); out.push(item); }
+  }
   return out;
 }
 
