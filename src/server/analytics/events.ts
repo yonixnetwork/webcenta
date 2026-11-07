@@ -1,0 +1,75 @@
+import { Prisma } from "@/generated/prisma/client";
+import { env } from "@/lib/env";
+import { db } from "@/server/db";
+import { clientIp, normalizeCountry } from "@/server/viewer";
+import { dailySalt, deviceFromUserAgent, visitorHash } from "./visitor";
+
+/** Repeat views/clicks by the same visitor within this window are not counted again. */
+export const DEDUPE_MINUTES = 30;
+
+export function referrerHost(h: Headers): string | null {
+  try {
+    const ref = h.get("referer");
+    if (!ref) return null;
+    const host = new URL(ref).hostname.toLowerCase();
+    const own = new URL(env().PUBLIC_ORIGIN).hostname;
+    return host === own ? null : host.slice(0, 253);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Inserts a listing event unless the visitor already produced the same event
+ * for that listing within DEDUPE_MINUTES. Bots are never recorded.
+ * Returns true when a new event was stored.
+ */
+export async function recordListingEvent(listingId: string, type: "VIEW" | "OUTBOUND_CLICK", h: Headers, opts: { surface?: string; referrer?: string | null } = {}): Promise<boolean> {
+  const e = env();
+  const ua = h.get("user-agent");
+  const device = deviceFromUserAgent(ua);
+  if (device === "BOT") return false;
+  const hash = visitorHash(await dailySalt(), clientIp(h, e.TRUSTED_PROXY_HOPS), ua, listingId);
+  const country = normalizeCountry(h.get(e.GEO_COUNTRY_HEADER));
+  const n = await db.$executeRaw`
+    INSERT INTO "ListingEvent" ("listingId", type, "visitorHash", "countryCode", device, "referrerHost", surface)
+    SELECT ${listingId}, ${type}::"ListingEventType", ${hash}, ${country}, ${device}::"DeviceType", ${opts.referrer ?? null}, ${opts.surface ?? null}
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "ListingEvent" WHERE "listingId" = ${listingId} AND type = ${type}::"ListingEventType"
+        AND "visitorHash" = ${hash} AND "occurredAt" > now() - make_interval(mins => ${DEDUPE_MINUTES})
+    )`;
+  return n > 0;
+}
+
+/** One search impression per listing per visitor per day. */
+export async function recordSearchImpressions(listingIds: string[], h: Headers): Promise<number> {
+  if (listingIds.length === 0) return 0;
+  const e = env();
+  const ua = h.get("user-agent");
+  const device = deviceFromUserAgent(ua);
+  if (device === "BOT") return 0;
+  const salt = await dailySalt();
+  const ip = clientIp(h, e.TRUSTED_PROXY_HOPS);
+  const country = normalizeCountry(h.get(e.GEO_COUNTRY_HEADER));
+  const rows = listingIds.slice(0, 50).map((id) => Prisma.sql`(${id}, ${visitorHash(salt, ip, ua, id)})`);
+  return db.$executeRaw`
+    INSERT INTO "ListingEvent" ("listingId", type, "visitorHash", "countryCode", device, surface)
+    SELECT v.id, 'SEARCH_IMPRESSION', v.hash, ${country}, ${device}::"DeviceType", 'search'
+    FROM (VALUES ${Prisma.join(rows)}) AS v(id, hash)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "ListingEvent" le WHERE le."listingId" = v.id AND le.type = 'SEARCH_IMPRESSION'
+        AND le."visitorHash" = v.hash AND le."occurredAt" >= date_trunc('day', now())
+    )`;
+}
+
+/** Rejects cross-site requests to beacon endpoints (prevents third-party stat inflation). */
+export function isSameOrigin(req: Request): boolean {
+  const origin = req.headers.get("origin");
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  if (!origin || !host) return false;
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}

@@ -1,0 +1,59 @@
+// =============================================================================
+// WebCenter — database schema (PostgreSQL)
+// -----------------------------------------------------------------------------
+// The schema is split by domain into several files in this folder:
+//   base.prisma       generator, datasource, shared enums
+//   identity.prisma   public user accounts (marketplace + developer portal)
+//   catalog.prisma    categories, tags, listings, media, relations, geo rules
+//   developer.prisma  developer organisations, domain verification, claims
+//   community.prisma  reviews, replies, favourites, collections, notifications
+//   moderation.prisma reports, moderation actions, appeals, support cases
+//   analytics.prisma  privacy-conscious events, daily roll-ups, interests
+//   security.prisma   scans, check results, alerts, monitoring policy
+//   admin.prisma      separate admin identity, invitations, audit log
+//   platform.prisma   homepage sections, placements, settings, legal, plans
+//   jobs.prisma       database-backed job queue for scheduled work
+//
+// Conventions
+//   * Primary keys: UUIDv7 strings (time-ordered, index friendly).
+//   * Timestamps: timestamptz; createdAt/updatedAt on mutable rows.
+//   * Soft deletion via deletedAt only where recovery/audit needs it.
+//   * Country codes: ISO 3166-1 alpha-2 (uppercase, 2 chars).
+//   * Denormalised counters (ratingCount, etc.) are maintained by app code
+//     and periodically reconciled by a job; the source rows stay canonical.
+// See docs/DATABASE.md for the full rationale.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Overall risk classification used by the approval and monitoring engines.
+enum RiskTier {
+  LOW
+  MEDIUM
+  HIGH
+  /// Category/listing type WebCenter does not accept at all.
+  PROHIBITED
+}
+
+/// Age classification shown on listings and enforced by visibility rules.
+enum AgeRating {
+  ALL_AGES
+  AGE_13_PLUS
+  AGE_16_PLUS
+  AGE_18_PLUS
+}
+
+/// Who performed an action (used by status histories and the audit log).
+enum ActorType {
+  USER
+  DEVELOPER
+  ADMIN
+  SYSTEM
+}

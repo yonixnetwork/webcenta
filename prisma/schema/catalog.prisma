@@ -1,0 +1,409 @@
+// -----------------------------------------------------------------------------
+// Catalog: hierarchical categories, tags, listings ("applications"), media,
+// listing relations (alternatives/competitors), and country restrictions.
+// -----------------------------------------------------------------------------
+
+/// Lifecycle of a listing as a whole. Only PUBLISHED listings are publicly visible.
+/// Submitting NEVER publishes: a reviewer or the risk engine must approve first.
+enum ListingStatus {
+  DRAFT
+  SUBMITTED
+  AUTOMATED_CHECKS
+  UNDER_REVIEW
+  INFO_REQUIRED
+  APPROVED
+  REJECTED
+  PUBLISHED
+  SUSPENDED
+  REMOVED
+}
+
+/// Status of a single proposed revision (first submission or later update).
+enum RevisionStatus {
+  DRAFT
+  SUBMITTED
+  AUTOMATED_CHECKS
+  UNDER_REVIEW
+  INFO_REQUIRED
+  APPROVED
+  REJECTED
+  /// Superseded by a newer revision before review completed.
+  WITHDRAWN
+}
+
+enum ListingSource {
+  /// Submitted by a verified developer organisation.
+  DEVELOPER_SUBMITTED
+  /// Added by WebCenter editors; credited to the original publisher, claimable.
+  EDITORIAL
+}
+
+enum PricingModel {
+  FREE
+  FREEMIUM
+  PAID
+  SUBSCRIPTION
+}
+
+enum Platform {
+  WEB
+  ANDROID
+  IOS
+  WINDOWS
+  MACOS
+  LINUX
+  BROWSER_EXTENSION
+}
+
+/// Result of the most recent security evaluation, shown on the detail page.
+/// "PASSED" means "no issues found by the listed checks" — never "guaranteed safe".
+enum SecurityStatus {
+  NOT_SCANNED
+  PASSED
+  WARNING
+  UNDER_INVESTIGATION
+  /// Visibility temporarily restricted pending admin review.
+  RESTRICTED
+}
+
+enum MediaKind {
+  LOGO
+  SCREENSHOT
+  PREVIEW
+  DOCUMENT
+}
+
+enum MediaModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ListingRelationType {
+  SIMILAR
+  ALTERNATIVE
+  COMPETITOR
+}
+
+enum RelationSource {
+  EDITORIAL
+  DEVELOPER_SUGGESTED
+  COMPUTED
+}
+
+model Category {
+  id          String  @id @default(uuid(7))
+  slug        String  @unique
+  name        String
+  description String?
+  /// Icon identifier from the UI icon set (not a URL).
+  icon        String?
+  parentId    String?
+  sortOrder   Int     @default(0)
+  isEnabled   Boolean @default(true)
+
+  /// Default risk tier applied to listings in this category (listing may be stricter).
+  riskTier               RiskTier  @default(LOW)
+  defaultAgeRating       AgeRating @default(ALL_AGES)
+  /// Forces manual review regardless of automated check results.
+  requiresManualReview   Boolean   @default(false)
+  /// Requires licence/compliance evidence (e.g. gambling, forex, crypto exchanges).
+  requiresComplianceDocs Boolean   @default(false)
+  /// Hidden from public browsing until legal review enables it.
+  isRestricted           Boolean   @default(false)
+
+  /// When categories are merged, the source category points to the target.
+  mergedIntoId String?
+
+  seoTitle       String?
+  seoDescription String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  parent     Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children   Category[] @relation("CategoryTree")
+  mergedInto Category?  @relation("CategoryMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom Category[] @relation("CategoryMerge")
+
+  listings          ListingCategory[]
+  primaryListings   Listing[]           @relation("ListingPrimaryCategory")
+  geoRestrictions   GeoRestriction[]
+  interests         UserInterest[]
+  placements        FeaturedPlacement[]
+  interactionEvents InteractionEvent[]
+
+  @@index([parentId, sortOrder])
+  @@index([isEnabled])
+}
+
+model Tag {
+  id        String   @id @default(uuid(7))
+  slug      String   @unique
+  name      String
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  listings ListingTag[]
+}
+
+model Listing {
+  id     String        @id @default(uuid(7))
+  slug   String        @unique
+  status ListingStatus @default(DRAFT)
+  source ListingSource
+
+  // --- Public content (the currently approved version) ---
+  name        String
+  tagline     String?
+  description String
+  /// Short feature bullet points (searchable).
+  features    String[]
+  /// Official website. Outbound clicks always go to this stored value via /go/:slug.
+  websiteUrl  String
+  /// Registrable/host domain extracted from websiteUrl, lower-case (e.g. "example.com").
+  domain      String
+
+  privacyPolicyUrl String?
+  termsUrl         String?
+  supportUrl       String?
+
+  // --- Ownership / credit ---
+  developerId   String?
+  /// Original publisher name — always shown; mandatory for editorial listings.
+  publisherName String
+  publisherUrl  String?
+  claimedAt     DateTime? @db.Timestamptz
+
+  // --- Classification ---
+  primaryCategoryId  String?
+  pricingModel       PricingModel @default(FREE)
+  pricingDetails     String?
+  isOpenSource       Boolean      @default(false)
+  sourceCodeUrl      String?
+  platforms          Platform[]   @default([WEB])
+  isBrowserBased     Boolean      @default(true)
+  isMobileFriendly   Boolean      @default(false)
+  isPwaInstallable   Boolean      @default(false)
+  ageRating          AgeRating    @default(ALL_AGES)
+  riskTier           RiskTier     @default(LOW)
+  /// Developer-declared supported countries (informational). Empty = worldwide.
+  supportedCountries String[]
+  languages          String[]
+
+  // --- Trust signals ---
+  securityStatus SecurityStatus @default(NOT_SCANNED)
+  lastVerifiedAt DateTime?      @db.Timestamptz
+  lastScannedAt  DateTime?      @db.Timestamptz
+  nextScanAt     DateTime?      @db.Timestamptz
+
+  // --- Denormalised ranking/aggregate fields (organic only; never set by payment) ---
+  ratingCount     Int   @default(0)
+  ratingAverage   Float @default(0)
+  favoriteCount   Int   @default(0)
+  popularityScore Float @default(0)
+  trendingScore   Float @default(0)
+
+  // --- Editorial ---
+  isEditorsPick     Boolean @default(false)
+  /// Where the editor learned of the site and what evidence was checked.
+  editorialSource   String?
+  editorialEvidence String?
+
+  publishedAt      DateTime? @db.Timestamptz
+  /// Last time public content materially changed (drives "Recently updated").
+  contentUpdatedAt DateTime? @db.Timestamptz
+  createdAt        DateTime  @default(now()) @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @db.Timestamptz
+  deletedAt        DateTime? @db.Timestamptz
+
+  /// Full-text search vector. Created in the migration as a GENERATED column
+  /// (see docs/DATABASE.md §3); never written by application code.
+  searchVector Unsupported("tsvector")?
+
+  developer       DeveloperOrg? @relation(fields: [developerId], references: [id], onDelete: SetNull)
+  primaryCategory Category?     @relation("ListingPrimaryCategory", fields: [primaryCategoryId], references: [id], onDelete: SetNull)
+
+  categories        ListingCategory[]
+  tags              ListingTag[]
+  media             ListingMedia[]
+  revisions         ListingRevision[]
+  statusHistory     ListingStatusChange[]
+  relationsFrom     ListingRelation[]           @relation("RelationFrom")
+  relationsTo       ListingRelation[]           @relation("RelationTo")
+  geoRestrictions   GeoRestriction[]
+  complianceDocs    ComplianceDocument[]
+  claims            ListingClaim[]
+  reviews           Review[]
+  favorites         Favorite[]
+  collectionItems   CollectionItem[]
+  reports           Report[]
+  appeals           Appeal[]
+  events            ListingEvent[]
+  dailyStats        ListingDailyStat[]
+  dimensionStats    ListingDailyDimensionStat[]
+  interactionEvents InteractionEvent[]
+  scans             SecurityScan[]
+  securityAlerts    SecurityAlert[]
+  placements        FeaturedPlacement[]
+  sponsorships      Sponsorship[]
+
+  @@index([status, publishedAt])
+  @@index([status, trendingScore])
+  @@index([status, popularityScore])
+  @@index([status, ratingAverage])
+  @@index([status, contentUpdatedAt])
+  @@index([primaryCategoryId, status])
+  @@index([developerId])
+  @@index([domain])
+  @@index([nextScanAt])
+  @@index([securityStatus])
+  @@index([searchVector], type: Gin)
+  /// Trigram index for autocomplete / typo tolerance. pg_trgm is installed in the
+  /// "extensions" schema (Supabase convention). The migration SQL uses the
+  /// qualified name extensions.gin_trgm_ops; Postgres introspection reports the
+  /// unqualified name, so it is written unqualified here to keep diffs empty.
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Listing_name_trgm_idx")
+}
+
+model ListingCategory {
+  listingId  String
+  categoryId String
+  isPrimary  Boolean @default(false)
+
+  listing  Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([listingId, categoryId])
+  @@index([categoryId])
+}
+
+model ListingTag {
+  listingId String
+  tagId     String
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([listingId, tagId])
+  @@index([tagId])
+}
+
+/// Uploaded file metadata. Bytes live in object storage (local disk or S3-compatible).
+model MediaAsset {
+  id                String                @id @default(uuid(7))
+  kind              MediaKind
+  /// Storage key, never a user-supplied path.
+  storageKey        String                @unique
+  mimeType          String
+  byteSize          Int
+  sha256            String
+  width             Int?
+  height            Int?
+  moderationStatus  MediaModerationStatus @default(PENDING)
+  uploadedByUserId  String?
+  uploadedByAdminId String?
+  createdAt         DateTime              @default(now()) @db.Timestamptz
+
+  uploadedByUser  User?      @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  uploadedByAdmin AdminUser? @relation(fields: [uploadedByAdminId], references: [id], onDelete: SetNull)
+
+  listingMedia   ListingMedia[]
+  complianceDocs ComplianceDocument[]
+  developerLogos DeveloperOrg[]
+
+  @@index([sha256])
+}
+
+model ListingMedia {
+  id        String    @id @default(uuid(7))
+  listingId String
+  assetId   String
+  kind      MediaKind
+  sortOrder Int       @default(0)
+  altText   String?
+
+  listing Listing    @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  asset   MediaAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([listingId, kind, sortOrder])
+}
+
+/// A proposed version of a listing. Developers edit revisions, never the live row.
+/// On approval, the snapshot is copied onto Listing in one transaction.
+model ListingRevision {
+  id             String         @id @default(uuid(7))
+  listingId      String
+  revisionNumber Int
+  status         RevisionStatus @default(DRAFT)
+  /// Full proposed content snapshot, validated by the app's schema (zod).
+  data           Json
+  /// Reviewer-visible notes from the submitter.
+  submitterNotes String?
+  submittedById  String?
+  submittedAt    DateTime?      @db.Timestamptz
+  reviewedById   String?
+  reviewedAt     DateTime?      @db.Timestamptz
+  /// Reason shown to the developer (rejection / info request).
+  decisionNotes  String?
+  createdAt      DateTime       @default(now()) @db.Timestamptz
+  updatedAt      DateTime       @updatedAt @db.Timestamptz
+
+  listing     Listing        @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  submittedBy User?          @relation(fields: [submittedById], references: [id], onDelete: SetNull)
+  reviewedBy  AdminUser?     @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+  scans       SecurityScan[]
+
+  @@unique([listingId, revisionNumber])
+  @@index([status, submittedAt])
+}
+
+/// Immutable history of listing status transitions.
+model ListingStatusChange {
+  id         String         @id @default(uuid(7))
+  listingId  String
+  fromStatus ListingStatus?
+  toStatus   ListingStatus
+  actorType  ActorType
+  actorId    String?
+  reason     String?
+  createdAt  DateTime       @default(now()) @db.Timestamptz
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, createdAt])
+}
+
+model ListingRelation {
+  fromListingId String
+  toListingId   String
+  type          ListingRelationType
+  source        RelationSource
+  score         Float               @default(0)
+  createdAt     DateTime            @default(now()) @db.Timestamptz
+
+  fromListing Listing @relation("RelationFrom", fields: [fromListingId], references: [id], onDelete: Cascade)
+  toListing   Listing @relation("RelationTo", fields: [toListingId], references: [id], onDelete: Cascade)
+
+  @@id([fromListingId, toListingId, type])
+  @@index([toListingId])
+}
+
+/// Enforced visibility restriction (legal/admin), distinct from supportedCountries.
+/// Applies to a listing OR a whole category (exactly one must be set; enforced in app + CHECK).
+model GeoRestriction {
+  id               String   @id @default(uuid(7))
+  listingId        String?
+  categoryId       String?
+  countryCode      String   @db.Char(2)
+  reason           String
+  createdByAdminId String?
+  createdAt        DateTime @default(now()) @db.Timestamptz
+
+  listing        Listing?   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  category       Category?  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdByAdmin AdminUser? @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+
+  @@unique([listingId, countryCode])
+  @@unique([categoryId, countryCode])
+  @@index([countryCode])
+}

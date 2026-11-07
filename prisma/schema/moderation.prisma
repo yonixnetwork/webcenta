@@ -1,0 +1,183 @@
+// -----------------------------------------------------------------------------
+// Reports, moderation actions (history), appeals and support cases.
+// -----------------------------------------------------------------------------
+
+enum ReportTargetType {
+  LISTING
+  REVIEW
+  USER
+  DEVELOPER
+}
+
+enum ReportReason {
+  SPAM
+  SCAM_OR_FRAUD
+  PHISHING
+  MALWARE
+  SUSPICIOUS_REDIRECT
+  IMPERSONATION
+  COPYRIGHT
+  ILLEGAL_CONTENT
+  INAPPROPRIATE
+  MISLEADING
+  BROKEN_OR_UNAVAILABLE
+  FAKE_REVIEW
+  HARASSMENT
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED_ACTION_TAKEN
+  RESOLVED_NO_ACTION
+  DISMISSED
+}
+
+enum ModerationActionType {
+  LISTING_APPROVE
+  LISTING_REJECT
+  LISTING_REQUEST_INFO
+  LISTING_PUBLISH
+  LISTING_SUSPEND
+  LISTING_RESTORE
+  LISTING_REMOVE
+  LISTING_EDIT
+  REVIEW_HIDE
+  REVIEW_REMOVE
+  REVIEW_RESTORE
+  USER_SUSPEND
+  USER_REINSTATE
+  DEVELOPER_SUSPEND
+  DEVELOPER_REINSTATE
+  DEVELOPER_VERIFY
+  REPORT_RESOLVE
+  APPEAL_DECIDE
+  CLAIM_DECIDE
+}
+
+enum AppealStatus {
+  OPEN
+  IN_REVIEW
+  UPHELD
+  OVERTURNED
+}
+
+enum SupportCaseStatus {
+  OPEN
+  PENDING_USER
+  RESOLVED
+  CLOSED
+}
+
+model Report {
+  id              String           @id @default(uuid(7))
+  targetType      ReportTargetType
+  listingId       String?
+  reviewId        String?
+  reportedUserId  String?
+  developerId     String?
+  /// Null for anonymous reports (allowed for listings, rate-limited).
+  reporterId      String?
+  reason          ReportReason
+  details         String?
+  /// For copyright complaints: claimant identity/contact and the work concerned.
+  claimantDetails Json?
+  status          ReportStatus     @default(OPEN)
+  assignedAdminId String?
+  resolutionNotes String?
+  resolvedAt      DateTime?        @db.Timestamptz
+  createdAt       DateTime         @default(now()) @db.Timestamptz
+  updatedAt       DateTime         @updatedAt @db.Timestamptz
+
+  listing       Listing?           @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  review        Review?            @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  reportedUser  User?              @relation("ReportReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  developer     DeveloperOrg?      @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  reporter      User?              @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  assignedAdmin AdminUser?         @relation(fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  actions       ModerationAction[]
+
+  @@index([status, createdAt])
+  @@index([targetType, status])
+  @@index([listingId])
+  @@index([reviewId])
+  @@index([reporterId])
+}
+
+/// Moderation history. Every decision is recorded here and in AuditLog.
+model ModerationAction {
+  id         String               @id @default(uuid(7))
+  adminId    String?
+  /// SYSTEM for automated actions (e.g. security auto-restriction).
+  actorType  ActorType            @default(ADMIN)
+  action     ModerationActionType
+  targetType String
+  targetId   String
+  reason     String
+  reportId   String?
+  appealId   String?
+  metadata   Json?
+  createdAt  DateTime             @default(now()) @db.Timestamptz
+
+  admin  AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  report Report?    @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  appeal Appeal?    @relation(fields: [appealId], references: [id], onDelete: SetNull)
+
+  @@index([targetType, targetId, createdAt])
+  @@index([adminId, createdAt])
+}
+
+model Appeal {
+  id               String       @id @default(uuid(7))
+  appellantId      String
+  listingId        String?
+  /// The moderation action being appealed, by id (kept as plain id to avoid cycles).
+  originalActionId String?
+  statement        String
+  status           AppealStatus @default(OPEN)
+  decisionNotes    String?
+  decidedById      String?
+  decidedAt        DateTime?    @db.Timestamptz
+  createdAt        DateTime     @default(now()) @db.Timestamptz
+
+  appellant User               @relation(fields: [appellantId], references: [id], onDelete: Cascade)
+  listing   Listing?           @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  decidedBy AdminUser?         @relation(fields: [decidedById], references: [id], onDelete: SetNull)
+  actions   ModerationAction[]
+
+  @@index([status, createdAt])
+}
+
+model SupportCase {
+  id              String            @id @default(uuid(7))
+  userId          String?
+  contactEmail    String
+  subject         String
+  status          SupportCaseStatus @default(OPEN)
+  assignedAdminId String?
+  createdAt       DateTime          @default(now()) @db.Timestamptz
+  updatedAt       DateTime          @updatedAt @db.Timestamptz
+  closedAt        DateTime?         @db.Timestamptz
+
+  user          User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  assignedAdmin AdminUser?           @relation(fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  messages      SupportCaseMessage[]
+
+  @@index([status, updatedAt])
+}
+
+model SupportCaseMessage {
+  id          String   @id @default(uuid(7))
+  caseId      String
+  fromAdminId String?
+  /// Internal notes are never shown to the user.
+  isInternal  Boolean  @default(false)
+  body        String
+  createdAt   DateTime @default(now()) @db.Timestamptz
+
+  case      SupportCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  fromAdmin AdminUser?  @relation(fields: [fromAdminId], references: [id], onDelete: SetNull)
+
+  @@index([caseId, createdAt])
+}

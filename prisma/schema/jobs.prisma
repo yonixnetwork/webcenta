@@ -1,0 +1,51 @@
+// -----------------------------------------------------------------------------
+// Database-backed job queue. Works without Redis or a permanent worker:
+// a scheduled command (Hostinger cron / system cron / external scheduler) runs
+// `npm run jobs:tick`, which claims due jobs with
+// SELECT ... FOR UPDATE SKIP LOCKED, runs them within a time budget, and exits.
+// On a VPS the same code can run as a long-lived worker.
+// -----------------------------------------------------------------------------
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  /// Exhausted retries; needs attention.
+  DEAD
+}
+
+model Job {
+  id          String    @id @default(uuid(7))
+  /// e.g. "scan.listing", "stats.rollup", "domain.recheck", "email.send"
+  type        String
+  payload     Json
+  status      JobStatus @default(PENDING)
+  priority    Int       @default(0)
+  runAt       DateTime  @default(now()) @db.Timestamptz
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  lockedAt    DateTime? @db.Timestamptz
+  lockedBy    String?
+  lastError   String?
+  /// Prevents duplicate enqueues (e.g. "scan.listing:<id>:<window>").
+  dedupeKey   String?   @unique
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  completedAt DateTime? @db.Timestamptz
+
+  @@index([status, runAt, priority])
+  @@index([type, status])
+}
+
+/// One row per scheduler invocation, for operational visibility.
+model JobRun {
+  id         String    @id @default(uuid(7))
+  runner     String
+  startedAt  DateTime  @default(now()) @db.Timestamptz
+  finishedAt DateTime? @db.Timestamptz
+  processed  Int       @default(0)
+  failed     Int       @default(0)
+  error      String?
+
+  @@index([startedAt])
+}

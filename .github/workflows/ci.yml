@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint, unit/DB tests, build, E2E, security checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: webcenter
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: webcenter_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U webcenter"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # CI-only, disposable values. No real credentials are used in CI.
+      DATABASE_URL: postgresql://webcenter:ci-only-password@localhost:5432/webcenter_ci
+      E2E_DATABASE_URL: postgresql://webcenter:ci-only-password@localhost:5432/webcenter_e2e
+      PGPASSWORD: ci-only-password
+      PUBLIC_ORIGIN: http://localhost:3100
+      ADMIN_ORIGIN: http://admin.localhost:3100
+      DEVELOPER_ORIGIN: http://developers.localhost:3100
+      CRON_SECRET: ci-only-cron-secret-0123456789abcdef0123
+      USER_AUTH_SECRET: ci-only-user-auth-secret-0123456789abcdef
+      ADMIN_AUTH_SECRET: ci-only-admin-auth-secret-0123456789abcdef
+      FIELD_ENCRYPTION_KEY: Y2ktb25seS1maWVsZC1lbmNyeXB0aW9uLWtleS0zMiE=
+      EMAIL_TRANSPORT: log
+      ALLOW_DEV_FIXTURES: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=low
+
+      - name: Simulate Supabase roles and default privileges
+        run: |
+          psql -h localhost -U webcenter -d webcenter_ci -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE authenticated NOLOGIN;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated;
+          CREATE SCHEMA extensions;
+          SQL
+      - run: npx prisma migrate deploy
+      - name: Schema drift check (migrations == Prisma schema)
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code
+      - name: Data API roles cannot read data
+        run: |
+          out=$(psql -h localhost -U webcenter -d webcenter_ci -c 'SET ROLE anon; SELECT 1 FROM "Listing" LIMIT 1;' 2>&1 || true)
+          echo "$out"; echo "$out" | grep -q "permission denied"
+      - name: Seed (twice, to prove idempotence)
+        run: |
+          npm run db:seed -- --fixtures
+          npm run db:seed -- --fixtures
+
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run db:smoke
+      - run: npm run db:check
+
+      - name: Backup and restore drill
+        run: |
+          psql -h localhost -U webcenter -d webcenter_ci -qc "CREATE DATABASE webcenter_restore"
+          F=$(DIRECT_URL="$DATABASE_URL" bash scripts/backup.sh ./backups)
+          SOURCE_URL="$DATABASE_URL" SCRATCH_URL="postgresql://webcenter:ci-only-password@localhost:5432/webcenter_restore" bash scripts/restore-drill.sh "$F"
+
+      - run: npm run build
+      - run: bash scripts/check-bundle-secrets.sh
+
+      - name: Prepare E2E (fresh database, fixture certificates, port 443 for fixture sites)
+        run: |
+          psql -h localhost -U webcenter -d webcenter_ci -qc "CREATE DATABASE webcenter_e2e"
+          sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
+          bash tests/e2e/prepare.sh
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: E2E (journeys, marketplace, security, PWA, responsive on desktop/tablet/mobile)
+        run: npx playwright test
+      - name: www redirect is absolute in production-like config
+        run: bash scripts/check-www-redirect.sh
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7

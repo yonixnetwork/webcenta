@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Generated code
+src/generated/
+
+# Environment & secrets — NEVER commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.p8
+
+# Local data
+/uploads/
+/storage/
+*.sqlite
+*.db
+
+# Logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Test output
+playwright-report/
+test-results/
+next-env.d.ts
+/storage/
+
+# E2E artefacts
+tests/fixtures/.certs/
+.e2e-storage/

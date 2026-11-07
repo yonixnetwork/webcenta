@@ -1,0 +1,190 @@
+// -----------------------------------------------------------------------------
+// Public identity: marketplace users and developer-portal users share one
+// account system. Administrators are NOT stored here (see admin.prisma).
+// The User/Session/Account/Verification shape is compatible with Better Auth
+// (chosen in docs/adr/0004-authentication.md) so Phase 2 needs no rework.
+// -----------------------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  /// Deletion requested; data is purged by a job after the grace period.
+  PENDING_DELETION
+}
+
+enum AuthEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  PASSWORD_CHANGED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+  EMAIL_VERIFIED
+  OAUTH_LINKED
+  OAUTH_UNLINKED
+  ACCOUNT_SUSPENDED
+  ACCOUNT_REINSTATED
+}
+
+model User {
+  id            String     @id @default(uuid(7))
+  /// Stored lower-cased by application code.
+  email         String     @unique
+  emailVerified Boolean    @default(false)
+  name          String
+  image         String?
+  status        UserStatus @default(ACTIVE)
+  suspendedAt   DateTime?  @db.Timestamptz
+  suspendReason String?
+
+  // --- Privacy & personalisation preferences (privacy by default) ---
+  personalizationEnabled Boolean   @default(true)
+  /// When false, no InteractionEvent rows are written for this user.
+  historyEnabled         Boolean   @default(true)
+  /// Highest age rating the user has chosen to see (self-declared; NOT proof of age).
+  maxAgeRating           AgeRating @default(AGE_16_PLUS)
+  /// ISO country the user selected; overrides IP-derived country for display filters.
+  preferredCountry       String?   @db.Char(2)
+  locale                 String?
+  /// Email notifications for replies and listing updates (in-app always on).
+  emailNotifications     Boolean   @default(true)
+  /// Self-declared 18+ confirmation time (NOT age verification).
+  adultConfirmedAt       DateTime? @db.Timestamptz
+
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  updatedAt DateTime  @updatedAt @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
+
+  sessions          Session[]
+  accounts          Account[]
+  authEvents        AuthEvent[]
+  developerMembers  DeveloperMember[]
+  reviews           Review[]
+  reviewReplies     ReviewReply[]
+  helpfulVotes      ReviewHelpfulVote[]
+  favorites         Favorite[]
+  collections       Collection[]
+  notifications     Notification[]
+  interests         UserInterest[]
+  interactionEvents InteractionEvent[]
+  reportsFiled      Report[]            @relation("ReportReporter")
+  reportsAgainst    Report[]            @relation("ReportReportedUser")
+  appeals           Appeal[]
+  supportCases      SupportCase[]
+  listingClaims     ListingClaim[]
+  listingRevisions  ListingRevision[]
+  uploadedMedia     MediaAsset[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Session {
+  id        String   @id @default(uuid(7))
+  /// Opaque session token; Phase 2 stores only a hash if the auth library allows.
+  token     String   @unique
+  userId    String
+  expiresAt DateTime @db.Timestamptz
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Login methods linked to a user: "credential" (email+password) or OAuth providers.
+model Account {
+  id                    String    @id @default(uuid(7))
+  userId                String
+  /// Provider-side account id (or the user id for "credential").
+  accountId             String
+  /// e.g. "credential", "google", "apple"
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime? @db.Timestamptz
+  refreshTokenExpiresAt DateTime? @db.Timestamptz
+  scope                 String?
+  /// Password hash (scrypt/argon2) for the credential provider only.
+  password              String?
+  createdAt             DateTime  @default(now()) @db.Timestamptz
+  updatedAt             DateTime  @updatedAt @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+/// Short-lived tokens: email verification, password reset, magic links.
+model Verification {
+  id         String   @id @default(uuid(7))
+  identifier String
+  value      String
+  expiresAt  DateTime @db.Timestamptz
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  updatedAt  DateTime @updatedAt @db.Timestamptz
+
+  @@index([identifier])
+  @@index([expiresAt])
+}
+
+/// Security-relevant account events (login history, failed logins). Retained ~180 days.
+model AuthEvent {
+  id        String        @id @default(uuid(7))
+  userId    String?
+  /// Email attempted, kept for failed logins where no user matched.
+  email     String?
+  type      AuthEventType
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime      @default(now()) @db.Timestamptz
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+}
+
+/// Rate-limit state used by the auth library (Better Auth "database" storage).
+model AuthRateLimit {
+  id          String @id @default(uuid(7))
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+}
+
+/// Outgoing email queue. Delivered by the job runner via SMTP; with
+/// EMAIL_TRANSPORT=log (development/tests) messages are only recorded.
+model EmailMessage {
+  id        String    @id @default(uuid(7))
+  to        String
+  subject   String
+  text      String
+  html      String?
+  /// e.g. "verify-email", "reset-password", "review-reply"
+  template  String
+  status    String    @default("PENDING")
+  attempts  Int       @default(0)
+  lastError String?
+  sentAt    DateTime? @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+
+  @@index([status, createdAt])
+  @@index([to, createdAt])
+}
+
+/// Generic fixed-window rate-limit buckets (no Redis on shared hosting).
+model RateLimitBucket {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime @db.Timestamptz
+
+  @@index([resetAt])
+}
