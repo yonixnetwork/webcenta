@@ -1,6 +1,6 @@
 import { Logo } from "@/components/logo";
 import { AdminNav } from "@/components/portal/admin-nav";
-import { buttonClass } from "@/components/ui/button";
+import { AdminLogoutButton } from "@/components/portal/admin-logout";
 import { db } from "@/server/db";
 import { requireAdmin } from "@/server/admin/auth";
 import { can, ROLE_LABEL, type Permission } from "@/server/admin/permissions";
@@ -41,7 +41,7 @@ export default async function PortalLayout({ children }: { children: React.React
         <div className="flex items-center gap-3"><Logo /><span className="rounded-md bg-danger-soft px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-danger">Admin</span></div>
         <div className="flex items-center gap-3 text-sm">
           <span className="text-muted">{admin.name} · <strong className="text-text">{ROLE_LABEL[admin.role]}</strong></span>
-          <form action={adminLogoutAction}><button className={buttonClass("secondary", "sm")}>Sign out</button></form>
+          <AdminLogoutButton action={adminLogoutAction} />
         </div>
       </header>
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">

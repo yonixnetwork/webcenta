@@ -9,6 +9,7 @@ import { dailySalt, visitorHash } from "@/server/analytics/visitor";
 import { createListingReport, listingReportSchema } from "@/server/moderation/reports";
 import { publicListingWhere } from "./visibility";
 import { getViewerContext } from "@/server/viewer";
+import { getCurrentUser } from "@/server/auth/session";
 
 export interface ReportState { ok: boolean; message: string }
 
@@ -26,6 +27,8 @@ export async function submitListingReport(slug: string, _prev: ReportState, form
   if (!(await rateLimit(`report:${who}`, 5, 3600))) {
     return { ok: false, message: "Too many reports from this connection. Please try again later." };
   }
-  await createListingReport(listing.id, parsed.data);
+  // Signed-in reporters are linked so they can follow the outcome (anonymous reports remain possible).
+  const user = await getCurrentUser();
+  await createListingReport(listing.id, parsed.data, user?.id ?? null);
   return { ok: true, message: "Thank you — your report has been received and will be reviewed." };
 }

@@ -120,9 +120,12 @@ export default async function AppPage({ params, searchParams }: Props) {
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row lg:w-auto lg:flex-col">
-          <Link href={`/go/${listing.slug}`} className={buttonClass("primary", "lg", "w-full sm:w-auto lg:w-64")} prefetch={false}>
+          {/* Full-page navigation on purpose: the interstitial must load as its own document so
+              its CSP (form-action allowing the https redirect) applies. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a href={`/go/${listing.slug}`} rel="nofollow" className={buttonClass("primary", "lg", "w-full sm:w-auto lg:w-64")}>
             Visit website <ArrowUpRight className="size-5" aria-hidden />
-          </Link>
+          </a>
           <p className="text-center text-xs text-subtle lg:w-64">Opens {domain} · you’ll see a notice before leaving WebCenter</p>
           <div className="flex gap-2 sm:ml-2 lg:ml-0">
             <ShareButton url={`${origin}/app/${listing.slug}`} title={listing.name} />

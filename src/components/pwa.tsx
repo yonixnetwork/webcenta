@@ -39,8 +39,10 @@ export function PwaManager() {
           nw?.addEventListener("statechange", () => { if (nw.state === "installed" && navigator.serviceWorker.controller) setWaiting(nw); });
         });
       }).catch(() => undefined);
+      // Reload only when an existing worker is replaced by an update (not on first install).
+      const hadController = Boolean(navigator.serviceWorker.controller);
       let reloaded = false;
-      navigator.serviceWorker.addEventListener("controllerchange", () => { if (!reloaded) { reloaded = true; location.reload(); } });
+      navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
     }
     return () => window.removeEventListener("beforeinstallprompt", onPrompt);
   }, []);

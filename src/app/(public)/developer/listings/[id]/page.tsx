@@ -42,6 +42,12 @@ export default async function DevListingPage({ params, searchParams }: { params:
         <Link href={`/developer/listings/${id}/analytics`} className={buttonClass("secondary", "md")}>Analytics</Link>
         {editor && reopenable && <form action={reopenRevisionAction.bind(null, id, reopenable.id)}><button className={buttonClass("secondary", "md")}>Revise and resubmit</button></form>}
       </div>
+      {(() => {
+        const pending = l.revisions.find((r) => ["SUBMITTED", "AUTOMATED_CHECKS", "UNDER_REVIEW"].includes(r.status));
+        if (!pending) return null;
+        const text = pending.status === "UNDER_REVIEW" ? "Automated checks are complete. A WebCenter moderator is reviewing it." : "Automated security checks are running. This usually takes a few minutes.";
+        return <FormMessage tone="info">Revision #{pending.revisionNumber} was submitted on {formatDate(pending.submittedAt)} and is being reviewed. {text} You will be notified of the decision.</FormMessage>;
+      })()}
       {draft && editor && (
         <Card>
           <h2 className="font-semibold">Ready to submit revision #{draft.revisionNumber}?</h2>

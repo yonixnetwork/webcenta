@@ -1,10 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { buttonClass } from "./button";
 import { cn } from "./cn";
 
-export interface FormState { ok: boolean; message: string }
+/**
+ * `redirectTo` performs a FULL browser navigation. Used on the admin host, where a
+ * server-action redirect() would be resolved without the host rewrite in proxy.ts.
+ */
+export interface FormState { ok: boolean; message: string; redirectTo?: string }
 
 /** Generic form bound to a server action, with pending state and an accessible result message. */
 export function ActionForm({ action, children, submitLabel, pendingLabel = "Saving…", className, variant = "primary", hideOnSuccess = false }: {
@@ -17,6 +21,9 @@ export function ActionForm({ action, children, submitLabel, pendingLabel = "Savi
   hideOnSuccess?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, { ok: false, message: "" });
+  useEffect(() => {
+    if (state.redirectTo && state.redirectTo.startsWith("/") && !state.redirectTo.startsWith("//")) window.location.assign(state.redirectTo);
+  }, [state.redirectTo]);
   if (hideOnSuccess && state.ok) return <p role="status" className="rounded-xl bg-success-soft px-3 py-2 text-sm text-success">{state.message}</p>;
   return (
     <form action={formAction} className={cn("space-y-4", className)}>

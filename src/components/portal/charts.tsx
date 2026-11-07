@@ -64,7 +64,7 @@ export function BarList({ title, rows, valueLabel = "Views" }: { title: string; 
 
 export function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-4 shadow-card">
+    <div data-stat={label} className="rounded-2xl border border-border bg-surface p-4 shadow-card">
       <p className="text-xs font-medium uppercase tracking-wide text-subtle">{label}</p>
       <p className="mt-1 text-2xl font-extrabold tabular-nums">{value}</p>
       {hint && <p className="mt-0.5 text-xs text-muted">{hint}</p>}

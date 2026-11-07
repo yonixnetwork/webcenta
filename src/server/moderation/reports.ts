@@ -21,11 +21,12 @@ export const listingReportSchema = z.object({
 });
 
 /** Stores an anonymous listing report. Reports are reviewed in the admin portal (Phase 3). */
-export async function createListingReport(listingId: string, input: z.infer<typeof listingReportSchema>) {
+export async function createListingReport(listingId: string, input: z.infer<typeof listingReportSchema>, reporterId: string | null = null) {
   return db.report.create({
     data: {
       targetType: "LISTING",
       listingId,
+      reporterId,
       reason: input.reason as never,
       details: input.details || null,
     },

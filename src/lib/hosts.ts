@@ -35,7 +35,12 @@ export function isInternalSurfacePath(pathname: string): boolean {
   return [ADMIN_PREFIX, DEVELOPER_PREFIX].some((prefix) => p === prefix || p.startsWith(`${prefix}/`));
 }
 
-export function buildCsp(nonce: string, isDev: boolean, mediaOrigin?: string): string {
+/**
+ * @param allowExternalFormRedirect only for the /go/:slug interstitial — Chrome applies
+ *   form-action to redirects after a form POST, and that page's POST redirects (303) to the
+ *   listing's official https website.
+ */
+export function buildCsp(nonce: string, isDev: boolean, mediaOrigin?: string, allowExternalFormRedirect = false): string {
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
@@ -46,7 +51,7 @@ export function buildCsp(nonce: string, isDev: boolean, mediaOrigin?: string): s
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    allowExternalFormRedirect ? "form-action 'self' https:" : "form-action 'self'",
     "frame-ancestors 'none'",
     ...(isDev ? [] : ["upgrade-insecure-requests"]),
   ].join("; ");

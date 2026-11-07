@@ -21,13 +21,14 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:e2e": "playwright test --trace off",
+    "test:e2e": "playwright test",
     "db:seed": "tsx scripts/seed.ts",
     "db:check": "tsx scripts/db-check.ts",
     "jobs:tick": "tsx scripts/jobs-tick.ts",
     "postinstall": "prisma generate",
     "db:push:dev": "prisma db push",
-    "admin:provision": "tsx scripts/admin-provision.ts"
+    "admin:provision": "tsx scripts/admin-provision.ts",
+    "test:e2e:prepare": "bash tests/e2e/prepare.sh"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

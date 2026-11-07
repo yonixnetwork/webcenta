@@ -42,7 +42,7 @@ export function proxy(request: NextRequest) {
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const mediaOrigin = process.env.MEDIA_PUBLIC_BASE_URL ? new URL(process.env.MEDIA_PUBLIC_BASE_URL).origin : undefined;
-  const csp = buildCsp(nonce, process.env.NODE_ENV === "development", mediaOrigin);
+  const csp = buildCsp(nonce, process.env.NODE_ENV === "development", mediaOrigin, surface !== "admin" && /^\/go\/[a-z0-9-]+\/?$/.test(url.pathname));
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);

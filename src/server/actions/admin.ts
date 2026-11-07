@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z, ZodError } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/server/db";
@@ -22,7 +21,7 @@ import { sendEmail } from "@/server/email/send";
 import { actionEmail } from "@/server/email/templates";
 import { DEFAULT_WEIGHTS } from "@/server/analytics/ranking";
 
-export interface ActionState { ok: boolean; message: string }
+export interface ActionState { ok: boolean; message: string; redirectTo?: string }
 const ok = (message: string): ActionState => ({ ok: true, message });
 const fail = (message: string): ActionState => ({ ok: false, message });
 const refresh = () => revalidatePath("/", "layout");
@@ -41,23 +40,22 @@ const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 export async function adminLoginAction(_s: ActionState, f: FormData): Promise<ActionState> {
   const r = await adminPasswordLogin(str(f, "email"), String(f.get("password") ?? ""));
   if (!r.ok) return fail(r.error);
-  redirect("/login/mfa");
+  return { ok: true, message: "", redirectTo: "/login/mfa" };
 }
 export async function adminMfaAction(_s: ActionState, f: FormData): Promise<ActionState> {
   const r = await adminVerifyMfa(str(f, "code"));
   if (!r.ok) return fail(r.error ?? "Invalid code");
-  redirect("/");
+  return { ok: true, message: "", redirectTo: "/" };
 }
-export async function adminLogoutAction() {
+export async function adminLogoutAction(): Promise<void> {
   await adminLogout();
-  redirect("/login");
 }
 export async function acceptInviteAction(token: string, _s: ActionState, f: FormData): Promise<ActionState> {
   try {
     if (String(f.get("password")) !== String(f.get("confirm"))) return fail("The passwords do not match.");
     await acceptInvitation(token, { name: str(f, "name"), password: String(f.get("password") ?? ""), totp: str(f, "totp") });
   } catch (e) { return err(e); }
-  redirect("/login?invited=1");
+  return { ok: true, message: "", redirectTo: "/login?invited=1" };
 }
 
 // ---------------- Submissions & listings ----------------
@@ -122,7 +120,7 @@ export async function createEditorialAction(_s: ActionState, f: FormData): Promi
     const l = await createEditorialListing(a.id, formToListingInput(f), { source: str(f, "editorialSource"), evidence: str(f, "editorialEvidence") });
     id = l.id;
   } catch (e) { return err(e); }
-  redirect(`/listings/${id}?created=1`);
+  return { ok: true, message: "", redirectTo: `/listings/${id}?created=1` };
 }
 export async function adminUploadAction(form: FormData): Promise<{ ok: true; id: string; url: string } | { ok: false; message: string }> {
   try {

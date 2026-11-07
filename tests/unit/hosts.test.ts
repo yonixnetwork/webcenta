@@ -26,5 +26,9 @@ describe("buildCsp", () => {
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
   });
+  it("only the outbound interstitial may submit forms that redirect to https sites", () => {
+    expect(buildCsp("n", false)).toContain("form-action 'self';");
+    expect(buildCsp("n", false, undefined, true)).toContain("form-action 'self' https:");
+  });
   it("adds the media origin to img-src", () => expect(buildCsp("n", false, "https://media.example")).toContain("img-src 'self' data: blob: https://media.example"));
 });
