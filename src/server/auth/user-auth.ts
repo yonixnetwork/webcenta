@@ -30,7 +30,7 @@ function buildAuth() {
     baseURL: e.PUBLIC_ORIGIN,
     basePath: "/api/auth",
     secret: e.USER_AUTH_SECRET || "development-only-secret-not-for-production-use-0000",
-    database: prismaAdapter(db, { provider: "postgresql" }),
+    database: prismaAdapter(db, { provider: "mysql" }),
     trustedOrigins: [e.PUBLIC_ORIGIN, ...(apple ? ["https://appleid.apple.com"] : [])],
     emailAndPassword: {
       enabled: true,

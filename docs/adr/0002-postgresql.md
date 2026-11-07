@@ -1,6 +1,6 @@
 # ADR-0002: PostgreSQL as the primary database
 
-Status: Accepted. Hosting decided in ADR-0007 (Supabase) · Date: 2026-11-06
+Status: **Superseded** by ADR-0008 (MySQL / MariaDB on Hostinger, 2026-11-07) · Date: 2026-11-06
 
 ## Context
 Hostinger managed Node.js hosting bundles MySQL/MariaDB, not PostgreSQL. The product needs

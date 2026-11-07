@@ -1,7 +1,7 @@
 import { db } from "@/server/db";
 
 /**
- * Fixed-window rate limiter backed by Postgres (no Redis on shared hosting).
+ * Fixed-window rate limiter backed by MySQL / MariaDB (no Redis on shared hosting).
  * One atomic upsert per call. Returns true when the action is allowed.
  */
 export async function rateLimit(key: string, limit: number, windowSeconds: number): Promise<boolean> {

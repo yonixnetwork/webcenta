@@ -1,5 +1,5 @@
 // =============================================================================
-// Webcenta — database schema (PostgreSQL)
+// Webcenta — database schema (MySQL / MariaDB; see docs/adr/0008-mysql-mariadb-hostinger.md)
 // -----------------------------------------------------------------------------
 // The schema is split by domain into several files in this folder:
 //   base.prisma       generator, datasource, shared enums
@@ -16,7 +16,8 @@
 //
 // Conventions
 //   * Primary keys: UUIDv7 strings (time-ordered, index friendly).
-//   * Timestamps: timestamptz; createdAt/updatedAt on mutable rows.
+//   * Timestamps: DATETIME(3), always UTC; createdAt/updatedAt on mutable rows.
+//   * Lists: JSON arrays (MySQL has no array columns). Long text: TEXT/MEDIUMTEXT.
 //   * Soft deletion via deletedAt only where recovery/audit needs it.
 //   * Country codes: ISO 3166-1 alpha-2 (uppercase, 2 chars).
 //   * Denormalised counters (ratingCount, etc.) are maintained by app code

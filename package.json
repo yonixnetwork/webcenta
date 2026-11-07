@@ -6,7 +6,7 @@
   "license": "UNLICENSED",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "scripts": {
     "db:format": "prisma format",
@@ -17,8 +17,8 @@
     "db:smoke": "tsx scripts/db-smoke-test.ts",
     "typecheck": "tsc --noEmit",
     "dev": "next dev",
-    "build": "prisma generate && next build",
-    "start": "next start",
+    "build": "prisma generate && next build --webpack",
+    "start": "node .next/standalone/server.js",
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -30,42 +30,44 @@
     "postinstall": "prisma generate",
     "db:push:dev": "prisma db push",
     "admin:provision": "tsx scripts/admin-provision.ts",
-    "test:e2e:prepare": "bash tests/e2e/prepare.sh"
+    "test:e2e:prepare": "bash tests/e2e/prepare.sh",
+    "postbuild": "node scripts/prepare-standalone.mjs",
+    "start:next": "next start"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.63.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.5",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "@prisma/adapter-mariadb": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "@tailwindcss/postcss": "^4.3.4",
     "@types/node": "^26.6.6",
     "@types/nodemailer": "^8.0.2",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "dotenv": "^18.0.9",
-    "eslint": "^9.39.5",
-    "eslint-config-next": "^16.4.5",
-    "postcss": "^8.5.32",
-    "prisma": "^7.10.1",
-    "tailwindcss": "^4.3.4",
-    "tsx": "^4.23.15",
-    "typescript": "^5.9.3",
-    "vitest": "^5.1.0"
-  },
-  "dependencies": {
-    "@prisma/adapter-mariadb": "^7.10.1",
-    "@prisma/client": "^7.10.1",
     "aws4fetch": "^1.0.20",
     "better-auth": "^1.7.18",
     "clsx": "^2.1.1",
+    "dotenv": "^18.0.9",
     "lucide-react": "^1.70.0",
     "mariadb": "^3.5.4",
     "next": "^16.4.5",
     "node-html-parser": "^9.0.7",
     "nodemailer": "^10.3.1",
+    "postcss": "^8.5.32",
+    "prisma": "^7.10.1",
     "qrcode": "^1.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "sharp": "^0.35.5",
+    "tailwindcss": "^4.3.4",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
     "zod": "^4.6.7"
   }
 }

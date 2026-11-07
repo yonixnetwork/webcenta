@@ -5,8 +5,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
-  // node-postgres must stay a runtime dependency rather than being bundled.
-  serverExternalPackages: ["pg", "@prisma/adapter-pg", "sharp"],
+  // Self-contained server (.next/standalone/server.js). Hostinger's Node.js hosting
+  // runs Next.js this way; `npm start` does the same locally and on a VPS.
+  output: "standalone",
+  // Native/driver packages stay runtime dependencies rather than being bundled.
+  serverExternalPackages: ["mariadb", "@prisma/adapter-mariadb", "sharp"],
   experimental: {
     // Media uploads (logos/screenshots ≤ 6 MB, documents ≤ 10 MB) go through server actions.
     serverActions: { bodySizeLimit: "12mb" },

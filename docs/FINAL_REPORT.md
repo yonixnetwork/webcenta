@@ -5,7 +5,7 @@ deployment after owner approval**. Nothing has been deployed. No paid service ha
 
 ## 1. What was built
 
-One integrated Next.js 16 application with a PostgreSQL schema of 61 tables and 2 migrations:
+One integrated Next.js 16 application on **MySQL / MariaDB** (Hostinger MySQL; see [ADR-0008](adr/0008-mysql-mariadb-hostinger.md)) with 61 tables and one baseline migration:
 - **Public marketplace** on `webcenta.com`.
 - **Developer portal** at `/developer` (`developers.` redirects there).
 - **Admin portal** on `admin.` with a separate identity system.
@@ -172,8 +172,9 @@ Profile: Pixel 7 emulation, 4× CPU slowdown, ~1.6 Mbps, 150 ms latency.
 
 Server medians (30 requests): autocomplete 8 ms, search 15 ms, app page 26 ms.
 
-These are measured against a **local** database. Production adds Supabase network latency (choose
-the same region as Hostinger). **Not measured:** load or concurrency testing at scale.
+These were measured on the earlier PostgreSQL build against a **local** database and have **not**
+been re-measured on MySQL. On Hostinger the database is on the same machine (127.0.0.1), so no
+network hop is added. **Not measured:** load or concurrency testing at scale.
 
 ## 6. PWA compatibility
 
@@ -213,21 +214,33 @@ Recurring jobs:
 
 ## 9. Hostinger deployment compatibility
 
-The app uses no WebSockets, permanent worker, Docker or Redis, and no hosting-specific paths.
-- **Background work** is time-boxed (25 s per tick).
-- **The database pool** is small and safe for the Supabase pooler.
-- **Uploads** go to S3-compatible storage (the local driver is for development and VPS use only).
+The app uses no WebSockets, permanent worker, Docker, Redis, external database or hosting-specific
+paths.
+- **Database:** Hostinger MySQL (MariaDB) at `127.0.0.1`; small pool (5); no triggers or routines
+  (shared-hosting privileges); tested on MariaDB 10.11 and MySQL 8.0.
+- **Build:** `prisma generate && next build --webpack` (Hostinger's documented fix for Next.js ≥ 16.3.3
+  Turbopack builds), standalone output as Hostinger runs it, no database access during the build,
+  build tools in `dependencies`. Verified locally and in CI; E2E runs against the standalone server.
+- **Background work** is time-boxed (25 s per tick) and driven by Hostinger Cron.
+- **Uploads** stay on the hosting disk in an absolute folder outside the app directory (enforced in
+  production); S3 is optional.
 
-**To verify in hPanel:** the Node 22 runtime; that the build installs devDependencies; build memory;
-multiple domains on one app; the cron interval.
+**Researched (Hostinger help centre and docs, not verified on the account):** Node.js 18/20/22/24 with
+the version taken from `engines`; build script chosen from `package.json`; Next.js output `.next`
+with the standalone server started by Hostinger; MySQL means MariaDB; Node.js apps must use
+`127.0.0.1`. Direct page fetches were blocked in this environment, so these come from search
+summaries of Hostinger's pages.
+
+**To verify in hPanel:** the MariaDB version (≥ 10.6); build memory; multiple domains on one app;
+the cron interval; that the uploads folder survives a redeploy.
 
 ## 10. External services still requiring configuration (owner)
 
 | Service | Purpose | Notes |
 | --- | --- | --- |
-| Supabase | Database | Run `db:check` against the project |
-| SMTP | Email | Hostinger mailbox or another provider |
-| S3-compatible bucket | Uploads | Cloudflare R2 recommended |
+| Hostinger MySQL database | Database | Included; create it in hPanel and run `db:check` |
+| SMTP | Email | Hostinger mailbox (included) |
+| Uploads folder | Uploads | A folder outside the app directory on the hosting account (included); S3 optional |
 | Google OAuth | Sign-in | Optional |
 | Apple Developer Program | Sign in with Apple | US$99/yr, optional |
 | Threat intelligence | Scanner | Google Web Risk (commercial terms) and/or abuse.ch URLhaus; VirusTotal needs a commercial licence |
@@ -237,11 +250,11 @@ multiple domains on one app; the cron interval.
 ## 11. Exact deployment instructions
 
 See [DEPLOYMENT.md §2–4](DEPLOYMENT.md). In short:
-1. Create the Supabase project and run `db:check`.
-2. `prisma migrate deploy` and `db:seed`, using `DIRECT_URL`.
+1. Create the Hostinger MySQL database and user; run `db:check`.
+2. `prisma migrate deploy` and `db:seed` (from your computer with Remote MySQL, or over SSH).
 3. `admin:provision` for the first Super Administrator.
-4. Configure the Hostinger app (Node 22, `npm ci` / `npm run build` / `npm start`, environment
-   variables from §3).
+4. Create the Hostinger Node.js app from GitHub (`main`): Next.js, Node 22, build script `build`,
+   output `.next`, environment variables from DEPLOYMENT.md §3.
 5. Attach the four domains with HTTPS.
 6. Add the cron curl job (every 10 minutes).
 7. Run the smoke checklist.

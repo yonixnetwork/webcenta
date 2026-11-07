@@ -66,3 +66,15 @@ describe("phishing heuristics inputs", () => {
     expect(registrableDomain("a.b.example.co.uk")).toBe("example.co.uk");
   });
 });
+
+describe("local storage folder", async () => {
+  const { localStorageRoot } = await import("@/server/storage");
+  it("must be absolute and outside the app in production", () => {
+    expect(() => localStorageRoot("./storage", "production", "/srv/app")).toThrow(/absolute path outside/);
+    expect(() => localStorageRoot("/srv/app/uploads", "production", "/srv/app")).toThrow(/absolute path outside/);
+    expect(localStorageRoot("/home/u1/webcenta-storage", "production", "/srv/app")).toBe("/home/u1/webcenta-storage");
+  });
+  it("may be relative in development", () => {
+    expect(localStorageRoot("./storage", "development", "/srv/app")).toBe("/srv/app/storage");
+  });
+});

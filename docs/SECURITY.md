@@ -230,5 +230,9 @@ material. CSAM is reported to the relevant authorities as legally required.
 * **Test-only routes** (`/e2e-test/*`) need `ENABLE_TEST_ERROR_ROUTES=true` **and** a localhost
   `PUBLIC_ORIGIN`; otherwise they return 404.
 * **`api.webcenta.com`** (optional) serves `/api/*` only; host-only session cookies never reach it.
-* **Every migration** ends with the standard RLS and Data API privilege-revocation footer
-  (`prisma/rls-footer.sql`).
+* **Database:** MySQL / MariaDB on the hosting account, reached only at `127.0.0.1` by the app;
+  no public data API exists (the earlier Supabase/RLS layer was removed with Supabase). Secrets and
+  opaque keys use a binary collation so they compare exactly; remote databases require TLS in
+  production; migrations contain no triggers or routines.
+* **Uploads on local disk** are stored outside the app directory (enforced in production) and
+  served only for `public/` keys; `private/` keys (compliance documents) are never served.

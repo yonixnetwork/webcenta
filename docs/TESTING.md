@@ -1,6 +1,7 @@
 # Webcenta — Testing
 
-All suites run against **real PostgreSQL** (no SQL mocks). E2E tests use an **isolated, freshly created
+All suites run against **real MariaDB and MySQL** (no SQL mocks): MariaDB 10.11 is the engine
+Hostinger runs; MySQL 8.0 keeps the VPS path tested. E2E tests use an **isolated, freshly created
 database** and **local fixture websites**; they never touch production data or real third-party services.
 
 ## Suites
@@ -8,27 +9,27 @@ database** and **local fixture websites**; they never touch production data or r
 | Suite | Command | What it covers |
 | --- | --- | --- |
 | Unit | `npx vitest run tests/unit` | URL/host/CSP helpers, DB pool config, search parsing and sanitising, taxonomy, SSRF guards (IP ranges, hostnames, URL validation, domain validation), TOTP (RFC 6238 vectors), AES-GCM, scrypt, RBAC matrix, recommendation diversity, Markdown escaping, verdict and status logic, ranking, phishing and look-alike heuristics, rating maths (all five values, averages, percentages summing to 100), category emojis, static error pages (generated, self-contained), proxy maintenance 503 and `api.` host, test-route guard |
-| DB integration | `npm test` (needs a migrated, seeded `DATABASE_URL`) | RLS on every table, CHECK constraints, search trigger, visibility filter (status, security, category, parent, geo, age), search and filters, injection-safe queries, alternatives, homepage rails, rate limiter, job runner (retries, dead jobs), analytics privacy and dedupe, salts, search stats, reports, full listing workflow, review rules and developer replies |
+| DB integration | `npm test` (needs a migrated, seeded `DATABASE_URL`) | InnoDB/utf8mb4 everywhere, binary collation for secrets, CHECK constraints, app-enforced integrity rules, search document maintenance, JSON array filters, UTC timestamps, visibility filter (status, security, category, parent, geo, age), search and filters, injection-safe queries, alternatives, homepage rails, rate limiter, job runner (retries, dead jobs), analytics privacy and dedupe, salts, search stats, reports, full listing workflow, review rules and developer replies |
 | Schema smoke | `npm run db:smoke` | Core constraints and cascades |
-| DB compatibility | `npm run db:check` | TLS, version, `pg_trgm` location, migrations, RLS coverage, Data API privileges (read-only; safe on Supabase) |
+| DB compatibility | `npm run db:check` | Engine and version (MariaDB ≥ 10.6 / MySQL ≥ 8.0), InnoDB, utf8mb4, time zone, FULLTEXT token size, SKIP LOCKED, privileges, connection limits, migrations, FULLTEXT indexes (read-only) |
 | E2E | see below | 10 user journeys, marketplace, reviews, error pages (404/403/500, unavailable apps, static pages), security, PWA and offline, responsive/a11y on desktop, tablet and mobile, light and dark |
 | Brand check | `npm run brand:check` | No reference to the retired product name anywhere in tracked files (including split wordmarks) |
 | Bundle secrets | `bash scripts/check-bundle-secrets.sh` (after build) | No secrets, connection strings or source maps in client output |
-| Backup drill | `scripts/backup.sh` + `scripts/restore-drill.sh` | Dump, restore into an empty DB, identical row counts, RLS and trigger intact |
+| Backup drill | `scripts/backup.sh` + `scripts/restore-drill.sh` | mysqldump/mariadb-dump, restore into an empty DB, identical exact row counts, CHECK constraints, foreign keys, FULLTEXT indexes and collations intact |
 | Performance | `node scripts/perf.mjs` (server running) | TTFB, FCP, LCP, CLS, transfer size (throttled phone), server latency |
 
 ## Running E2E locally
 
-Requirements: PostgreSQL, Chromium (Playwright), `openssl`, permission to bind port 443 (root, or
+Requirements: MariaDB ≥ 10.6 or MySQL ≥ 8.0, Chromium (Playwright), `openssl`, permission to bind port 443 (root, or
 `sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0`).
 
 ```bash
-npm run build
-E2E_DB_BASE=postgresql://postgres@localhost:5432 bash tests/e2e/run-fresh.sh            # all projects
-E2E_DB_BASE=postgresql://postgres@localhost:5432 bash tests/e2e/run-fresh.sh --project=journeys
+npm run build   # webpack + standalone, as on Hostinger; E2E runs against .next/standalone/server.js
+E2E_DB_BASE=mysql://USER:PASSWORD@127.0.0.1:3306 bash tests/e2e/run-fresh.sh            # all projects
+E2E_DB_BASE=mysql://USER:PASSWORD@127.0.0.1:3306 bash tests/e2e/run-fresh.sh --project=journeys
 ```
 
-`run-fresh.sh` creates a new database (`webcenta_e2e_<timestamp>`). `prepare.sh` refuses non-empty or
+`run-fresh.sh` creates a new database (`webcenta_e2e_<timestamp>`; the user needs CREATE DATABASE). `prepare.sh` refuses non-empty or
 non-test databases. Fixture sites (`*.localhost` on :443, control API on :4599) use a throwaway CA trusted
 only by the app under test (`NODE_EXTRA_CA_CERTS`). The scanner may reach loopback **only** when
 `SCANNER_ALLOW_PRIVATE_FOR_TESTS=true` **and** the app's `PUBLIC_ORIGIN` is a localhost origin.

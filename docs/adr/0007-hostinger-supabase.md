@@ -1,6 +1,6 @@
 # ADR-0007: Initial production on Hostinger Business + Supabase PostgreSQL
 
-Status: Accepted (owner decision, Phase 1) · Date: 2026-11-06 · Supersedes the hosting part of ADR-0002
+Status: **Superseded** by ADR-0008 (Supabase dropped; Hostinger MySQL / MariaDB) · Date: 2026-11-06
 
 ## Context
 The owner has purchased Hostinger Business hosting, which supports Node.js web apps but not

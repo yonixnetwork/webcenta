@@ -1,4 +1,7 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
+/** The copy the server actually serves: the standalone server uses its own public/ folder. */
+const SERVED_SW = existsSync(".next/standalone/public/sw.js") ? ".next/standalone/public/sw.js" : "public/sw.js";
 import { expect, test } from "@playwright/test";
 
 /** 10. A user installs Webcenta as a PWA and navigates through the marketplace. */
@@ -63,9 +66,9 @@ test.describe("PWA", () => {
     await page.evaluate(() => navigator.serviceWorker.ready);
     await page.reload();
     // Publish a new service-worker version (as a deployment would), then restore it.
-    const original = readFileSync("public/sw.js", "utf8");
+    const original = readFileSync(SERVED_SW, "utf8");
     try {
-      writeFileSync("public/sw.js", original.replace('const VERSION = "wc-v2"', 'const VERSION = "wc-v3"'));
+      writeFileSync(SERVED_SW, original.replace('const VERSION = "wc-v2"', 'const VERSION = "wc-v3"'));
       await page.evaluate(async () => { const reg = await navigator.serviceWorker.getRegistration(); await reg?.update(); });
       await expect(page.getByText("A new version of Webcenta is available.")).toBeVisible({ timeout: 15_000 });
       const reload = page.waitForEvent("load");
@@ -73,7 +76,7 @@ test.describe("PWA", () => {
       await reload;
       await expect.poll(() => page.evaluate(async () => (await caches.keys()).some((k) => k.startsWith("wc-v3")))).toBe(true);
     } finally {
-      writeFileSync("public/sw.js", original);
+      writeFileSync(SERVED_SW, original);
     }
   });
 

@@ -3,10 +3,10 @@
 Status: Accepted · Date: 2026-11-06
 
 ## Decision
-Use Prisma 7 (`prisma-client` generator, `@prisma/adapter-pg` driver adapter, `prisma.config.ts`)
-with the schema split per domain in `prisma/schema/`. Migrations are committed from Phase 1.
-Features Prisma can't model (tsvector, GIN/trigram indexes, CHECK constraints, partial indexes)
-go into migrations as raw SQL.
+Use Prisma 7 (`prisma-client` generator, `prisma.config.ts`) with the schema split per domain in
+`prisma/schema/`. Migrations are committed from Phase 1. Features Prisma can't model go into
+migrations as raw SQL. Since ADR-0008 the provider is `mysql` with the `@prisma/adapter-mariadb`
+driver adapter; the raw SQL is limited to collations and CHECK constraints.
 
 ## Consequences
 + A typed data layer, readable schema and reviewable migrations.

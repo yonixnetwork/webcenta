@@ -6,7 +6,7 @@ export const PLATFORMS = ["WEB", "ANDROID", "IOS", "WINDOWS", "MACOS", "LINUX", 
 export const SORTS = ["relevance", "newest", "updated", "rating", "name"] as const;
 export type SortKey = (typeof SORTS)[number];
 
-/** Removes NUL and other control characters (PostgreSQL rejects NUL in text). */
+/** Removes NUL and other control characters (databases and logs should never receive NUL bytes). */
 export function cleanText(v: string): string {
   return v.replace(new RegExp("[\\u0000-\\u001f\\u007f]", "g"), " ").replace(/\s+/g, " ").trim();
 }

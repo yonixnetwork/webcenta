@@ -1,18 +1,16 @@
 # Webcenta — Database Design
 
-Engine: **PostgreSQL 15+** (production: **Supabase**) · ORM: **Prisma 7** · Schema: [`prisma/schema/`](../prisma/schema)
+Engine: **MySQL / MariaDB** (production: **Hostinger MySQL, which runs MariaDB ≥ 10.6**; MySQL ≥ 8.0
+also supported) · ORM: **Prisma 7** with `@prisma/adapter-mariadb` · Schema: [`prisma/schema/`](../prisma/schema)
+· Decision: [ADR-0008](adr/0008-mysql-mariadb-hostinger.md)
 
-The baseline migration is `prisma/migrations/*_init`. Every schema change from now on ships as a
-committed migration; `db push` is for local experiments only. CI applies the migrations to a fresh
-database that simulates Supabase's `anon`/`authenticated` roles, then checks for drift
-(`prisma migrate diff --exit-code`) and RLS coverage.
+The baseline migration is `prisma/migrations/*_mysql_baseline` (it replaced the earlier PostgreSQL
+migrations before anything was deployed, so no data was converted). Every schema change from now on
+ships as a committed migration; `db push` is for local experiments only. CI applies the migrations
+to fresh MariaDB 10.11 and MySQL 8.0 databases and checks for drift (`prisma migrate diff --exit-code`).
 
-Migrations so far: `*_init` (baseline), `*_m2_auth_email_admin` (auth rate limits, email outbox,
-admin TOTP replay protection and invitations) and `*_category_emoji` (optional `Category.emoji`,
-filled by the seed for top-level categories only where empty, so an administrator's choice is never
-overwritten). The baseline was edited once, before any deployment, to rename the search trigger
-function to `webcenta_listing_search_vector` during the brand correction.
-
+Conventions: InnoDB, `utf8mb4` / `utf8mb4_unicode_ci` (case-insensitive), `DATETIME(3)` in UTC (every
+connection sets time zone `+00:00`), JSON arrays for lists, `TEXT`/`MEDIUMTEXT` for long text.
 ## 1. Domain map
 
 | File | Tables | Purpose |
@@ -28,7 +26,7 @@ function to `webcenta_listing_search_vector` during the brand correction.
 | `platform.prisma` | HomepageSection, FeaturedPlacement, SystemSetting, LegalPolicy, DeveloperPlan, DeveloperSubscription, Sponsorship | Platform configuration and future monetisation (inactive). |
 | `jobs.prisma` | Job, JobRun | Database-backed job queue. |
 
-58 tables in total.
+61 tables in total (60 models plus Prisma's `_prisma_migrations`).
 
 ## 2. Important design decisions
 
@@ -52,23 +50,42 @@ function to `webcenta_listing_search_vector` during the brand correction.
 * **Monetisation tables exist but are inactive.** `DeveloperPlan.isActive` defaults to `false` and
   `priceCents` is nullable until pricing is decided.
 * **IDs.** UUIDv7 strings, which are time-ordered and give good B-tree locality. High-volume
-  append-only tables (`ListingEvent`, `InteractionEvent`, `AuditLog`) use `BIGSERIAL`.
+  append-only tables (`ListingEvent`, `InteractionEvent`, `AuditLog`) use `BIGINT AUTO_INCREMENT`.
 
-## 3. Hand-written SQL in the baseline migration
+## 3. Hand-written SQL and rules outside Prisma's schema
 
-Prisma cannot express these, so they are appended to the generated migration and marked `HAND-WRITTEN`:
+Appended to the generated baseline and marked `HAND-WRITTEN`:
 
 | What | Why |
 | --- | --- |
-| `CREATE SCHEMA extensions; CREATE EXTENSION pg_trgm WITH SCHEMA extensions` | Supabase convention; trigram search and autocomplete. Queries use `extensions.similarity(...)`. |
-| `Listing.searchVector` filled by trigger `webcenta_listing_search_vector()` | Weighted FTS (name A; tagline/publisher B; features C; description D) using the `'simple'` config for a multilingual catalogue. A trigger is used because a generated column cannot call the non-IMMUTABLE `array_to_string`. |
-| GIN indexes on `searchVector` and on `name` (`extensions.gin_trgm_ops`) | Declared in the Prisma schema too, so there is no drift. The schema names the opclass unqualified because that is what introspection reports. |
-| CHECK constraints: rating 1–5, geo restriction has exactly one target, ISO country format, no self-parent category, slug format, `https://` website URLs, rating-average range | Integrity at the database level. Prisma ignores CHECKs in diffs. |
-| `ENABLE ROW LEVEL SECURITY` on every table in `public` | Supabase exposes `public` via its Data API. With RLS and no policies, those roles see nothing. The app connects as the table owner, which bypasses RLS. |
-| `REVOKE ALL` and `ALTER DEFAULT PRIVILEGES … REVOKE` from `anon` and `authenticated` (only if those roles exist) | Defence in depth, including for tables created by later migrations. |
+| `utf8mb4_bin` collation on `Session.token`, `AdminSession.tokenHash`, `AdminInvitation.tokenHash`, `Verification.identifier`, `MediaAsset.storageKey` | Secrets and opaque keys must compare exactly; the default collation is case-insensitive. |
+| CHECK constraints: rating 1–5, ISO country format, slug format, `https://` website URLs, rating-average range | Integrity at the database level. Patterns compare in a binary collation, so they are case-sensitive. Prisma ignores CHECKs in diffs. |
 
-**Rule for future migrations:** every new table must get `ALTER TABLE … ENABLE ROW LEVEL SECURITY`.
-`tests/db/schema.test.ts` and `npm run db:check` fail otherwise.
+Deliberately **not** used: triggers, stored procedures, functions and events. Managed (shared)
+hosting does not grant the privileges they need.
+
+Rules enforced in application code (`src/server/db.ts`, a Prisma client extension) because MySQL and
+MariaDB forbid CHECK constraints on columns with foreign-key actions, or because they need code:
+
+| Rule | Where it is tested |
+| --- | --- |
+| A `GeoRestriction` targets exactly one listing or one category | `tests/db/schema.test.ts` |
+| A `Category` is never its own parent | `tests/db/schema.test.ts` |
+| `Listing.searchText` / `searchTrigrams` stay in sync with name, tagline, publisher, features and description (creates compute them; content updates recompute them from the current row in the same statement; `updateMany` on content is refused) | `tests/db/schema.test.ts`, `tests/unit/trigrams.test.ts` |
+
+The hourly maintenance job also re-derives search columns for recently changed listings
+(`reconcileSearchDocuments`), so a missed write path cannot leave search stale for long.
+
+**Search** (`src/server/search/search.ts`): InnoDB `FULLTEXT` indexes on `Listing.name`,
+`Listing.searchText` and `Listing.searchTrigrams`. Words of 3+ characters match as required
+prefixes in boolean mode; 1–2 character words ("ai", "3d") match as whole words with `REGEXP`
+(InnoDB's minimum token size is 3); name and publisher substrings, tag and category names match with
+`LIKE`; typos match through trigram tokens with a pg_trgm-compatible similarity above 0.3, computed
+in `src/lib/trigrams.ts`.
+
+**Rule for future migrations:** use only standard DDL (tables, columns, indexes, foreign keys,
+CHECKs); keep JSON defaults in the Prisma schema (`@default("[]")`), not in SQL; run the migration on
+both MariaDB and MySQL (CI does).
 
 ## 4. Data retention (defaults; configurable in SystemSetting)
 
@@ -82,16 +99,14 @@ Prisma cannot express these, so they are appended to the generated migration and
 | `Session` / `Verification` / `RateLimitBucket` | Purged after expiry |
 | Users requesting deletion | Purged after a 30-day grace period; reviews deleted or anonymised per policy |
 
-## 5. Production database roles
+## 5. Production database user
 
-* `webcenta_migrate`: owns the schema and runs `prisma migrate deploy` during deployment.
-* `webcenta_app`: DML only. `INSERT, SELECT` on `AuditLog` (no `UPDATE` or `DELETE`). No DDL.
-* `webcenta_readonly`: for analytics and backups verification.
+Hostinger provides one user per database, with full privileges on it. The app and migrations use
+that user. On a VPS, split it into a migration user (DDL) and an app user (DML only; `INSERT, SELECT`
+on `AuditLog`).
 
 ## 6. Backups
 
-* Managed Postgres point-in-time recovery, where the provider offers it.
-* A nightly `pg_dump` (custom format) to object storage in a separate account or bucket, with
-  30-day retention.
-* A quarterly **restore drill** into a scratch database, with the result recorded in
-  `docs/operations/restore-log.md`. This is a Phase 7 task and has not been done yet.
+See [DEPLOYMENT.md §5](DEPLOYMENT.md): Hostinger backups, `scripts/backup.sh` (mysqldump /
+mariadb-dump, consistent snapshot) and `scripts/restore-drill.sh` (restore into an empty database,
+exact row counts plus constraint, index and collation checks). CI runs the drill on every push.

@@ -11,8 +11,10 @@ DUMP=$(command -v mariadb-dump || command -v mysqldump) || { echo "mariadb-dump 
 CNF=$(mktemp); chmod 600 "$CNF"; trap 'rm -f "$CNF"' EXIT
 npx tsx scripts/db-tool.ts cnf "$URL" > "$CNF"
 DB=$(npx tsx scripts/db-tool.ts database "$URL")
+# MySQL's mysqldump (e.g. on GitHub runners) needs this flag against MariaDB servers.
+EXTRA=(); "$DUMP" --help 2>/dev/null | grep -q -- "--column-statistics" && EXTRA+=(--column-statistics=0)
 # --single-transaction: consistent snapshot without locking (InnoDB).
 # --no-tablespaces: shared hosting users lack the PROCESS privilege.
-"$DUMP" --defaults-extra-file="$CNF" --single-transaction --no-tablespaces --skip-triggers \
+"$DUMP" --defaults-extra-file="$CNF" "${EXTRA[@]}" --single-transaction --no-tablespaces --skip-triggers \
   --default-character-set=utf8mb4 --hex-blob "$DB" | gzip > "$FILE"
 echo "$FILE"
