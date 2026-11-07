@@ -4,7 +4,8 @@
  * It creates rows, asserts key constraints/cascades, and cleans up after itself.
  * Refuses to run when NODE_ENV=production.
  */
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import { buildPoolConfig } from "../src/server/db-config.js";
 import { PrismaClient, Prisma } from "../src/generated/prisma/client.js";
 import assert from "node:assert/strict";
 
@@ -14,7 +15,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+  adapter: new PrismaMariaDb(buildPoolConfig({ DATABASE_URL: process.env.DATABASE_URL ?? "", NODE_ENV: process.env.NODE_ENV }).pool),
 });
 
 const tag = `smoke-${Date.now()}`;
@@ -118,12 +119,9 @@ async function main() {
   await expectUniqueViolation("job dedupe key prevents duplicate enqueue", () =>
     prisma.job.create({ data: { type: "smoke.test", payload: {}, dedupeKey: `${tag}-job` } }),
   );
-  const claimed = await prisma.$queryRaw<{ id: string }[]>`
-    UPDATE "Job" SET status = 'RUNNING', "lockedAt" = now(), "lockedBy" = 'smoke', attempts = attempts + 1
-    WHERE id IN (
-      SELECT id FROM "Job" WHERE status = 'PENDING' AND "runAt" <= now() AND type = 'smoke.test'
-      ORDER BY priority DESC, "runAt" LIMIT 10 FOR UPDATE SKIP LOCKED
-    ) RETURNING id`;
+  const claimed = await prisma.$transaction((tx) => tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM Job WHERE status = 'PENDING' AND runAt <= UTC_TIMESTAMP(3) AND type = 'smoke.test'
+    ORDER BY priority DESC, runAt LIMIT 10 FOR UPDATE SKIP LOCKED`);
   assert.equal(claimed.length, 1);
   ok("job claim via FOR UPDATE SKIP LOCKED");
 

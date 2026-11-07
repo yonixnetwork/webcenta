@@ -8,9 +8,10 @@
  * administrator changes survive re-seeding.
  */
 import "dotenv/config";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { buildPoolConfig } from "../src/server/db-config";
+import { extendClient } from "../src/server/db";
 import { CATEGORY_EMOJI, flattenTaxonomy } from "../src/server/catalog/taxonomy";
 import { FIXTURE_COLLECTIONS, FIXTURE_FEATURED, FIXTURE_LISTINGS, FIXTURE_RELATIONS } from "../prisma/seed/dev-fixtures";
 
@@ -20,7 +21,7 @@ const { pool } = buildPoolConfig({
   DATABASE_SSL_CA: process.env.DATABASE_SSL_CA,
   NODE_ENV: process.env.NODE_ENV,
 });
-const db = new PrismaClient({ adapter: new PrismaPg({ ...pool, max: 2 }) });
+const db = extendClient(new PrismaClient({ adapter: new PrismaMariaDb({ ...pool, connectionLimit: 2 }) }));
 
 const RISK_ORDER = ["LOW", "MEDIUM", "HIGH", "PROHIBITED"] as const;
 

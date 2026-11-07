@@ -1,22 +1,30 @@
 /**
- * Database compatibility check — read-only. Run against Supabase (or any target)
- * BEFORE the first deployment:
- *   DATABASE_URL=... DIRECT_URL=... DATABASE_SSL_CA="$(cat supabase-ca.crt)" npm run db:check
- * Checks both connections, TLS, server version, extensions, RLS coverage,
- * Data API role privileges and migration status. Exits non-zero on failure.
+ * Database compatibility check — read-only. Run against the target database
+ * (Hostinger MariaDB, or any MySQL 8) BEFORE the first deployment:
+ *   DATABASE_URL="mysql://USER:PASSWORD@HOST:3306/DATABASE" npm run db:check
+ * Checks the server version and engine, character set, time zone handling,
+ * FULLTEXT and SKIP LOCKED support, the privileges migrations need, connection
+ * limits and migration status. Writes nothing. Exits non-zero on failure.
  */
 import "dotenv/config";
-import pg from "pg";
+import mariadb, { type Connection } from "mariadb";
 import { buildPoolConfig } from "../src/server/db-config";
 
 type Result = { name: string; ok: boolean; detail: string; warnOnly?: boolean };
 const results: Result[] = [];
 const add = (r: Result) => results.push(r);
 
-async function probe(label: string, url: string | undefined) {
+/** Parses "10.11.6-MariaDB-…" / "8.0.36" into an engine and [major, minor]. */
+export function parseVersion(v: string): { engine: "MariaDB" | "MySQL"; major: number; minor: number } {
+  const [major = 0, minor = 0] = v.split(/[.-]/).map(Number);
+  return { engine: /mariadb/i.test(v) ? "MariaDB" : "MySQL", major, minor };
+}
+
+async function main() {
+  const url = process.env.DIRECT_URL || process.env.DATABASE_URL;
   if (!url) {
-    add({ name: `${label}: configured`, ok: false, detail: "not set (migrations will use DATABASE_URL)", warnOnly: label === "DIRECT_URL" });
-    return null;
+    console.error("Set DATABASE_URL (mysql://USER:PASSWORD@HOST:3306/DATABASE).");
+    process.exit(1);
   }
   const { pool, sslMode } = buildPoolConfig({
     DATABASE_URL: url,
@@ -24,69 +32,87 @@ async function probe(label: string, url: string | undefined) {
     DATABASE_SSL_CA: process.env.DATABASE_SSL_CA,
     NODE_ENV: process.env.NODE_ENV,
   });
-  const client = new pg.Client(pool);
+  let conn: Connection;
   try {
-    await client.connect();
-    const v = await client.query<{ v: string; ssl: boolean | null }>(
-      `SELECT current_setting('server_version') AS v,
-              (SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()) AS ssl`,
-    );
-    const row = v.rows[0]!;
-    const major = Number(row.v.split(".")[0]);
-    add({ name: `${label}: connect`, ok: true, detail: `PostgreSQL ${row.v}, TLS mode "${sslMode}", session TLS: ${row.ssl ?? "unknown (pooler)"}` });
-    add({ name: `${label}: version ≥ 15`, ok: major >= 15, detail: row.v });
-    if (sslMode === "require") add({ name: `${label}: certificate verification`, ok: false, warnOnly: true, detail: "TLS without certificate verification — set DATABASE_SSL_CA for verify-full" });
-    return client;
+    conn = await mariadb.createConnection({ ...pool, bigIntAsNumber: true });
   } catch (e) {
-    add({ name: `${label}: connect`, ok: false, detail: String(e instanceof Error ? e.message : e) });
-    await client.end().catch(() => undefined);
-    return null;
+    add({ name: "connect", ok: false, detail: (e as Error).message });
+    return;
+  }
+  try {
+    const one = async <T>(sql: string): Promise<T> => ((await conn.query(sql)) as T[])[0]!;
+    const g = await one<Record<string, string | number | null>>(
+      `SELECT VERSION() AS version, @@default_storage_engine AS engine, @@character_set_database AS charset,
+              @@collation_database AS collation, @@session.time_zone AS tz, @@sql_mode AS sqlMode,
+              @@max_connections AS maxConnections, @@max_user_connections AS maxUserConnections,
+              @@max_allowed_packet AS maxPacket, @@innodb_ft_min_token_size AS ftMin, DATABASE() AS db`,
+    );
+    const v = parseVersion(String(g.version));
+    add({ name: "connect", ok: true, detail: `${v.engine} ${g.version}, database "${g.db}", TLS mode "${sslMode}"` });
+    const versionOk = v.engine === "MariaDB" ? v.major > 10 || (v.major === 10 && v.minor >= 6) : v.major >= 8;
+    add({ name: "version (MariaDB ≥ 10.6 or MySQL ≥ 8.0)", ok: versionOk, detail: String(g.version) });
+    add({ name: "storage engine InnoDB", ok: String(g.engine).toLowerCase() === "innodb", detail: String(g.engine) });
+    add({ name: "database charset utf8mb4", ok: String(g.charset) === "utf8mb4", detail: `${g.charset} / ${g.collation}` });
+    add({ name: "session time zone UTC", ok: ["+00:00", "UTC", "SYSTEM"].includes(String(g.tz)), detail: `${g.tz} (the app forces +00:00 per connection)`, warnOnly: true });
+    add({ name: "strict SQL mode", ok: /STRICT_(TRANS|ALL)_TABLES/.test(String(g.sqlMode)), detail: String(g.sqlMode), warnOnly: true });
+    add({ name: "FULLTEXT minimum token size ≤ 3", ok: Number(g.ftMin) <= 3, detail: `innodb_ft_min_token_size = ${g.ftMin} (search assumes 3)`, warnOnly: true });
+    const userLimit = Number(g.maxUserConnections);
+    add({
+      name: "connection limit fits the pool",
+      ok: userLimit === 0 || userLimit >= Number(process.env.DATABASE_POOL_MAX ?? 5) + 2,
+      detail: `max_user_connections = ${userLimit || "unlimited"}, max_connections = ${g.maxConnections}, DATABASE_POOL_MAX = ${process.env.DATABASE_POOL_MAX ?? 5}`,
+      warnOnly: true,
+    });
+    add({ name: "max_allowed_packet ≥ 4 MB", ok: Number(g.maxPacket) >= 4 * 1024 * 1024, detail: `${Math.round(Number(g.maxPacket) / 1024 / 1024)} MB` });
+
+    // SKIP LOCKED is needed by the job queue; a read-only probe inside a rolled-back transaction.
+    try {
+      await conn.beginTransaction();
+      await conn.query("SELECT 1 FROM DUAL FOR UPDATE SKIP LOCKED");
+      add({ name: "FOR UPDATE SKIP LOCKED", ok: true, detail: "supported" });
+    } catch (e) {
+      add({ name: "FOR UPDATE SKIP LOCKED", ok: false, detail: (e as Error).message });
+    } finally {
+      await conn.rollback();
+    }
+
+    const grants = ((await conn.query("SHOW GRANTS FOR CURRENT_USER()")) as Array<Record<string, string>>).map((r) => Object.values(r)[0]!).join("\n");
+    const needed = ["SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "INDEX", "DROP", "REFERENCES"];
+    const missing = /ALL PRIVILEGES/i.test(grants) ? [] : needed.filter((p) => !new RegExp(`\\b${p}\\b`, "i").test(grants));
+    add({ name: "privileges for migrations", ok: missing.length === 0, detail: missing.length ? `missing: ${missing.join(", ")}` : "ok" });
+
+    const tables = Number((await one<{ n: number }>("SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()")).n);
+    if (tables === 0) {
+      add({ name: "migrations", ok: true, detail: "empty database — run `npx prisma migrate deploy`", warnOnly: true });
+    } else {
+      const hasMigrations = Number((await one<{ n: number }>("SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '_prisma_migrations'")).n) > 0;
+      if (!hasMigrations) {
+        add({ name: "migrations", ok: false, detail: `${tables} tables but no _prisma_migrations table — not a Webcenta database?` });
+      } else {
+        const m = await one<{ applied: number; failed: number }>(
+          "SELECT SUM(finished_at IS NOT NULL AND rolled_back_at IS NULL) AS applied, SUM(finished_at IS NULL AND rolled_back_at IS NULL) AS failed FROM _prisma_migrations",
+        );
+        add({ name: "migrations applied", ok: Number(m.failed) === 0, detail: `${m.applied} applied, ${m.failed} failed` });
+        const nonInno = Number((await one<{ n: number }>("SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' AND ENGINE <> 'InnoDB'")).n);
+        add({ name: "all tables InnoDB", ok: nonInno === 0, detail: nonInno ? `${nonInno} non-InnoDB table(s)` : `${tables} tables` });
+        const ft = Number((await one<{ n: number }>("SELECT COUNT(DISTINCT INDEX_NAME) AS n FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Listing' AND INDEX_TYPE = 'FULLTEXT'")).n);
+        add({ name: "search FULLTEXT indexes", ok: ft === 3, detail: `${ft} of 3` });
+      }
+    }
+  } finally {
+    await conn.end();
   }
 }
 
-async function main() {
-  const runtime = await probe("DATABASE_URL", process.env.DATABASE_URL);
-  const direct = await probe("DIRECT_URL", process.env.DIRECT_URL);
-  const c = direct ?? runtime;
-  if (c) {
-    const ext = await c.query<{ extname: string; nspname: string }>(
-      `SELECT e.extname, n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = 'pg_trgm'`,
-    );
-    add({ name: "pg_trgm installed in schema 'extensions'", ok: ext.rows[0]?.nspname === "extensions",
-      detail: ext.rows[0] ? `found in "${ext.rows[0].nspname}"` : "not installed (run migrations)", warnOnly: !ext.rows[0] });
-
-    const mig = await c.query<{ n: string; failed: string }>(
-      `SELECT count(*) AS n, count(*) FILTER (WHERE finished_at IS NULL OR rolled_back_at IS NOT NULL) AS failed
-       FROM _prisma_migrations`,
-    ).catch(() => null);
-    add({ name: "migrations applied", ok: Boolean(mig && Number(mig.rows[0]!.failed) === 0 && Number(mig.rows[0]!.n) > 0),
-      detail: mig ? `${mig.rows[0]!.n} applied, ${mig.rows[0]!.failed} failed/rolled back` : "no _prisma_migrations table yet", warnOnly: !mig });
-
-    const rls = await c.query<{ relname: string }>(
-      `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-       WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity`,
-    );
-    add({ name: "RLS enabled on every public table", ok: rls.rows.length === 0,
-      detail: rls.rows.length ? `missing on: ${rls.rows.map((r) => r.relname).join(", ")}` : "all tables protected" });
-
-    const grants = await c.query<{ grantee: string; n: string }>(
-      `SELECT grantee, count(*) AS n FROM information_schema.role_table_grants
-       WHERE table_schema = 'public' AND grantee IN ('anon', 'authenticated') GROUP BY grantee`,
-    );
-    add({ name: "Supabase Data API roles have no table privileges", ok: grants.rows.length === 0,
-      detail: grants.rows.length ? grants.rows.map((g) => `${g.grantee}: ${g.n} grants`).join(", ") : "none (or roles absent)" });
-  }
-  await runtime?.end();
-  await direct?.end();
-
-  let failed = 0;
-  for (const r of results) {
-    const tag = r.ok ? "PASS" : r.warnOnly ? "WARN" : "FAIL";
-    if (tag === "FAIL") failed++;
-    console.log(`${tag}  ${r.name} — ${r.detail}`);
-  }
-  console.log(failed ? `\n${failed} check(s) failed` : "\nAll required checks passed");
-  process.exitCode = failed ? 1 : 0;
-}
-
-main();
+main()
+  .catch((e) => add({ name: "unexpected error", ok: false, detail: (e as Error).message }))
+  .finally(() => {
+    let failed = 0;
+    for (const r of results) {
+      const tag = r.ok ? "PASS" : r.warnOnly ? "WARN" : "FAIL";
+      if (tag === "FAIL") failed++;
+      console.log(`${tag}  ${r.name} — ${r.detail}`);
+    }
+    console.log(failed ? `\n${failed} check(s) failed` : "\nAll required checks passed");
+    process.exit(failed ? 1 : 0);
+  });

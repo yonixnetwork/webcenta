@@ -12,7 +12,7 @@ export default async function UsersAdmin({ searchParams }: { searchParams: Promi
   await requireAdmin("users.view");
   const { q, status } = await searchParams;
   const users = await db.user.findMany({
-    where: { ...(q ? { OR: [{ email: { contains: q.toLowerCase() } }, { name: { contains: q, mode: "insensitive" } }] } : {}), ...(status ? { status: status as never } : {}) },
+    where: { ...(q ? { OR: [{ email: { contains: q.toLowerCase() } }, { name: { contains: q } }] } : {}), ...(status ? { status: status as never } : {}) },
     orderBy: { createdAt: "desc" }, take: 100, include: { _count: { select: { reviews: true, reportsAgainst: true } } },
   });
   return (

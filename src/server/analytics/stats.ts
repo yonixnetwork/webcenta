@@ -16,25 +16,26 @@ export async function rollupDay(day: Date): Promise<number> {
   return db.$transaction(async (tx) => {
     await tx.listingDailyStat.deleteMany({ where: { date: from } });
     await tx.listingDailyDimensionStat.deleteMany({ where: { date: from } });
+    const day = from.toISOString().slice(0, 10);
     const n = await tx.$executeRaw`
-      INSERT INTO "ListingDailyStat" ("listingId", date, views, "uniqueVisitors", "outboundClicks", "uniqueOutboundClicks", "searchImpressions")
-      SELECT "listingId", ${from}::date,
-        count(*) FILTER (WHERE type = 'VIEW'),
-        count(DISTINCT "visitorHash") FILTER (WHERE type = 'VIEW'),
-        count(*) FILTER (WHERE type = 'OUTBOUND_CLICK'),
-        count(DISTINCT "visitorHash") FILTER (WHERE type = 'OUTBOUND_CLICK'),
-        count(*) FILTER (WHERE type = 'SEARCH_IMPRESSION')
-      FROM "ListingEvent"
-      WHERE "occurredAt" >= ${from} AND "occurredAt" < ${to} AND device <> 'BOT'
-      GROUP BY "listingId"`;
-    for (const [dim, col] of [["COUNTRY", Prisma.sql`coalesce("countryCode", 'unknown')`], ["DEVICE", Prisma.sql`device::text`], ["REFERRER", Prisma.sql`coalesce("referrerHost", 'direct / webcenta')`]] as const) {
+      INSERT INTO ListingDailyStat (listingId, date, views, uniqueVisitors, outboundClicks, uniqueOutboundClicks, searchImpressions)
+      SELECT listingId, ${day},
+        SUM(CASE WHEN type = 'VIEW' THEN 1 ELSE 0 END),
+        COUNT(DISTINCT CASE WHEN type = 'VIEW' THEN visitorHash END),
+        SUM(CASE WHEN type = 'OUTBOUND_CLICK' THEN 1 ELSE 0 END),
+        COUNT(DISTINCT CASE WHEN type = 'OUTBOUND_CLICK' THEN visitorHash END),
+        SUM(CASE WHEN type = 'SEARCH_IMPRESSION' THEN 1 ELSE 0 END)
+      FROM ListingEvent
+      WHERE occurredAt >= ${from} AND occurredAt < ${to} AND device <> 'BOT'
+      GROUP BY listingId`;
+    for (const [dim, col] of [["COUNTRY", Prisma.sql`COALESCE(countryCode, 'unknown')`], ["DEVICE", Prisma.sql`CAST(device AS CHAR)`], ["REFERRER", Prisma.sql`COALESCE(referrerHost, 'direct / webcenta')`]] as const) {
       await tx.$executeRaw`
-        INSERT INTO "ListingDailyDimensionStat" ("listingId", date, dimension, key, views, "outboundClicks")
-        SELECT "listingId", ${from}::date, ${dim}::"StatDimension", ${col},
-          count(*) FILTER (WHERE type = 'VIEW'), count(*) FILTER (WHERE type = 'OUTBOUND_CLICK')
-        FROM "ListingEvent"
-        WHERE "occurredAt" >= ${from} AND "occurredAt" < ${to} AND device <> 'BOT' AND type IN ('VIEW', 'OUTBOUND_CLICK')
-        GROUP BY "listingId", 4`;
+        INSERT INTO ListingDailyDimensionStat (listingId, date, dimension, \`key\`, views, outboundClicks)
+        SELECT listingId, ${day}, ${dim}, ${col},
+          SUM(CASE WHEN type = 'VIEW' THEN 1 ELSE 0 END), SUM(CASE WHEN type = 'OUTBOUND_CLICK' THEN 1 ELSE 0 END)
+        FROM ListingEvent
+        WHERE occurredAt >= ${from} AND occurredAt < ${to} AND device <> 'BOT' AND type IN ('VIEW', 'OUTBOUND_CLICK')
+        GROUP BY listingId, 4`;
     }
     return n;
   });
@@ -88,13 +89,13 @@ export async function platformStats(days: number) {
   const ids = (await db.listingDailyStat.findMany({ where: { date: { gte: from, lt: to } }, select: { listingId: true }, distinct: ["listingId"] })).map((r) => r.listingId);
   const listing = await listingStats(ids, days);
   const [userGrowth, devGrowth, searches, zero, topCategories] = await Promise.all([
-    db.$queryRaw<Array<{ d: Date; n: bigint }>>`SELECT date_trunc('day', "createdAt") d, count(*) n FROM "User" WHERE "createdAt" >= ${from} GROUP BY 1 ORDER BY 1`,
-    db.$queryRaw<Array<{ d: Date; n: bigint }>>`SELECT date_trunc('day', "createdAt") d, count(*) n FROM "DeveloperOrg" WHERE "createdAt" >= ${from} GROUP BY 1 ORDER BY 1`,
+    db.$queryRaw<Array<{ d: Date; n: bigint }>>`SELECT DATE(createdAt) d, COUNT(*) n FROM User WHERE createdAt >= ${from} GROUP BY 1 ORDER BY 1`,
+    db.$queryRaw<Array<{ d: Date; n: bigint }>>`SELECT DATE(createdAt) d, COUNT(*) n FROM DeveloperOrg WHERE createdAt >= ${from} GROUP BY 1 ORDER BY 1`,
     db.searchQueryDailyStat.groupBy({ by: ["query"], where: { date: { gte: from } }, _sum: { count: true }, orderBy: { _sum: { count: "desc" } }, take: 15 }),
     db.searchQueryDailyStat.groupBy({ by: ["query"], where: { date: { gte: from }, zeroResults: { gt: 0 } }, _sum: { zeroResults: true }, orderBy: { _sum: { zeroResults: "desc" } }, take: 10 }),
     db.$queryRaw<Array<{ name: string; views: bigint; clicks: bigint }>>`
-      SELECT coalesce(p.name, c.name) name, sum(s.views) views, sum(s."outboundClicks") clicks
-      FROM "ListingDailyStat" s JOIN "Listing" l ON l.id = s."listingId" JOIN "Category" c ON c.id = l."primaryCategoryId" LEFT JOIN "Category" p ON p.id = c."parentId"
+      SELECT COALESCE(p.name, c.name) name, SUM(s.views) views, SUM(s.outboundClicks) clicks
+      FROM ListingDailyStat s JOIN Listing l ON l.id = s.listingId JOIN Category c ON c.id = l.primaryCategoryId LEFT JOIN Category p ON p.id = c.parentId
       WHERE s.date >= ${from} GROUP BY 1 ORDER BY 2 DESC LIMIT 10`,
   ]);
   const top = await db.listing.findMany({ where: { id: { in: listing.perListing.sort((a, b) => b.views - a.views).slice(0, 10).map((p) => p.listingId) } }, select: { id: true, name: true, slug: true } });

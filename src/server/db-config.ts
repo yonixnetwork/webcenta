@@ -1,11 +1,12 @@
-import type { PoolConfig } from "pg";
+import type { PoolConfig } from "mariadb";
 
 /**
- * Builds node-postgres pool options that work with Supabase (Supavisor pooler)
- * and with plain PostgreSQL on a VPS. Pure function — unit tested.
+ * Builds MySQL / MariaDB pool options from DATABASE_URL. Pure function — unit tested.
  *
- * Why strip sslmode from the URL: node-postgres lets connection-string SSL
- * parameters override the `ssl` object, so TLS is configured explicitly here.
+ * Hostinger (managed hosting) runs MariaDB on the same machine as the Node.js app:
+ * connect to host 127.0.0.1 (not "localhost": Node 17+ resolves that to ::1, which
+ * the database user is not granted). Remote databases (a VPS, a managed MySQL)
+ * must use TLS in production.
  */
 export interface DbEnv {
   DATABASE_URL: string;
@@ -15,46 +16,52 @@ export interface DbEnv {
   NODE_ENV?: string;
 }
 
-const SSL_PARAMS = ["sslmode", "sslrootcert", "sslcert", "sslkey", "uselibpqcompat", "pgbouncer", "connection_limit"];
+const LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1", "[::1]"];
 
 export function isLocalDatabase(url: URL): boolean {
-  const socketHost = url.searchParams.get("host");
-  return (
-    ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname) || Boolean(socketHost && socketHost.startsWith("/"))
-  );
+  return LOCAL_HOSTS.includes(url.hostname) || Boolean(url.searchParams.get("socket"));
 }
 
-export function buildPoolConfig(e: DbEnv): { pool: PoolConfig; sslMode: string } {
+export function buildPoolConfig(e: DbEnv): { pool: PoolConfig; sslMode: "disable" | "require" | "verify-full" } {
   const url = new URL(e.DATABASE_URL);
-  const urlSslMode = url.searchParams.get("sslmode");
-  for (const p of SSL_PARAMS) url.searchParams.delete(p);
+  if (url.protocol !== "mysql:" && url.protocol !== "mariadb:") {
+    throw new Error("DATABASE_URL must start with mysql:// (MySQL / MariaDB).");
+  }
+  const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
+  if (!database) throw new Error("DATABASE_URL must include the database name, e.g. mysql://user:pass@127.0.0.1:3306/u123_webcenta");
 
+  const local = isLocalDatabase(url);
+  const urlSsl = url.searchParams.get("sslmode") ?? url.searchParams.get("ssl-mode");
   const mode =
     e.DATABASE_SSL ??
-    (urlSslMode === "disable" ? "disable" : urlSslMode === "require" ? "require" : undefined) ??
-    (isLocalDatabase(url) ? "disable" : "verify-full");
+    (urlSsl === "disable" || urlSsl === "DISABLED" ? "disable" : urlSsl === "require" || urlSsl === "REQUIRED" ? "require" : undefined) ??
+    (local ? "disable" : "verify-full");
 
-  if (mode === "disable" && e.NODE_ENV === "production" && !isLocalDatabase(url)) {
+  if (mode === "disable" && e.NODE_ENV === "production" && !local) {
     throw new Error("Refusing to connect to a remote database without TLS in production.");
   }
 
   const ca = e.DATABASE_SSL_CA?.replace(/\\n/g, "\n");
-  const ssl =
-    mode === "disable"
-      ? false
-      : mode === "require"
-        ? { rejectUnauthorized: false }
-        : { rejectUnauthorized: true, ...(ca ? { ca } : {}) };
+  const ssl = mode === "disable" ? undefined : mode === "require" ? { rejectUnauthorized: false } : { rejectUnauthorized: true, ...(ca ? { ca } : {}) };
+  const socketPath = url.searchParams.get("socket") ?? undefined;
 
   const pool: PoolConfig = {
-    connectionString: url.toString(),
-    ssl,
-    max: e.DATABASE_POOL_MAX ?? 5,
-    idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 10_000,
-    // Supavisor transaction mode: keep statements short and avoid session state.
-    statement_timeout: 15_000,
-    application_name: "webcenta",
+    ...(socketPath ? { socketPath } : { host: url.hostname.replace(/^\[|\]$/g, ""), port: url.port ? Number(url.port) : 3306 }),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database,
+    ...(ssl ? { ssl } : {}),
+    // Shared hosting limits concurrent connections per database user; keep the pool small.
+    connectionLimit: e.DATABASE_POOL_MAX ?? 5,
+    connectTimeout: 10_000,
+    acquireTimeout: 10_000,
+    idleTimeout: 60,
+    // Every timestamp is stored and read as UTC regardless of the server's time zone.
+    timezone: "+00:00",
+    // MySQL 8's default authentication needs the server key on non-TLS connections;
+    // only allowed for local connections, where there is no network to intercept.
+    allowPublicKeyRetrieval: local && mode === "disable",
+    charset: "utf8mb4",
   };
   return { pool, sslMode: mode };
 }

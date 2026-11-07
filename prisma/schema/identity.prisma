@@ -29,13 +29,13 @@ enum AuthEventType {
 model User {
   id            String     @id @default(uuid(7))
   /// Stored lower-cased by application code.
-  email         String     @unique
+  email         String     @unique @db.VarChar(254)
   emailVerified Boolean    @default(false)
   name          String
-  image         String?
+  image         String? @db.Text
   status        UserStatus @default(ACTIVE)
-  suspendedAt   DateTime?  @db.Timestamptz
-  suspendReason String?
+  suspendedAt   DateTime?  @db.DateTime(3)
+  suspendReason String? @db.Text
 
   // --- Privacy & personalisation preferences (privacy by default) ---
   personalizationEnabled Boolean   @default(true)
@@ -49,11 +49,11 @@ model User {
   /// Email notifications for replies and listing updates (in-app always on).
   emailNotifications     Boolean   @default(true)
   /// Self-declared 18+ confirmation time (NOT age verification).
-  adultConfirmedAt       DateTime? @db.Timestamptz
+  adultConfirmedAt       DateTime? @db.DateTime(3)
 
-  createdAt DateTime  @default(now()) @db.Timestamptz
-  updatedAt DateTime  @updatedAt @db.Timestamptz
-  deletedAt DateTime? @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.DateTime(3)
+  updatedAt DateTime  @updatedAt @db.DateTime(3)
+  deletedAt DateTime? @db.DateTime(3)
 
   sessions          Session[]
   accounts          Account[]
@@ -82,13 +82,13 @@ model User {
 model Session {
   id        String   @id @default(uuid(7))
   /// Opaque session token; Phase 2 stores only a hash if the auth library allows.
-  token     String   @unique
+  token     String   @unique @db.VarChar(255)
   userId    String
-  expiresAt DateTime @db.Timestamptz
+  expiresAt DateTime @db.DateTime(3)
   ipAddress String?
-  userAgent String?
-  createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt @db.Timestamptz
+  userAgent String? @db.Text
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -104,16 +104,16 @@ model Account {
   accountId             String
   /// e.g. "credential", "google", "apple"
   providerId            String
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
-  accessTokenExpiresAt  DateTime? @db.Timestamptz
-  refreshTokenExpiresAt DateTime? @db.Timestamptz
-  scope                 String?
+  accessToken           String? @db.Text
+  refreshToken          String? @db.Text
+  idToken               String? @db.Text
+  accessTokenExpiresAt  DateTime? @db.DateTime(3)
+  refreshTokenExpiresAt DateTime? @db.DateTime(3)
+  scope                 String? @db.Text
   /// Password hash (scrypt/argon2) for the credential provider only.
-  password              String?
-  createdAt             DateTime  @default(now()) @db.Timestamptz
-  updatedAt             DateTime  @updatedAt @db.Timestamptz
+  password              String? @db.Text
+  createdAt             DateTime  @default(now()) @db.DateTime(3)
+  updatedAt             DateTime  @updatedAt @db.DateTime(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -124,11 +124,11 @@ model Account {
 /// Short-lived tokens: email verification, password reset, magic links.
 model Verification {
   id         String   @id @default(uuid(7))
-  identifier String
-  value      String
-  expiresAt  DateTime @db.Timestamptz
-  createdAt  DateTime @default(now()) @db.Timestamptz
-  updatedAt  DateTime @updatedAt @db.Timestamptz
+  identifier String @db.VarChar(255)
+  value      String @db.Text
+  expiresAt  DateTime @db.DateTime(3)
+  createdAt  DateTime @default(now()) @db.DateTime(3)
+  updatedAt  DateTime @updatedAt @db.DateTime(3)
 
   @@index([identifier])
   @@index([expiresAt])
@@ -139,12 +139,12 @@ model AuthEvent {
   id        String        @id @default(uuid(7))
   userId    String?
   /// Email attempted, kept for failed logins where no user matched.
-  email     String?
+  email     String? @db.VarChar(254)
   type      AuthEventType
   ipAddress String?
-  userAgent String?
+  userAgent String? @db.Text
   metadata  Json?
-  createdAt DateTime      @default(now()) @db.Timestamptz
+  createdAt DateTime      @default(now()) @db.DateTime(3)
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
@@ -155,7 +155,7 @@ model AuthEvent {
 /// Rate-limit state used by the auth library (Better Auth "database" storage).
 model AuthRateLimit {
   id          String @id @default(uuid(7))
-  key         String @unique
+  key         String @unique @db.VarChar(255)
   count       Int
   lastRequest BigInt
 }
@@ -164,17 +164,17 @@ model AuthRateLimit {
 /// EMAIL_TRANSPORT=log (development/tests) messages are only recorded.
 model EmailMessage {
   id        String    @id @default(uuid(7))
-  to        String
-  subject   String
-  text      String
-  html      String?
+  to        String @db.VarChar(254)
+  subject   String @db.Text
+  text      String @db.MediumText
+  html      String? @db.MediumText
   /// e.g. "verify-email", "reset-password", "review-reply"
   template  String
   status    String    @default("PENDING")
   attempts  Int       @default(0)
-  lastError String?
-  sentAt    DateTime? @db.Timestamptz
-  createdAt DateTime  @default(now()) @db.Timestamptz
+  lastError String? @db.Text
+  sentAt    DateTime? @db.DateTime(3)
+  createdAt DateTime  @default(now()) @db.DateTime(3)
 
   @@index([status, createdAt])
   @@index([to, createdAt])
@@ -182,9 +182,9 @@ model EmailMessage {
 
 /// Generic fixed-window rate-limit buckets (no Redis on shared hosting).
 model RateLimitBucket {
-  key     String   @id
+  key     String   @id @db.VarChar(255)
   count   Int      @default(0)
-  resetAt DateTime @db.Timestamptz
+  resetAt DateTime @db.DateTime(3)
 
   @@index([resetAt])
 }

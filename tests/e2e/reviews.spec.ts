@@ -16,7 +16,7 @@ let a: Page, b: Page;
 
 async function ageAccount(email: string) {
   // setup: make the account older than the 24-hour "new account" hold so reviews publish directly.
-  await sql(`update "User" set "createdAt" = now() - interval '3 days' where email = $1`, [email]);
+  await sql(`update "User" set "createdAt" = UTC_TIMESTAMP(3) - INTERVAL 3 DAY where email = $1`, [email]);
 }
 async function rate(page: Page, n: number, body?: string) {
   await page.getByLabel(`${n} star${n > 1 ? "s" : ""}`, { exact: true }).check({ force: true });

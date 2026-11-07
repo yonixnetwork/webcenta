@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { enumArray, stringArray } from "@/lib/json-arrays";
+import { Platform } from "@/generated/prisma/enums";
 import { notFound } from "next/navigation";
 import { ListingEditor } from "@/components/portal/listing-editor";
 import { Card, Field, inputClass } from "@/components/ui/form";
@@ -15,11 +17,11 @@ export default async function AdminEditListing({ params }: { params: Promise<{ i
   const l = await db.listing.findUnique({ where: { id }, include: { categories: true, tags: { include: { tag: true } }, media: { include: { asset: true }, orderBy: { sortOrder: "asc" } } } });
   if (!l) notFound();
   const initial: Partial<ListingInput> = {
-    name: l.name, tagline: l.tagline ?? undefined, description: l.description, features: l.features, websiteUrl: l.websiteUrl, privacyPolicyUrl: l.privacyPolicyUrl ?? undefined,
+    name: l.name, tagline: l.tagline ?? undefined, description: l.description, features: stringArray(l.features), websiteUrl: l.websiteUrl, privacyPolicyUrl: l.privacyPolicyUrl ?? undefined,
     termsUrl: l.termsUrl ?? undefined, supportUrl: l.supportUrl ?? undefined, publisherName: l.publisherName, publisherUrl: l.publisherUrl ?? undefined,
     primaryCategoryId: l.primaryCategoryId ?? undefined, categoryIds: l.categories.map((c) => c.categoryId), tags: l.tags.map((t) => t.tag.name), pricingModel: l.pricingModel,
-    pricingDetails: l.pricingDetails ?? undefined, isOpenSource: l.isOpenSource, sourceCodeUrl: l.sourceCodeUrl ?? undefined, platforms: l.platforms, isBrowserBased: l.isBrowserBased,
-    isMobileFriendly: l.isMobileFriendly, isPwaInstallable: l.isPwaInstallable, ageRating: l.ageRating, supportedCountries: l.supportedCountries, languages: l.languages,
+    pricingDetails: l.pricingDetails ?? undefined, isOpenSource: l.isOpenSource, sourceCodeUrl: l.sourceCodeUrl ?? undefined, platforms: enumArray(l.platforms, Object.values(Platform)), isBrowserBased: l.isBrowserBased,
+    isMobileFriendly: l.isMobileFriendly, isPwaInstallable: l.isPwaInstallable, ageRating: l.ageRating, supportedCountries: stringArray(l.supportedCountries), languages: stringArray(l.languages),
   };
   const logo = l.media.filter((m) => m.kind === "LOGO").map((m) => ({ id: m.assetId, url: mediaUrl(m.asset.storageKey) }));
   const shots = l.media.filter((m) => m.kind !== "LOGO").map((m) => ({ id: m.assetId, url: mediaUrl(m.asset.storageKey) }));

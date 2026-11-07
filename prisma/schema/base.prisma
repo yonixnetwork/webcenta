@@ -30,7 +30,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
 }
 
 /// Overall risk classification used by the approval and monitoring engines.

@@ -58,19 +58,19 @@ model DeveloperOrg {
   slug              String                     @unique
   displayName       String
   legalName         String?
-  websiteUrl        String?
+  websiteUrl        String? @db.Text
   /// Public contact address (distinct from members' login emails).
-  contactEmail      String?
+  contactEmail      String? @db.VarChar(254)
   countryCode       String?                    @db.Char(2)
-  bio               String?
+  bio               String? @db.Text
   logoAssetId       String?
   status            DeveloperStatus            @default(ACTIVE)
   verificationLevel DeveloperVerificationLevel @default(UNVERIFIED)
-  verifiedAt        DateTime?                  @db.Timestamptz
-  suspendedAt       DateTime?                  @db.Timestamptz
-  suspendReason     String?
-  createdAt         DateTime                   @default(now()) @db.Timestamptz
-  updatedAt         DateTime                   @updatedAt @db.Timestamptz
+  verifiedAt        DateTime?                  @db.DateTime(3)
+  suspendedAt       DateTime?                  @db.DateTime(3)
+  suspendReason     String? @db.Text
+  createdAt         DateTime                   @default(now()) @db.DateTime(3)
+  updatedAt         DateTime                   @updatedAt @db.DateTime(3)
 
   logo                MediaAsset?             @relation(fields: [logoAssetId], references: [id], onDelete: SetNull)
   members             DeveloperMember[]
@@ -91,7 +91,7 @@ model DeveloperMember {
   orgId     String
   userId    String
   role      DeveloperMemberRole @default(EDITOR)
-  createdAt DateTime            @default(now()) @db.Timestamptz
+  createdAt DateTime            @default(now()) @db.DateTime(3)
 
   org  DeveloperOrg @relation(fields: [orgId], references: [id], onDelete: Cascade)
   user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -104,16 +104,16 @@ model DomainVerification {
   id            String                   @id @default(uuid(7))
   orgId         String
   /// Lower-case host, e.g. "app.example.com" or "example.com".
-  domain        String
+  domain        String @db.VarChar(255)
   method        DomainVerificationMethod
   /// Random challenge value the developer publishes. Not a credential.
   challenge     String
   status        DomainVerificationStatus @default(PENDING)
-  verifiedAt    DateTime?                @db.Timestamptz
-  lastCheckedAt DateTime?                @db.Timestamptz
-  failureReason String?
-  createdAt     DateTime                 @default(now()) @db.Timestamptz
-  updatedAt     DateTime                 @updatedAt @db.Timestamptz
+  verifiedAt    DateTime?                @db.DateTime(3)
+  lastCheckedAt DateTime?                @db.DateTime(3)
+  failureReason String? @db.Text
+  createdAt     DateTime                 @default(now()) @db.DateTime(3)
+  updatedAt     DateTime                 @updatedAt @db.DateTime(3)
 
   org    DeveloperOrg   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   claims ListingClaim[]
@@ -132,13 +132,13 @@ model ComplianceDocument {
   issuingBody   String?
   referenceNo   String?
   assetId       String?
-  validFrom     DateTime?         @db.Timestamptz
-  expiresAt     DateTime?         @db.Timestamptz
+  validFrom     DateTime?         @db.DateTime(3)
+  expiresAt     DateTime?         @db.DateTime(3)
   decision      ReviewDecision    @default(PENDING)
-  decisionNotes String?
+  decisionNotes String? @db.Text
   reviewedById  String?
-  reviewedAt    DateTime?         @db.Timestamptz
-  createdAt     DateTime          @default(now()) @db.Timestamptz
+  reviewedAt    DateTime?         @db.DateTime(3)
+  createdAt     DateTime          @default(now()) @db.DateTime(3)
 
   org        DeveloperOrg @relation(fields: [orgId], references: [id], onDelete: Cascade)
   listing    Listing?     @relation(fields: [listingId], references: [id], onDelete: SetNull)
@@ -157,12 +157,12 @@ model ListingClaim {
   orgId                String
   requestedById        String
   domainVerificationId String?
-  evidence             String?
+  evidence             String? @db.Text
   decision             ReviewDecision @default(PENDING)
-  decisionNotes        String?
+  decisionNotes        String? @db.Text
   reviewedById         String?
-  reviewedAt           DateTime?      @db.Timestamptz
-  createdAt            DateTime       @default(now()) @db.Timestamptz
+  reviewedAt           DateTime?      @db.DateTime(3)
+  createdAt            DateTime       @default(now()) @db.DateTime(3)
 
   listing            Listing             @relation(fields: [listingId], references: [id], onDelete: Cascade)
   org                DeveloperOrg        @relation(fields: [orgId], references: [id], onDelete: Cascade)

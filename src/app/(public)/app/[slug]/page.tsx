@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
 import { AGE_LABEL, PLATFORM_LABEL, PRICING_LABEL, SECURITY_LABEL, VERIFICATION_LABEL, formatDate, isSampleListing } from "@/lib/labels";
 import { displayDomain } from "@/lib/url";
+import { enumArray, stringArray } from "@/lib/json-arrays";
+import { Platform } from "@/generated/prisma/enums";
 import { getRelated } from "@/server/catalog/alternatives";
 import { getPublicListing } from "@/server/catalog/listings";
 import { submitListingReport } from "@/server/catalog/report-action";
@@ -68,6 +70,10 @@ export default async function AppPage({ params, searchParams }: Props) {
   const logo = listing.media.find((m) => m.kind === "LOGO");
   const screenshots = listing.media.filter((m) => m.kind === "SCREENSHOT" || m.kind === "PREVIEW");
   const showRating = listing.ratingCount > 0;
+  const platforms = enumArray(listing.platforms, Object.values(Platform));
+  const features = stringArray(listing.features);
+  const supportedCountries = stringArray(listing.supportedCountries);
+  const languages = stringArray(listing.languages);
   const verification = listing.developer ? VERIFICATION_LABEL[listing.developer.verificationLevel] : "Unclaimed listing";
   const reportAction = submitListingReport.bind(null, listing.slug);
 
@@ -78,7 +84,7 @@ export default async function AppPage({ params, searchParams }: Props) {
     description: listing.tagline ?? listing.description.slice(0, 300),
     url: listing.websiteUrl,
     applicationCategory: listing.primaryCategory?.name,
-    operatingSystem: listing.platforms.map((p) => PLATFORM_LABEL[p]).join(", "),
+    operatingSystem: platforms.map((p) => PLATFORM_LABEL[p]).join(", "),
     author: { "@type": "Organization", name: listing.publisherName },
     ...(listing.pricingModel === "FREE" ? { offers: { "@type": "Offer", price: "0", priceCurrency: "USD" } } : {}),
     ...(showRating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: Number(listing.ratingAverage.toFixed(1)), bestRating: 5, worstRating: 1, ratingCount: listing.ratingCount, reviewCount: listing.ratingCount } } : {}),
@@ -166,11 +172,11 @@ export default async function AppPage({ params, searchParams }: Props) {
             <div className="whitespace-pre-line text-pretty leading-relaxed text-muted">{listing.description}</div>
           </section>
 
-          {listing.features.length > 0 && (
+          {features.length > 0 && (
             <section aria-labelledby="features">
               <h2 id="features" className="mb-3 text-xl font-bold">Features</h2>
               <ul className="grid gap-2 sm:grid-cols-2">
-                {listing.features.map((f) => (
+                {features.map((f) => (
                   <li key={f} className="flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-2 text-sm"><span className="size-1.5 rounded-full bg-brand" aria-hidden />{f}</li>
                 ))}
               </ul>
@@ -209,10 +215,10 @@ export default async function AppPage({ params, searchParams }: Props) {
               <Fact label="Website"><span className="inline-flex items-center gap-1"><Globe className="size-3.5" aria-hidden />{domain}</span></Fact>
               <Fact label="Publisher">{listing.publisherName}</Fact>
               <Fact label="Pricing">{PRICING_LABEL[listing.pricingModel]}{listing.pricingDetails ? ` — ${listing.pricingDetails}` : ""}</Fact>
-              <Fact label="Platforms">{listing.platforms.map((p) => PLATFORM_LABEL[p]).join(", ")}</Fact>
+              <Fact label="Platforms">{platforms.map((p) => PLATFORM_LABEL[p]).join(", ")}</Fact>
               <Fact label="Age rating">{AGE_LABEL[listing.ageRating]}</Fact>
-              <Fact label="Countries">{listing.supportedCountries.length ? listing.supportedCountries.join(", ") : "Worldwide (as declared)"}</Fact>
-              {listing.languages.length > 0 && <Fact label="Languages">{listing.languages.join(", ").toUpperCase()}</Fact>}
+              <Fact label="Countries">{supportedCountries.length ? supportedCountries.join(", ") : "Worldwide (as declared)"}</Fact>
+              {languages.length > 0 && <Fact label="Languages">{languages.join(", ").toUpperCase()}</Fact>}
               <Fact label="Listed since">{formatDate(listing.publishedAt)}</Fact>
               {listing.contentUpdatedAt && <Fact label="Last updated">{formatDate(listing.contentUpdatedAt)}</Fact>}
             </dl>

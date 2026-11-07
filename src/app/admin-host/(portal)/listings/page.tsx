@@ -14,7 +14,7 @@ export default async function AdminListings({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page) || 1);
   const where = {
-    ...(sp.q ? { OR: [{ name: { contains: sp.q, mode: "insensitive" as const } }, { domain: { contains: sp.q.toLowerCase() } }, { slug: { contains: sp.q.toLowerCase() } }] } : {}),
+    ...(sp.q ? { OR: [{ name: { contains: sp.q } }, { domain: { contains: sp.q.toLowerCase() } }, { slug: { contains: sp.q.toLowerCase() } }] } : {}),
     ...(sp.status && STATUSES.includes(sp.status) ? { status: sp.status as never } : {}),
     ...(sp.security ? { securityStatus: sp.security as never } : {}),
   };

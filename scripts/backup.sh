@@ -1,9 +1,18 @@
 #!/usr/bin/env bash
-# Logical backup of the database (custom format, compressed). Uses DIRECT_URL (session pooler on Supabase).
-# Usage: DIRECT_URL=... bash scripts/backup.sh [output-dir]
+# Logical backup of the MySQL / MariaDB database (gzip-compressed SQL).
+# Usage: DATABASE_URL=mysql://USER:PASSWORD@HOST:3306/DATABASE bash scripts/backup.sh [output-dir]
+# Needs mariadb-dump or mysqldump. On Hostinger you can also use hPanel → Backups
+# or phpMyAdmin → Export; run this from a trusted machine with Remote MySQL access.
 set -euo pipefail
-URL="${DIRECT_URL:-${DATABASE_URL:?DIRECT_URL or DATABASE_URL required}}"
+URL="${DIRECT_URL:-${DATABASE_URL:?DATABASE_URL required}}"
 OUT="${1:-./backups}"; mkdir -p "$OUT"
-FILE="$OUT/webcenta-$(date -u +%Y%m%dT%H%M%SZ).dump"
-pg_dump --format=custom --no-owner --no-privileges --schema=public --file="$FILE" "$URL"
+FILE="$OUT/webcenta-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
+DUMP=$(command -v mariadb-dump || command -v mysqldump) || { echo "mariadb-dump or mysqldump is required" >&2; exit 1; }
+CNF=$(mktemp); chmod 600 "$CNF"; trap 'rm -f "$CNF"' EXIT
+npx tsx scripts/db-tool.ts cnf "$URL" > "$CNF"
+DB=$(npx tsx scripts/db-tool.ts database "$URL")
+# --single-transaction: consistent snapshot without locking (InnoDB).
+# --no-tablespaces: shared hosting users lack the PROCESS privilege.
+"$DUMP" --defaults-extra-file="$CNF" --single-transaction --no-tablespaces --skip-triggers \
+  --default-character-set=utf8mb4 --hex-blob "$DB" | gzip > "$FILE"
 echo "$FILE"

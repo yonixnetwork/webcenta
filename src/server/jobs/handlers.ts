@@ -5,6 +5,7 @@ import { enqueueDueScans, monitorListing } from "@/server/scanner/monitor";
 import { processSubmission } from "@/server/listings/workflow";
 import { rollupDay } from "@/server/analytics/stats";
 import { recomputeScores } from "@/server/analytics/ranking";
+import { reconcileSearchDocuments } from "@/server/search/document";
 
 export type JobHandler = (payload: unknown) => Promise<void>;
 
@@ -21,6 +22,8 @@ export const handlers: Record<string, JobHandler> = {
     const cutoff = new Date(now.getTime() - 14 * 86_400_000);
     await db.job.deleteMany({ where: { status: "SUCCEEDED", completedAt: { lt: cutoff } } });
     await db.jobRun.deleteMany({ where: { startedAt: { lt: cutoff } } });
+    // Repair search columns a write path may have missed (MySQL FULLTEXT document).
+    await reconcileSearchDocuments(db as never);
   },
   /** Raw listing events are kept ≤ 35 days (roll-ups arrive in Phase 5). */
   "maintenance.purge-raw-events": async () => {

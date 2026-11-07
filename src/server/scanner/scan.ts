@@ -1,4 +1,5 @@
 import { resolveNs } from "node:dns/promises";
+import { stringArray } from "@/lib/json-arrays";
 import type { Prisma } from "@/generated/prisma/client";
 import type { AlertSeverity, CheckType, ScanTrigger } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
@@ -153,7 +154,7 @@ export async function scanListing(listingId: string, trigger: ScanTrigger, opts:
   const otherDomains = (await db.listing.findMany({ where: { status: "PUBLISHED", id: { not: listingId } }, select: { domain: true }, take: 5000 })).map((l) => l.domain);
   const scan = await db.securityScan.create({ data: { listingId, revisionId: opts.revisionId ?? null, trigger, status: "RUNNING", targetUrl: target.url, startedAt: new Date(), requestedByAdminId: opts.adminId ?? null } });
   try {
-    const { res, page, checks, nameservers } = await runChecks({ ...target, orgId: listing.developerId, previous: prevScan, otherDomains });
+    const { res, page, checks, nameservers } = await runChecks({ ...target, orgId: listing.developerId, previous: prevScan ? { ...prevScan, nameservers: stringArray(prevScan.nameservers) } : null, otherDomains });
     const overall = worst(checks.map((c) => c.verdict));
     const completed = await db.securityScan.update({
       where: { id: scan.id },

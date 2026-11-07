@@ -22,7 +22,7 @@ export default async function AdminOverview() {
     db.report.count({ where: { status: { in: ["OPEN", "IN_REVIEW"] } } }),
     db.securityAlert.count({ where: { status: { in: ["OPEN", "INVESTIGATING"] } } }),
     db.securityAlert.findMany({ where: { status: { in: ["OPEN", "INVESTIGATING"] } }, orderBy: { createdAt: "desc" }, take: 5, include: { listing: { select: { name: true } } } }),
-    db.$queryRaw<Array<{ d: Date; n: bigint }>>`SELECT date_trunc('day', "createdAt") d, count(*) n FROM "User" WHERE "createdAt" >= ${since} GROUP BY 1 ORDER BY 1`,
+    db.$queryRaw<Array<{ d: Date; n: bigint }>>`SELECT DATE(createdAt) d, COUNT(*) n FROM User WHERE createdAt >= ${since} GROUP BY 1 ORDER BY 1`,
   ]);
   const allIds = (await db.listing.findMany({ where: { status: "PUBLISHED" }, select: { id: true } })).map((l) => l.id);
   const stats = can(admin.role, "analytics.view") ? await listingStats(allIds, 30) : null;

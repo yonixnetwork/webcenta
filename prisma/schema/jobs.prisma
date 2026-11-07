@@ -22,16 +22,16 @@ model Job {
   payload     Json
   status      JobStatus @default(PENDING)
   priority    Int       @default(0)
-  runAt       DateTime  @default(now()) @db.Timestamptz
+  runAt       DateTime  @default(now()) @db.DateTime(3)
   attempts    Int       @default(0)
   maxAttempts Int       @default(5)
-  lockedAt    DateTime? @db.Timestamptz
+  lockedAt    DateTime? @db.DateTime(3)
   lockedBy    String?
-  lastError   String?
+  lastError   String? @db.Text
   /// Prevents duplicate enqueues (e.g. "scan.listing:<id>:<window>").
   dedupeKey   String?   @unique
-  createdAt   DateTime  @default(now()) @db.Timestamptz
-  completedAt DateTime? @db.Timestamptz
+  createdAt   DateTime  @default(now()) @db.DateTime(3)
+  completedAt DateTime? @db.DateTime(3)
 
   @@index([status, runAt, priority])
   @@index([type, status])
@@ -41,11 +41,11 @@ model Job {
 model JobRun {
   id         String    @id @default(uuid(7))
   runner     String
-  startedAt  DateTime  @default(now()) @db.Timestamptz
-  finishedAt DateTime? @db.Timestamptz
+  startedAt  DateTime  @default(now()) @db.DateTime(3)
+  finishedAt DateTime? @db.DateTime(3)
   processed  Int       @default(0)
   failed     Int       @default(0)
-  error      String?
+  error      String? @db.Text
 
   @@index([startedAt])
 }

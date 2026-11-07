@@ -272,7 +272,7 @@ test("6. a user reports a suspicious application and an administrator investigat
 test("7. a scheduled security check detects a problem and triggers the correct response", async () => {
   // The site turns malicious after approval.
   await setSite(APP.host, { mode: "phishing" });
-  await sql(`update "Listing" set "nextScanAt" = now() - interval '1 minute' where id = $1`, [APP.id]);
+  await sql(`update "Listing" set "nextScanAt" = UTC_TIMESTAMP(3) - INTERVAL 1 MINUTE where id = $1`, [APP.id]);
   await runCron(adminPage.request, ["monitor.enqueue"]);
   await expect.poll(async () => (await sql<{ s: string }>(`select "securityStatus" s from "Listing" where id = $1`, [APP.id]))[0]!.s, { timeout: 30_000 }).toBe("UNDER_INVESTIGATION");
   const alerts = await sql<{ severity: string; title: string }>(`select severity, title from "SecurityAlert" where "listingId" = $1 and status = 'OPEN'`, [APP.id]);
@@ -359,6 +359,6 @@ test("8. an administrator suspends a malicious listing and it disappears from pu
   await expect.poll(async () => (await sql<{ s: string; status: string }>(`select "securityStatus" s, status from "Listing" where id = $1`, [APP.id]))[0]).toEqual({ s: "PASSED", status: "PUBLISHED" });
   expect((await adminPage.request.get(`${BASE}/app/${APP.slug}`)).status()).toBe(200);
   // Every step was audited.
-  const actions = (await sql<{ action: string }>(`select action from "AuditLog" where "targetId" = $1 or metadata::text like $2`, [APP.id, `%${APP.id}%`])).map((r) => r.action);
+  const actions = (await sql<{ action: string }>(`select action from "AuditLog" where "targetId" = $1 or CAST(metadata AS CHAR) like $2`, [APP.id, `%${APP.id}%`])).map((r) => r.action);
   for (const a of ["listing.revision.approve", "listing.suspended", "listing.restore", "security.scan.manual"]) expect(actions).toContain(a);
 });
