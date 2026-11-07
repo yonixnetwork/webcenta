@@ -40,7 +40,7 @@ Thumbs.db
 playwright-report/
 test-results/
 next-env.d.ts
-storage/
+/storage/
 
 # E2E artefacts
 tests/fixtures/.certs/
