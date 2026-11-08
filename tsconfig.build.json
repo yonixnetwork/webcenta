@@ -1,0 +1,9 @@
+{
+  // Used by `next build` only (next.config.ts → typescript.tsconfigPath). Hosting
+  // installs production dependencies only, so the build type-checks the
+  // application, not tests or scripts (those need dev dependencies). The full
+  // tsconfig.json — tests and scripts included — is checked by `npx tsc --noEmit` in CI.
+  "extends": "./tsconfig.json",
+  "include": ["next-env.d.ts", "src/**/*.ts", "src/**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
+  "exclude": ["node_modules", "src/generated", "tests", "scripts"]
+}

@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Native/driver packages stay runtime dependencies rather than being bundled.
   serverExternalPackages: ["mariadb", "@prisma/adapter-mariadb", "sharp"],
+  // The build type-checks only the application (tsconfig.build.json): hosting installs
+  // production dependencies only, and tests/scripts import dev dependencies.
+  typescript: { tsconfigPath: "tsconfig.build.json" },
   experimental: {
     // Media uploads (logos/screenshots ≤ 6 MB, documents ≤ 10 MB) go through server actions.
     serverActions: { bodySizeLimit: "12mb" },

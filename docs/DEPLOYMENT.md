@@ -95,8 +95,8 @@ variables, restart or redeploy the app.
 
 1. **CI green** on the commit to deploy (`.github/workflows/ci.yml`: MariaDB 10.11 job with the
    brand check, lint, typecheck, unit/DB tests, smoke test, restore drill, the Hostinger-style build,
-   the bundle secret scan and the E2E suite on the standalone server; MySQL 8.0 job with the database
-   suites).
+   the bundle secret scan and the E2E suite on the standalone server; a build with production
+   dependencies only, as Hostinger installs them; MySQL 8.0 job with the database suites).
 2. **Hostinger Node.js app:** see step 4 below; set the §3 variables including `SETUP_TOKEN`, then deploy.
 3. **First-time setup** (no terminal needed): open `https://admin.webcenta.com/setup`, enter the
    setup token, click **Create tables and base data** (applies the database migrations and the
