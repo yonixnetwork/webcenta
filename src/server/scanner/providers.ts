@@ -1,4 +1,4 @@
-import { env } from "@/lib/env";
+import { getSection } from "@/server/settings/store";
 import { db } from "@/server/db";
 import { registrableDomain } from "./domains";
 
@@ -26,8 +26,8 @@ export async function blocklistCheck(hosts: string[]): Promise<ProviderResult> {
 
 /** Google Web Risk (commercial terms). https://cloud.google.com/web-risk/docs/lookup-api */
 export async function googleWebRisk(url: string): Promise<ProviderResult> {
-  const key = env().GOOGLE_WEB_RISK_API_KEY;
-  if (!key) return { provider: "google-web-risk", verdict: "SKIPPED", summary: "Not configured (GOOGLE_WEB_RISK_API_KEY)" };
+  const key = await providerKey("webrisk", "apiKey");
+  if (!key) return { provider: "google-web-risk", verdict: "SKIPPED", summary: "Not configured (Admin → Settings → Google Web Risk)" };
   try {
     const q = new URLSearchParams({ uri: url, key });
     for (const t of ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE"]) q.append("threatTypes", t);
@@ -44,8 +44,8 @@ export async function googleWebRisk(url: string): Promise<ProviderResult> {
 
 /** abuse.ch URLhaus. https://urlhaus-api.abuse.ch/ */
 export async function urlhaus(url: string): Promise<ProviderResult> {
-  const key = env().URLHAUS_AUTH_KEY;
-  if (!key) return { provider: "urlhaus", verdict: "SKIPPED", summary: "Not configured (URLHAUS_AUTH_KEY)" };
+  const key = await providerKey("urlhaus", "authKey");
+  if (!key) return { provider: "urlhaus", verdict: "SKIPPED", summary: "Not configured (Admin → Settings → URLhaus)" };
   try {
     const res = await timed("https://urlhaus-api.abuse.ch/v1/url/", { method: "POST", headers: { "Auth-Key": key, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ url }) });
     if (!res.ok) return { provider: "urlhaus", verdict: "INCONCLUSIVE", summary: `Provider error ${res.status}` };
@@ -60,8 +60,8 @@ export async function urlhaus(url: string): Promise<ProviderResult> {
 
 /** VirusTotal v3 URL report (commercial use requires a premium licence). */
 export async function virusTotal(url: string): Promise<ProviderResult> {
-  const key = env().VIRUSTOTAL_API_KEY;
-  if (!key) return { provider: "virustotal", verdict: "SKIPPED", summary: "Not configured (VIRUSTOTAL_API_KEY)" };
+  const key = await providerKey("virustotal", "apiKey");
+  if (!key) return { provider: "virustotal", verdict: "SKIPPED", summary: "Not configured (Admin → Settings → VirusTotal)" };
   try {
     const id = Buffer.from(url).toString("base64url");
     const res = await timed(`https://www.virustotal.com/api/v3/urls/${id}`, { headers: { "x-apikey": key } });
@@ -77,7 +77,13 @@ export async function virusTotal(url: string): Promise<ProviderResult> {
   }
 }
 
-export function externalProvidersConfigured(): string[] {
-  const e = env();
-  return [e.GOOGLE_WEB_RISK_API_KEY && "google-web-risk", e.URLHAUS_AUTH_KEY && "urlhaus", e.VIRUSTOTAL_API_KEY && "virustotal"].filter(Boolean) as string[];
+/** The provider's key when it is enabled and configured in settings (or the environment). */
+async function providerKey(section: string, field: string): Promise<string | null> {
+  const c = await getSection(section);
+  return c.ready ? c.str(field) : null;
+}
+
+export async function externalProvidersConfigured(): Promise<string[]> {
+  const [w, u, v] = await Promise.all([providerKey("webrisk", "apiKey"), providerKey("urlhaus", "authKey"), providerKey("virustotal", "apiKey")]);
+  return [w && "google-web-risk", u && "urlhaus", v && "virustotal"].filter(Boolean) as string[];
 }

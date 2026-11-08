@@ -59,7 +59,7 @@ export async function storeUpload(file: File, kind: MediaKind, by: Uploader) {
     ({ data: body, mimeType, ext, width, height } = img);
   }
   const key = `${visibility}/${kind.toLowerCase()}/${new Date().toISOString().slice(0, 7)}/${randomUUID()}.${ext}`;
-  await storage().put(key, body, mimeType);
+  await (await storage()).put(key, body, mimeType);
   return db.mediaAsset.create({
     data: {
       kind, storageKey: key, mimeType, byteSize: body.byteLength, sha256: createHash("sha256").update(body).digest("hex"),

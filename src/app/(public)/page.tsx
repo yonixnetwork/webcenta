@@ -10,15 +10,20 @@ import { getHomepage } from "@/server/catalog/homepage";
 import { getViewerContext } from "@/server/viewer";
 import { getCurrentUser } from "@/server/auth/session";
 import { personalRails } from "@/server/personalization/recommend";
+import { siteInfo } from "@/server/settings/site";
 
 export default async function HomePage() {
   const ctx = await getViewerContext();
   const user = await getCurrentUser();
   const [{ rails, collections }, tree, personal] = await Promise.all([getHomepage(ctx), getCategoryTree(), user ? personalRails(user, ctx) : Promise.resolve([])]);
   const suggested = tree.slice(0, 6).map((c) => c.name);
+  const site = await siteInfo();
+  const origin = (process.env.PUBLIC_ORIGIN || "http://localhost:3000").replace(/\/$/, "");
+  const orgLd = { "@context": "https://schema.org", "@type": "Organization", name: site.name, url: origin, logo: `${origin}/icons/icon-512.png`, ...(site.socialLinks.length ? { sameAs: site.socialLinks.map((l) => l.url) } : {}) };
 
   return (
     <div className="space-y-14">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgLd).replace(/</g, "\\u003c") }} />
       <section className="hero-glow -mx-4 -mt-6 px-4 pb-10 pt-12 sm:mx-0 sm:mt-0 sm:rounded-[2rem] sm:border sm:border-border sm:px-8 sm:pb-14 sm:pt-16">
         <div className="mx-auto max-w-3xl text-center">
           <p className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">

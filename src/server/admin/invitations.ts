@@ -4,11 +4,12 @@ import { audit } from "@/server/audit";
 import { sendEmail } from "@/server/email/send";
 import { actionEmail } from "@/server/email/templates";
 import { encrypt, decrypt, hashPassword, newToken, newTotpSecret, sha256, verifyTotp } from "./crypto";
+import { adminOrigin } from "@/lib/hosts";
 
 export const INVITE_HOURS = 72;
 
 export function inviteUrl(token: string) {
-  return `${(process.env.ADMIN_ORIGIN || "http://admin.localhost:3000").replace(/\/$/, "")}/accept-invite?token=${token}`;
+  return `${adminOrigin()}/accept-invite?token=${token}`;
 }
 
 /** Creates an invitation. Returns the raw token (shown/emailed once; only its hash is stored). */

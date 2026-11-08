@@ -1,10 +1,9 @@
 "use server";
 
 import { headers } from "next/headers";
-import { env } from "@/lib/env";
 import { db } from "@/server/db";
 import { rateLimit } from "@/server/rate-limit";
-import { clientIp } from "@/server/viewer";
+import { clientIp, networkSettings } from "@/server/viewer";
 import { dailySalt, visitorHash } from "@/server/analytics/visitor";
 import { createListingReport, listingReportSchema } from "@/server/moderation/reports";
 import { publicListingWhere } from "./visibility";
@@ -23,7 +22,7 @@ export async function submitListingReport(slug: string, _prev: ReportState, form
   if (!listing) return { ok: false, message: "This listing is no longer available." };
 
   const h = await headers();
-  const who = visitorHash(await dailySalt(), clientIp(h, env().TRUSTED_PROXY_HOPS), h.get("user-agent"), "report");
+  const who = visitorHash(await dailySalt(), clientIp(h, (await networkSettings()).trustedProxyHops), h.get("user-agent"), "report");
   if (!(await rateLimit(`report:${who}`, 5, 3600))) {
     return { ok: false, message: "Too many reports from this connection. Please try again later." };
   }

@@ -29,7 +29,7 @@ export default async function PortalLayout({ children }: { children: React.React
     { href: "/categories", label: "Categories", perm: "catalog.manage" },
     { href: "/homepage", label: "Homepage & curation", perm: "catalog.manage" },
     { href: "/monetization", label: "Monetisation", perm: "monetization.manage" },
-    { href: "/settings", label: "Settings & legal", perm: "settings.manage" },
+    { href: "/settings", label: "Settings", perm: "settings.manage" },
     { href: "/admins", label: "Administrators", perm: "admins.manage" },
     { href: "/audit", label: "Audit log", perm: "audit.view" },
     { href: "/jobs", label: "Jobs & email", perm: "jobs.view" },

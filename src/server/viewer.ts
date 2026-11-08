@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import type { AgeRating } from "@/generated/prisma/enums";
-import { env } from "@/lib/env";
+import { getSection } from "@/server/settings/store";
 import { getCurrentUser } from "@/server/auth/session";
 
 export interface ViewerContext {
@@ -19,9 +19,19 @@ export function normalizeCountry(value: string | null | undefined): string | nul
   return v;
 }
 
+/** Proxy and country-detection settings (Admin → Settings → Security, or env). */
+export async function networkSettings(): Promise<{ trustedProxyHops: number; geoCountryHeader: string; geoUnknownPolicy: "allow" | "deny" }> {
+  const c = await getSection("security");
+  return {
+    trustedProxyHops: Math.max(0, Math.min(5, c.num("trustedProxyHops"))),
+    geoCountryHeader: c.str("geoCountryHeader").toLowerCase() || "cf-ipcountry",
+    geoUnknownPolicy: c.str("geoUnknownPolicy") === "allow" ? "allow" : "deny",
+  };
+}
+
 export async function getViewerContext(): Promise<ViewerContext> {
   const h = await headers();
-  const e = env();
+  const e = await networkSettings();
   const user = await getCurrentUser();
   // 18+ content requires a signed-in user who chose it and self-confirmed their age.
   // This is a self-declaration, not age verification.
@@ -29,9 +39,9 @@ export async function getViewerContext(): Promise<ViewerContext> {
   return {
     // The detected country takes precedence for legal restrictions; a user's stated
     // country is only used when nothing is detected.
-    country: normalizeCountry(h.get(e.GEO_COUNTRY_HEADER)) ?? normalizeCountry(user?.preferredCountry),
+    country: normalizeCountry(h.get(e.geoCountryHeader)) ?? normalizeCountry(user?.preferredCountry),
     maxAgeRating,
-    unknownCountryPolicy: e.GEO_UNKNOWN_POLICY,
+    unknownCountryPolicy: e.geoUnknownPolicy,
   };
 }
 

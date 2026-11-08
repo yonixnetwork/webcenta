@@ -11,7 +11,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const doc = await db.complianceDocument.findUnique({ where: { id }, include: { asset: true } });
   if (!doc?.asset) return new Response("Not found", { status: 404 });
-  const body = await storage().get(doc.asset.storageKey);
+  const body = await (await storage()).get(doc.asset.storageKey);
   if (!body) return new Response("Not found", { status: 404 });
   await audit({ actorType: "ADMIN", adminId: admin.id, action: "compliance.document.view", targetType: "ComplianceDocument", targetId: id });
   return new Response(body as unknown as BodyInit, { headers: { "content-type": "application/pdf", "content-disposition": "inline", "cache-control": "no-store", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; sandbox" } });

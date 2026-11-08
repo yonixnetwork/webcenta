@@ -7,10 +7,12 @@ import { db } from "@/server/db";
 import { requireDevPage } from "@/server/developer/context";
 import { TXT_PREFIX, WELL_KNOWN_PATH } from "@/server/developer/domain-verification";
 import { checkDomainAction, startDomainAction } from "@/server/actions/developer";
+import { developerPolicy } from "@/server/developer/policy";
 
 export const metadata = { title: "Domains" };
 
 export default async function DomainsPage() {
+  const { methods } = await developerPolicy();
   const ctx = await requireDevPage("ANALYST", "/developer/domains");
   const domains = await db.domainVerification.findMany({ where: { orgId: ctx.org.id }, orderBy: { createdAt: "desc" } });
   const code = "rounded-lg bg-surface-2 px-2 py-1 font-mono text-xs break-all";
@@ -24,8 +26,10 @@ export default async function DomainsPage() {
           <div className="grid gap-3 sm:grid-cols-[1fr_240px]">
             <Field label="Domain"><input name="domain" required placeholder="app.example.com" className={inputClass} /></Field>
             <Field label="Method">
-              <select name="method" className={inputClass} defaultValue="DNS_TXT">
-                <option value="DNS_TXT">DNS TXT record</option><option value="HTML_META">HTML meta tag</option><option value="WELL_KNOWN_FILE">Verification file</option>
+              <select name="method" className={inputClass} defaultValue={methods[0]}>
+                {methods.includes("DNS_TXT") && <option value="DNS_TXT">DNS TXT record</option>}
+                {methods.includes("HTML_META") && <option value="HTML_META">HTML meta tag</option>}
+                {methods.includes("WELL_KNOWN_FILE") && <option value="WELL_KNOWN_FILE">Verification file</option>}
               </select>
             </Field>
           </div>

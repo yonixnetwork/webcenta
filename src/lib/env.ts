@@ -15,8 +15,9 @@ const schema = z.object({
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
 
   PUBLIC_ORIGIN: z.string().url().default("http://localhost:3000"),
-  ADMIN_ORIGIN: z.string().url().default("http://admin.localhost:3000"),
-  DEVELOPER_ORIGIN: z.string().url().default("http://developers.localhost:3000"),
+  /** Optional: default "admin." + the public host (see originsFromEnv in src/lib/hosts.ts). */
+  ADMIN_ORIGIN: z.string().url().optional(),
+  DEVELOPER_ORIGIN: z.string().url().optional(),
 
   /** Header carrying the visitor's ISO country, e.g. "cf-ipcountry" behind Cloudflare. */
   GEO_COUNTRY_HEADER: z.string().default("cf-ipcountry"),
@@ -33,7 +34,6 @@ const schema = z.object({
 
   // --- Auth ---
   USER_AUTH_SECRET: z.string().optional(),
-  ADMIN_AUTH_SECRET: z.string().optional(),
   FIELD_ENCRYPTION_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -46,11 +46,11 @@ const schema = z.object({
   // --- Email ---
   EMAIL_TRANSPORT: z.enum(["log", "smtp"]).default("log"),
   SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_PORT: z.coerce.number().int().optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   SMTP_SECURE: z.enum(["true", "false"]).optional(),
-  EMAIL_FROM: z.string().default("Webcenta <no-reply@webcenta.com>"),
+  EMAIL_FROM: z.string().optional(),
 
   // --- Storage ---
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),

@@ -21,7 +21,7 @@ export interface CurrentUser {
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const h = await headers();
   if (!h.get("cookie")?.includes("wc.session_token") && !h.get("cookie")?.includes("__Secure-wc.session_token")) return null;
-  const session = await auth().api.getSession({ headers: h }).catch(() => null);
+  const session = await (await auth()).api.getSession({ headers: h }).catch(() => null);
   if (!session) return null;
   const u = await db.user.findUnique({
     where: { id: session.user.id },

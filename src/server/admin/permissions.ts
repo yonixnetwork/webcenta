@@ -5,6 +5,8 @@ export const PERMISSIONS = {
   "admins.manage": ["SUPER_ADMIN"],
   "audit.view": ["SUPER_ADMIN", "ADMIN"],
   "settings.manage": ["SUPER_ADMIN", "ADMIN"],
+  /** Credentials and security-sensitive configuration (Admin → Settings sections marked as such). */
+  "integrations.manage": ["SUPER_ADMIN"],
   "catalog.manage": ["SUPER_ADMIN", "ADMIN"],
   "listings.moderate": ["SUPER_ADMIN", "ADMIN", "MODERATOR"],
   "content.moderate": ["SUPER_ADMIN", "ADMIN", "MODERATOR"],

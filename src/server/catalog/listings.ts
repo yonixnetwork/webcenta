@@ -2,6 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/server/db";
 import type { ViewerContext } from "@/server/viewer";
 import { publicListingWhere } from "./visibility";
+import { getSection } from "@/server/settings/store";
 
 /** Fields needed to render an application card. */
 export const cardSelect = {
@@ -29,8 +30,19 @@ export const cardSelect = {
 
 export type ListingCard = Prisma.ListingGetPayload<{ select: typeof cardSelect }>;
 
-/** Minimum number of ratings before an average is shown or used for "top rated". */
+/** Default minimum number of ratings before an average is used for "highly rated". */
 export const MIN_RATINGS_FOR_DISPLAY = 5;
+
+export interface MarketplaceSettings { pageSize: number; minRatings: number; minAverage: number }
+/** Admin → Settings → Marketplace. */
+export async function marketplaceSettings(): Promise<MarketplaceSettings> {
+  const c = await getSection("marketplace");
+  return {
+    pageSize: Math.min(60, Math.max(12, Math.round(c.num("searchPageSize")) || 24)),
+    minRatings: Math.max(1, Math.round(c.num("highlyRatedMinRatings")) || MIN_RATINGS_FOR_DISPLAY),
+    minAverage: Math.min(5, Math.max(1, c.num("highlyRatedMinAverage") || 4)),
+  };
+}
 
 export async function listCards(
   ctx: ViewerContext,

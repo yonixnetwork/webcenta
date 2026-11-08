@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import type { ViewerContext } from "@/server/viewer";
-import { cardsByIds, MIN_RATINGS_FOR_DISPLAY, type ListingCard } from "./listings";
+import { cardsByIds, marketplaceSettings, type ListingCard } from "./listings";
 
 /**
  * Content-based related listings (Phase 1). Scores candidates by:
@@ -55,7 +55,8 @@ export async function getRelated(
   const cards = await cardsByIds(ctx, candidates.map((c) => c.id));
   const competitorIds = new Set(competitorRows.map((r) => r.toListingId));
   const isPaid = listing.pricingModel === "PAID" || listing.pricingModel === "SUBSCRIPTION";
-  const hasRating = listing.ratingCount >= MIN_RATINGS_FOR_DISPLAY;
+  const { minRatings } = await marketplaceSettings();
+  const hasRating = listing.ratingCount >= minRatings;
 
   return {
     similar: cards.slice(0, 8),
@@ -63,7 +64,7 @@ export async function getRelated(
     freeAlternatives: isPaid ? cards.filter((c) => c.pricingModel === "FREE" || c.pricingModel === "FREEMIUM").slice(0, 8) : [],
     openSourceAlternatives: listing.isOpenSource ? [] : cards.filter((c) => c.isOpenSource).slice(0, 8),
     betterRated: hasRating
-      ? cards.filter((c) => c.ratingCount >= MIN_RATINGS_FOR_DISPLAY && c.ratingAverage > listing.ratingAverage).slice(0, 8)
+      ? cards.filter((c) => c.ratingCount >= minRatings && c.ratingAverage > listing.ratingAverage).slice(0, 8)
       : [],
   };
 }

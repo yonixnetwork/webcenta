@@ -10,6 +10,8 @@ import { nextScanDate, notifyAdmins } from "@/server/scanner/monitor";
 import { orgOwnsDomain } from "@/server/developer/domain-verification";
 import { invalidateCategoryCache } from "@/server/catalog/categories";
 import { listingInputSchema, type ListingInput } from "./input";
+import { developerPolicy } from "@/server/developer/policy";
+import { queueIndexNow } from "@/server/settings/site";
 
 export class WorkflowError extends Error {}
 export interface Actor { type: ActorType; userId?: string; adminId?: string }
@@ -55,6 +57,9 @@ async function statusChange(listingId: string, from: ListingStatus | null, to: L
 /** Developer creates a draft listing (not public) with revision #1. */
 export async function createDeveloperDraft(orgId: string, userId: string, raw: unknown) {
   const input = listingInputSchema.parse(raw);
+  const { maxDraftsPerOrg } = await developerPolicy();
+  const open = await db.listing.count({ where: { developerId: orgId, status: { in: ["DRAFT", "SUBMITTED", "AUTOMATED_CHECKS", "UNDER_REVIEW", "INFO_REQUIRED", "APPROVED"] } } });
+  if (open >= maxDraftsPerOrg) throw new WorkflowError(`Your organisation already has ${open} unpublished listings (the limit is ${maxDraftsPerOrg}). Submit or delete some first.`);
   await validateRefs(input, { orgId });
   const url = normalizeWebsiteUrl(input.websiteUrl)!;
   const listing = await db.listing.create({
@@ -206,6 +211,7 @@ export async function approveRevision(revisionId: string, actor: Actor, opts: { 
     await audit({ actorType: actor.type, adminId: actor.adminId, action: "listing.revision.approve", targetType: "ListingRevision", targetId: rev.id, metadata: { listingId: rev.listingId, publish: newStatus === "PUBLISHED" } }, tx);
   });
   invalidateCategoryCache();
+  if (newStatus === "PUBLISHED") await queueIndexNow([rev.listing.slug]).catch(() => undefined);
   if (rev.listing.developerId) {
     await notifyOrg(rev.listing.developerId, {
       type: "LISTING_STATUS",
@@ -225,6 +231,7 @@ export async function publishListing(listingId: string, actor: Actor) {
     if (actor.adminId) await tx.moderationAction.create({ data: { adminId: actor.adminId, action: "LISTING_PUBLISH", targetType: "Listing", targetId: listingId, reason: "Published" } });
     await audit({ actorType: actor.type, adminId: actor.adminId, action: "listing.publish", targetType: "Listing", targetId: listingId }, tx);
   });
+  await queueIndexNow([l.slug]).catch(() => undefined);
   if (l.developerId) await notifyOrg(l.developerId, { type: "LISTING_STATUS", title: `${l.name} is now published`, linkPath: `/developer/listings/${listingId}` });
 }
 

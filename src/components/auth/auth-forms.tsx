@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { PROVIDER_LABEL, type SocialProvider } from "@/lib/social-providers";
 import { buttonClass } from "@/components/ui/button";
 import { Field, FormMessage, inputClass } from "@/components/ui/form";
 
-function SocialButtons({ providers, next }: { providers: Array<"google" | "apple">; next: string }) {
+function SocialButtons({ providers, next }: { providers: SocialProvider[]; next: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   if (providers.length === 0) return null;
   return (
@@ -19,7 +20,7 @@ function SocialButtons({ providers, next }: { providers: Array<"google" | "apple
             await authClient.signIn.social({ provider: p, callbackURL: next, errorCallbackURL: "/signin?error=oauth" });
             setBusy(null);
           }}>
-          Continue with {p === "google" ? "Google" : "Apple"}
+          Continue with {PROVIDER_LABEL[p]}
         </button>
       ))}
       <div className="flex items-center gap-3 py-2 text-xs text-subtle"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
@@ -27,7 +28,7 @@ function SocialButtons({ providers, next }: { providers: Array<"google" | "apple
   );
 }
 
-export function SignInForm({ providers, next, initialError }: { providers: Array<"google" | "apple">; next: string; initialError?: string }) {
+export function SignInForm({ providers, next, initialError }: { providers: SocialProvider[]; next: string; initialError?: string }) {
   const router = useRouter();
   const [error, setError] = useState(initialError ?? "");
   const [unverified, setUnverified] = useState("");
@@ -62,7 +63,7 @@ export function SignInForm({ providers, next, initialError }: { providers: Array
   );
 }
 
-export function SignUpForm({ providers, next }: { providers: Array<"google" | "apple">; next: string }) {
+export function SignUpForm({ providers, next }: { providers: SocialProvider[]; next: string }) {
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
   const [pending, setPending] = useState(false);

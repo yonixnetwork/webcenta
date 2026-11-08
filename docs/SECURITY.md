@@ -236,3 +236,17 @@ material. CSAM is reported to the relevant authorities as legally required.
   production; migrations contain no triggers or routines.
 * **Uploads on local disk** are stored outside the app directory (enforced in production) and
   served only for `public/` keys; `private/` keys (compliance documents) are never served.
+
+## Admin configuration system (2026-11-08)
+
+* Credentials saved in Admin → Settings are encrypted with AES-256-GCM, key derived with
+  HKDF-SHA256 from `FIELD_ENCRYPTION_KEY` (purpose `settings`), associated data = section and field.
+  They are decrypted only on the server, masked in the UI, never logged, and never in audit metadata.
+* `integrations.manage` (Super Administrator only) guards every section with credentials or security
+  options and the in-app migration runner. Server actions re-check permissions; nothing is exported
+  from the settings action module without an authorisation check.
+* Connection-test messages are scrubbed of every saved secret before they are stored or shown.
+* CSP additions for analytics/ads accept only `https://` host sources (or `https:` for img-src on ad
+  pages) and are never added on the admin host.
+* `/setup` exists only while `SETUP_TOKEN` (≥ 32 chars) is set and no active Super Administrator
+  exists; token comparison is constant-time, attempts are rate-limited and failures audited.

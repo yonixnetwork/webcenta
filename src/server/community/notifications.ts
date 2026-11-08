@@ -3,12 +3,13 @@ import { db } from "@/server/db";
 import { sendEmail } from "@/server/email/send";
 import { actionEmail } from "@/server/email/templates";
 import { isSafeRelativePath } from "@/lib/url";
+import { getSection } from "@/server/settings/store";
 
-/** Creates an in-app notification and, if the user allows it, an email. */
+/** Creates an in-app notification and, if the user and the site settings allow it, an email. */
 export async function notify(userId: string, n: { type: NotificationType; title: string; body?: string; linkPath?: string; email?: boolean }) {
   const linkPath = n.linkPath && isSafeRelativePath(n.linkPath) ? n.linkPath : null;
   const notification = await db.notification.create({ data: { userId, type: n.type, title: n.title, body: n.body ?? null, linkPath } });
-  if (n.email !== false) {
+  if (n.email !== false && (await getSection("notifications")).bool("emailUserNotifications")) {
     const user = await db.user.findUnique({ where: { id: userId }, select: { email: true, emailNotifications: true, status: true } });
     if (user && user.emailNotifications && user.status === "ACTIVE") {
       const origin = process.env.PUBLIC_ORIGIN || "http://localhost:3000";

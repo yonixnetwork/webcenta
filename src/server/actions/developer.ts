@@ -18,6 +18,7 @@ import { mediaUrl } from "@/server/storage";
 import { rateLimit } from "@/server/rate-limit";
 import { notifyAdmins } from "@/server/scanner/monitor";
 import { randomBytes } from "node:crypto";
+import { developerPolicy } from "@/server/developer/policy";
 
 export interface ActionState { ok: boolean; message: string; id?: string }
 const fail = (message: string): ActionState => ({ ok: false, message });
@@ -33,6 +34,7 @@ function errMsg(e: unknown): string {
 export async function createOrgAction(_s: ActionState, form: FormData): Promise<ActionState> {
   const user = await requireUser("/developer");
   if (!user.emailVerified) return fail("Please verify your email address first.");
+  if (!(await developerPolicy()).allowNewOrganizations) return fail("New developer organisations are not being accepted at the moment.");
   const parsed = z.object({ displayName: z.string().trim().min(2).max(80), websiteUrl: z.string().trim().max(200).optional(), contactEmail: z.string().trim().email().optional().or(z.literal("")), countryCode: z.string().trim().toUpperCase().regex(/^([A-Z]{2})?$/) })
     .safeParse({ displayName: form.get("displayName"), websiteUrl: form.get("websiteUrl") || undefined, contactEmail: form.get("contactEmail") ?? "", countryCode: form.get("countryCode") ?? "" });
   if (!parsed.success) return fail("Please enter an organisation name (2–80 characters) and valid details.");
@@ -91,6 +93,7 @@ export async function startDomainAction(_s: ActionState, form: FormData): Promis
     const ctx = await requireDev("EDITOR");
     if (!normalizeDomain(String(form.get("domain") ?? ""))) return fail("Enter a valid public domain, e.g. app.example.com");
     const method = z.enum(["DNS_TXT", "HTML_META", "WELL_KNOWN_FILE"]).parse(form.get("method"));
+    if (!(await developerPolicy()).methods.includes(method)) return fail("That verification method is not available. Choose another one.");
     await startVerification(ctx.org.id, String(form.get("domain")), method);
     revalidatePath("/developer/domains");
     return { ok: true, message: "Follow the instructions below, then click “Check now”." };

@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { AwsClient } from "aws4fetch";
-import { env } from "@/lib/env";
+import { getSection, getSectionSync, type Section } from "@/server/settings/store";
 
 /**
  * Object storage abstraction. "local" stores files on disk (development, tests,
@@ -80,7 +80,7 @@ export function localStorageRoot(dir: string, nodeEnv: string, cwd = process.cwd
     const inside = root === cwd || root.startsWith(cwd + path.sep);
     if (!path.isAbsolute(dir) || inside) {
       throw new Error(
-        "STORAGE_LOCAL_DIR must be an absolute path outside the app directory in production " +
+        "The storage folder (STORAGE_LOCAL_DIR or Admin → Settings → Storage) must be an absolute path outside the app directory in production " +
           "(e.g. /home/u123456789/webcenta-storage on Hostinger), because redeploys replace the app directory.",
       );
     }
@@ -88,23 +88,44 @@ export function localStorageRoot(dir: string, nodeEnv: string, cwd = process.cwd
   return root;
 }
 
-let driver: StorageDriver | null = null;
-export function storage(): StorageDriver {
-  if (driver) return driver;
-  const e = env();
-  if (e.STORAGE_DRIVER === "s3") {
-    if (!e.S3_ENDPOINT || !e.S3_BUCKET || !e.S3_ACCESS_KEY_ID || !e.S3_SECRET_ACCESS_KEY) {
-      throw new Error("STORAGE_DRIVER=s3 requires S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY");
+export interface StorageConfig { driver: "local" | "s3"; localDir: string; endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string }
+
+export function storageConfig(c: Section): StorageConfig {
+  return {
+    driver: c.str("driver") === "s3" ? "s3" : "local",
+    localDir: c.str("localDir") || "./storage",
+    endpoint: c.str("s3Endpoint"), region: c.str("s3Region") || "auto", bucket: c.str("s3Bucket"),
+    accessKeyId: c.str("s3AccessKeyId"), secretAccessKey: c.str("s3SecretAccessKey"),
+  };
+}
+
+export function createDriver(s: StorageConfig, nodeEnv = process.env.NODE_ENV ?? "development"): StorageDriver {
+  if (s.driver === "s3") {
+    if (!s.endpoint || !s.bucket || !s.accessKeyId || !s.secretAccessKey) {
+      throw new Error("S3 storage needs an endpoint, bucket, access key ID and secret access key (Admin → Settings → Storage).");
     }
-    driver = new S3Driver(e.S3_ENDPOINT, e.S3_BUCKET, e.S3_ACCESS_KEY_ID, e.S3_SECRET_ACCESS_KEY, e.S3_REGION);
-  } else {
-    driver = new LocalDriver(localStorageRoot(e.STORAGE_LOCAL_DIR, e.NODE_ENV));
+    return new S3Driver(s.endpoint, s.bucket, s.accessKeyId, s.secretAccessKey, s.region);
   }
-  return driver;
+  return new LocalDriver(localStorageRoot(s.localDir, nodeEnv));
+}
+
+/** The storage driver for the current settings (replaced when an admin changes them). */
+const g = globalThis as unknown as { __webcentaStorage?: { key: string; d: StorageDriver } };
+export async function storage(): Promise<StorageDriver> {
+  const s = storageConfig(await getSection("storage"));
+  const key = JSON.stringify(s);
+  if (g.__webcentaStorage?.key !== key) g.__webcentaStorage = { key, d: createDriver(s) };
+  return g.__webcentaStorage.d;
+}
+
+/** Public base URL of media, if served from a CDN/bucket rather than /media. */
+export function mediaPublicBase(): string | undefined {
+  const c = getSectionSync("storage");
+  return c.str("driver") === "s3" && c.str("mediaPublicBaseUrl") ? c.str("mediaPublicBaseUrl") : undefined;
 }
 
 /** Public URL for a "public/" key. Local driver files are served by /media/[...key]. */
 export function mediaUrl(key: string): string {
-  const base = (process.env.MEDIA_PUBLIC_BASE_URL || `${process.env.PUBLIC_ORIGIN || "http://localhost:3000"}/media`).replace(/\/$/, "");
+  const base = (mediaPublicBase() || `${process.env.PUBLIC_ORIGIN || "http://localhost:3000"}/media`).replace(/\/$/, "");
   return `${base}/${key.replace(/^public\//, "")}`;
 }

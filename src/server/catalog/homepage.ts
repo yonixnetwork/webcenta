@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import type { ViewerContext } from "@/server/viewer";
-import { cardsByIds, listCards, MIN_RATINGS_FOR_DISPLAY, type ListingCard } from "./listings";
+import { cardsByIds, listCards, marketplaceSettings, type ListingCard } from "./listings";
 
 export interface HomeRail {
   key: string;
@@ -71,12 +71,14 @@ export async function getHomepage(ctx: ViewerContext): Promise<{ rails: HomeRail
         rails.push({ key: s.key, title: s.title, sponsoredIds: [],
           items: await listCards(ctx, { where: { popularityScore: { gt: 0 } }, orderBy: [{ popularityScore: "desc" }], take }) });
         break;
-      case "TOP_RATED":
+      case "TOP_RATED": {
+        const m = await marketplaceSettings();
         rails.push({ key: s.key, title: s.title, href: "/search?sort=rating&highlyRated=1", sponsoredIds: [],
           items: await listCards(ctx, {
-            where: { ratingCount: { gte: MIN_RATINGS_FOR_DISPLAY }, ratingAverage: { gte: 4 } },
+            where: { ratingCount: { gte: m.minRatings }, ratingAverage: { gte: m.minAverage } },
             orderBy: [{ ratingAverage: "desc" }, { ratingCount: "desc" }], take }) });
         break;
+      }
       case "BY_CATEGORY": {
         for (const slug of cfg.categorySlugs ?? []) {
           const cat = await db.category.findFirst({ where: { slug, isEnabled: true, isRestricted: false }, select: { name: true } });

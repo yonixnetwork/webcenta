@@ -1,7 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/server/db";
 import type { ViewerContext } from "@/server/viewer";
-import { cardSelect, MIN_RATINGS_FOR_DISPLAY, type ListingCard } from "@/server/catalog/listings";
+import { cardSelect, marketplaceSettings, MIN_RATINGS_FOR_DISPLAY, type MarketplaceSettings, type ListingCard } from "@/server/catalog/listings";
 import { publicListingWhere } from "@/server/catalog/visibility";
 import { cleanText, escapeLike, mysqlSearchTerms, normalizeQueryForStats, wordPattern, type SearchFilters } from "@/lib/search-params";
 import { similarity, trigramTokens } from "@/lib/trigrams";
@@ -11,6 +11,7 @@ import { similarity, trigramTokens } from "@/lib/trigrams";
  * src/server/search/document.ts). The interface is deliberately small
  * so it can be swapped for Meilisearch/Typesense on a VPS without touching pages.
  */
+/** Default page size; the live value comes from Admin → Settings → Marketplace. */
 export const PAGE_SIZE = 24;
 const MAX_TEXT_CANDIDATES = 500;
 const RECENT_DAYS = 30;
@@ -24,7 +25,7 @@ export interface SearchResult {
   truncated: boolean;
 }
 
-export function filtersWhere(f: SearchFilters, now = new Date()): Prisma.ListingWhereInput {
+export function filtersWhere(f: SearchFilters, now = new Date(), m: Pick<MarketplaceSettings, "minRatings" | "minAverage"> = { minRatings: MIN_RATINGS_FOR_DISPLAY, minAverage: 4 }): Prisma.ListingWhereInput {
   const and: Prisma.ListingWhereInput[] = [];
   if (f.category) {
     and.push({ categories: { some: { category: { OR: [{ slug: f.category }, { parent: { slug: f.category } }] } } } });
@@ -39,7 +40,7 @@ export function filtersWhere(f: SearchFilters, now = new Date()): Prisma.Listing
   if (f.pwa) and.push({ isPwaInstallable: true });
   if (f.verified) and.push({ developer: { verificationLevel: { in: ["DOMAIN_VERIFIED", "BUSINESS_VERIFIED"] } } });
   if (f.recentlyUpdated) and.push({ contentUpdatedAt: { gte: new Date(now.getTime() - RECENT_DAYS * 86_400_000) } });
-  if (f.highlyRated) and.push({ ratingCount: { gte: MIN_RATINGS_FOR_DISPLAY }, ratingAverage: { gte: 4 } });
+  if (f.highlyRated) and.push({ ratingCount: { gte: m.minRatings }, ratingAverage: { gte: m.minAverage } });
   return and.length ? { AND: and } : {};
 }
 
@@ -113,7 +114,9 @@ export async function textCandidates(rawQ: string, limit = MAX_TEXT_CANDIDATES):
 }
 
 export async function searchListings(ctx: ViewerContext, f: SearchFilters): Promise<SearchResult> {
-  const where: Prisma.ListingWhereInput = { AND: [publicListingWhere(ctx), filtersWhere(f)] };
+  const m = await marketplaceSettings();
+  const PAGE_SIZE = m.pageSize;
+  const where: Prisma.ListingWhereInput = { AND: [publicListingWhere(ctx), filtersWhere(f, new Date(), m)] };
   const page = f.page;
 
   if (!f.q) {
