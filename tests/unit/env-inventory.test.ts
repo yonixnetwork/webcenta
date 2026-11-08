@@ -1,0 +1,96 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import inventory from "@/server/settings/env-inventory.json";
+import { sectionById } from "@/server/settings/registry";
+// @ts-expect-error plain ESM build script without types
+import { snapshotLines } from "../../scripts/env-snapshot.mjs";
+
+/** Names that are tooling or platform variables, not application configuration. */
+const TOOLING = new Set(["NEXT_RUNTIME", "CI", "DMMF", "E2E_DATABASE_URL", "E2E_PORT", "PORT", "HOSTNAME", "KEEP_ALIVE_TIMEOUT", "NEXT_TELEMETRY_DISABLED", "DB_SERVER_URL"]);
+
+function sourceFiles(dir: string, out: string[] = []): string[] {
+  for (const f of readdirSync(dir)) {
+    const p = path.join(dir, f);
+    if (f === "generated" || f === "node_modules") continue;
+    if (statSync(p).isDirectory()) sourceFiles(p, out);
+    else if (/\.(ts|tsx|mjs)$/.test(f)) out.push(p);
+  }
+  return out;
+}
+
+describe("configuration inventory", () => {
+  const names = new Set(inventory.variables.map((v) => v.name));
+
+  it("lists every environment variable the application reads", () => {
+    const used = new Set<string>();
+    for (const f of [...sourceFiles("src"), ...sourceFiles("scripts"), "next.config.ts"]) {
+      const text = readFileSync(f, "utf8");
+      for (const m of text.matchAll(/process\.env\.([A-Z][A-Z0-9_]+)/g)) used.add(m[1]!);
+      for (const m of text.matchAll(/\benv: "([A-Z][A-Z0-9_]+)"/g)) used.add(m[1]!);
+      for (const m of text.matchAll(/\be\.([A-Z][A-Z0-9_]{3,})\b/g)) used.add(m[1]!);
+    }
+    const missing = [...used].filter((n) => !names.has(n) && !TOOLING.has(n) && !n.startsWith("__NEXT"));
+    expect(missing).toEqual([]);
+  });
+
+  it("documents each variable completely and consistently", () => {
+    for (const v of inventory.variables) {
+      expect(v.purpose.length, v.name).toBeGreaterThan(10);
+      expect(["always", "production", "optional", "never"]).toContain(v.required);
+      expect(["immediate", "restart", "redeploy"]).toContain(v.apply);
+      if (v.dashboard) {
+        expect(sectionById(v.dashboard), `${v.name} → ${v.dashboard}`).toBeTruthy();
+        expect(v.startup, `${v.name} cannot be both startup and dashboard-managed`).toBe(false);
+      }
+    }
+    expect(names.size).toBe(inventory.variables.length);
+  });
+
+  it("keeps the startup set minimal", () => {
+    const required = inventory.variables.filter((v) => v.required === "always" || v.required === "production").map((v) => v.name).sort();
+    expect(required).toEqual(["DATABASE_URL", "FIELD_ENCRYPTION_KEY", "NODE_ENV", "PUBLIC_ORIGIN"]);
+  });
+});
+
+describe("environment snapshot (.env.production for every app process)", () => {
+  it("round-trips tricky values through Next.js's own .env loader", async () => {
+    const values: Record<string, string> = {
+      DATABASE_URL: "mysql://u:p%40ss$word@127.0.0.1:3306/db",
+      EMAIL_FROM: "Webcenta <noreply@webcenta.com>",
+      SMTP_PASSWORD: `it's "quoted" $HOME \`tick\``,
+      APPLE_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nMIGT$abc\n-----END PRIVATE KEY-----",
+      SITE_BANNER: "a # not a comment",
+    };
+    const lines = snapshotLines(values, Object.keys(values));
+    const dir = mkdtempSync(path.join(tmpdir(), "wc-env-"));
+    writeFileSync(path.join(dir, ".env.production"), lines.join("\n") + "\n");
+    // A clean process, as on the server: nothing set except what the file provides.
+    const out = spawnSync(process.execPath, ["-e", `const {loadEnvConfig}=require("@next/env");const r=loadEnvConfig(${JSON.stringify(dir)},false,{info(){},error(){}});process.stdout.write(JSON.stringify(r.combinedEnv))`], { env: { PATH: process.env.PATH } as unknown as NodeJS.ProcessEnv, encoding: "utf8" });
+    const env = JSON.parse(out.stdout) as Record<string, string | undefined>;
+    // SMTP_PASSWORD contains every quote character: skipped rather than corrupted.
+    expect(env.SMTP_PASSWORD).toBeUndefined();
+    for (const k of ["DATABASE_URL", "EMAIL_FROM", "APPLE_PRIVATE_KEY", "SITE_BANNER"]) expect(env[k], k).toBe(values[k]);
+  });
+
+  it("does not override a variable set in the real environment", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "wc-env-"));
+    writeFileSync(path.join(dir, ".env.production"), snapshotLines({ PUBLIC_ORIGIN: "https://from-file.example" }, ["PUBLIC_ORIGIN"]).join("\n"));
+    const out = spawnSync(process.execPath, ["-e", `const {loadEnvConfig}=require("@next/env");loadEnvConfig(${JSON.stringify(dir)},false,{info(){},error(){}});process.stdout.write(process.env.PUBLIC_ORIGIN)`], { env: { PATH: process.env.PATH, PUBLIC_ORIGIN: "https://real.example" } as unknown as NodeJS.ProcessEnv, encoding: "utf8" });
+    expect(out.stdout).toBe("https://real.example");
+  });
+
+  it("never overrides variables that are really set in the environment", () => {
+    const lines = snapshotLines({ PUBLIC_ORIGIN: "https://webcenta.com", EMPTY: "" }, ["PUBLIC_ORIGIN", "EMPTY", "UNSET"]);
+    expect(lines).toEqual(["PUBLIC_ORIGIN='https://webcenta.com'"]);
+  });
+});
+
+describe("docs/CONFIGURATION.md", () => {
+  it("is up to date with the inventory (run npm run config:docs)", async () => {
+    const { configurationDoc } = await import("@/server/settings/inventory-doc");
+    expect(readFileSync("docs/CONFIGURATION.md", "utf8")).toBe(configurationDoc());
+  });
+});

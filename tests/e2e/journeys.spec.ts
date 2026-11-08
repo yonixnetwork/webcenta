@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { ADMIN, BASE, categoryId, closeDb, freshTotp, markTotpUsed, pngBuffer, provisionAdmin, registerUser, runCron, setSite, signIn, sql, totp } from "./helpers";
+import { ADMIN, BASE, DEVHOST, devSignIn, categoryId, closeDb, freshTotp, markTotpUsed, pngBuffer, provisionAdmin, registerUser, runCron, setSite, signIn, sql, totp } from "./helpers";
 
 /**
  * The ten end-to-end user journeys, executed in order against the real app,
@@ -85,12 +85,13 @@ test("2. a user registers, logs in, saves an application and writes a review", a
 
 test("3. a developer registers, verifies their domain, submits an application and tracks it", async () => {
   DEV.password = await registerUser(devPage, DEV.email, DEV.name);
-  await devPage.goto(`${BASE}/developer`);
+  // The developer portal is its own site with its own session: sign in there.
+  await devSignIn(devPage, DEV.email, DEV.password);
   await devPage.getByLabel("Organisation or developer name").fill(DEV.org);
   await devPage.getByRole("button", { name: "Create organisation" }).click();
   await expect(devPage.getByRole("heading", { name: "Overview" })).toBeVisible();
 
-  await devPage.goto(`${BASE}/developer/domains`);
+  await devPage.goto(`${DEVHOST}/domains`);
   await devPage.getByLabel("Domain").fill(APP.host);
   await devPage.getByLabel("Method").selectOption("WELL_KNOWN_FILE");
   await devPage.getByRole("button", { name: "Get verification code" }).click();
@@ -102,7 +103,7 @@ test("3. a developer registers, verifies their domain, submits an application an
   await devPage.getByRole("button", { name: "Check now" }).click();
   await expect(devPage.getByText(`${APP.host} is verified.`)).toBeVisible();
 
-  await devPage.goto(`${BASE}/developer/listings/new`);
+  await devPage.goto(`${DEVHOST}/listings/new`);
   await devPage.getByLabel("App name").fill(APP.name);
   await devPage.getByLabel("Tagline").fill("Linked notes for teams");
   await devPage.getByLabel("Official website (https://)").fill(`https://${APP.host}/`);
@@ -114,8 +115,8 @@ test("3. a developer registers, verifies their domain, submits an application an
   await devPage.getByTestId("upload-logoAssetId").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: await pngBuffer(256) });
   await expect(devPage.locator('input[name="logoAssetId"]')).toHaveCount(1);
   await devPage.getByRole("button", { name: "Save draft" }).click();
-  await devPage.waitForURL(/\/developer\/listings\/[^/]+\?saved=1/);
-  APP.id = devPage.url().split("/developer/listings/")[1]!.split("?")[0]!;
+  await devPage.waitForURL(/developers\.localhost:\d+\/listings\/[^/]+\?saved=1/);
+  APP.id = devPage.url().split("/listings/")[1]!.split("?")[0]!;
   await devPage.getByRole("button", { name: "Submit for review" }).click();
   await expect(devPage.getByText(/Revision #1 was submitted .* and is being reviewed/)).toBeVisible();
   // Track: automated checks finish and the listing waits for a moderator (never auto-published here).
@@ -185,7 +186,7 @@ test("9. a developer replies to a review and the user receives a notification", 
   await expect(held).toHaveCount(0); // leaves the moderation queue
   expect((await sql<{ status: string }>(`select r.status from "Review" r join "User" u on u.id = r."userId" where u.email = $1 order by r."createdAt" desc limit 1`, [USER.email]))[0]!.status).toBe("PUBLISHED");
 
-  await devPage.goto(`${BASE}/developer/reviews`);
+  await devPage.goto(`${DEVHOST}/reviews`);
   await devPage.locator("li", { hasText: "offline mode saved me" }).getByRole("button", { name: "Reply as developer" }).click();
   await devPage.getByLabel("Developer reply").fill("Thank you! Offline sync was a big focus for us.");
   await devPage.getByRole("button", { name: "Publish reply" }).click();
@@ -233,7 +234,7 @@ test("5. a developer views analytics after users visit and click their applicati
   expect(count("OUTBOUND_CLICK")).toBe(3);
 
   await runCron(devPage.request, ["stats.rollup"]);
-  await devPage.goto(`${BASE}/developer/listings/${APP.id}/analytics`);
+  await devPage.goto(`${DEVHOST}/listings/${APP.id}/analytics`);
   const stat = (label: string) => devPage.locator(`[data-stat="${label}"] p.text-2xl`);
   await expect(stat("Listing views")).toHaveText("4");
   await expect(stat("Outbound clicks")).toHaveText("3");

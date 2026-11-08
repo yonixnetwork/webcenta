@@ -119,9 +119,15 @@ test.describe("hosts and SEO", () => {
     expect(admin.headers()["x-robots-tag"]).toContain("noindex");
     expect(await admin.text()).toContain("Administrator accounts are separate");
     expect((await request.get("/", { headers: { host: "admin.localhost:3100" }, maxRedirects: 0 })).status()).toBe(307); // → /login
-    const dev = await request.get("/domains", { headers: { host: "developers.localhost:3100" }, maxRedirects: 0 });
-    expect(dev.status()).toBe(308);
-    expect(dev.headers()["location"]).toMatch(/\/developer\/domains$/);
+    // The developer portal is its own site; old marketplace links move there.
+    const dev = await request.get("/signin", { headers: { host: "developers.localhost:3100" } });
+    expect(dev.status()).toBe(200);
+    expect(await dev.text()).toContain("Developer sign in");
+    expect(dev.headers()["x-robots-tag"]).toContain("noindex");
+    const old = await request.get("/developer/domains", { maxRedirects: 0 });
+    expect(old.status()).toBe(308);
+    expect(old.headers()["location"]).toBe("http://developers.localhost:3100/domains");
+    expect(await (await request.get("/robots.txt", { headers: { host: "developers.localhost:3100" } })).text()).toContain("Disallow: /");
     expect((await request.get("/app/sample-lumen-notes", { headers: { host: "admin.localhost:3100" } })).status()).toBe(404);
     expect((await request.get("/admin-host")).status()).toBe(404);
     expect(await (await request.get("/robots.txt", { headers: { host: "admin.localhost:3100" } })).text()).toContain("Disallow: /");

@@ -26,6 +26,8 @@ export function originsFromEnv(e: OriginEnv = process.env as OriginEnv): { publi
 }
 
 export const adminOrigin = (e: OriginEnv = process.env as OriginEnv) => originsFromEnv(e).adminOrigin;
+export const publicOrigin = (e: OriginEnv = process.env as OriginEnv) => originsFromEnv(e).publicOrigin;
+export const developerOrigin = (e: OriginEnv = process.env as OriginEnv) => originsFromEnv(e).developerOrigin;
 
 export function hostConfigFromEnv(e: OriginEnv): HostConfig {
   const o = originsFromEnv(e);
@@ -42,6 +44,30 @@ export function classifyHost(rawHost: string | null, cfg: HostConfig): Surface {
   if (host === cfg.adminHost) return "admin";
   if (host === cfg.developerHost) return "developer";
   return "unknown";
+}
+
+/**
+ * The surface a request is for. The Host header decides; X-Forwarded-Host is
+ * consulted only when Host is not one of ours (e.g. a reverse proxy that
+ * rewrites Host to 127.0.0.1), so it can never move a request between two of
+ * our own hosts.
+ */
+export function resolveSurface(h: { get(name: string): string | null }, cfg: HostConfig): { surface: Surface; host: string } {
+  const host = (h.get("host") ?? "").toLowerCase().trim();
+  const direct = classifyHost(host, cfg);
+  if (direct !== "unknown") return { surface: direct, host };
+  const forwarded = (h.get("x-forwarded-host") ?? "").split(",")[0]!.toLowerCase().trim();
+  const viaProxy = forwarded ? classifyHost(forwarded, cfg) : "unknown";
+  return viaProxy !== "unknown" ? { surface: viaProxy, host: forwarded } : { surface: "unknown", host };
+}
+
+/**
+ * Where a developers.<host> request is served inside the app. API, media and
+ * auth endpoints are shared; every page lives under DEVELOPER_PREFIX.
+ */
+export function developerRewritePath(pathname: string): string | null {
+  if (pathname.startsWith("/api/") || pathname.startsWith("/media/")) return null;
+  return DEVELOPER_PREFIX + (pathname === "/" ? "" : pathname);
 }
 
 /** Internal route prefixes; reachable only through host rewrites. */

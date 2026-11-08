@@ -26,7 +26,6 @@ const schema = z.object({
   /** Number of trusted reverse proxies in front of the app (for X-Forwarded-For). */
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
 
-  ANALYTICS_SALT_SECRET: z.string().optional(),
   CRON_SECRET: z.string().optional(),
   JOBS_TICK_BUDGET_MS: z.coerce.number().int().min(1000).max(120_000).default(25_000),
 

@@ -8,6 +8,8 @@ import { buildPoolConfig } from "../../src/server/db-config";
 export const PORT = Number(process.env.E2E_PORT ?? 3100);
 export const BASE = `http://localhost:${PORT}`;
 export const ADMIN = `http://admin.localhost:${PORT}`;
+/** The developer portal: its own site and its own session. */
+export const DEVHOST = `http://developers.localhost:${PORT}`;
 export const CRON_SECRET = process.env.APP_CRON_SECRET!;
 
 /**
@@ -133,6 +135,15 @@ export async function signIn(page: Page, email: string, password: string, next =
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((u) => u.pathname === next.split("?")[0]);
+}
+
+/** Signs in on the developer portal (a separate session from the marketplace). */
+export async function devSignIn(page: Page, email: string, password: string) {
+  await page.goto(`${DEVHOST}/signin`);
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(`${DEVHOST}/`);
 }
 
 export async function categoryId(slug: string) {

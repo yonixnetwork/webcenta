@@ -7,6 +7,8 @@
  * `usedBy`. A field with `env` falls back to that environment variable when
  * nothing has been saved, so existing deployments keep working.
  */
+import { validateApplePrivateKey } from "@/server/auth/apple";
+
 
 export type FieldType = "text" | "secret" | "url" | "email" | "number" | "boolean" | "select" | "textarea" | "color";
 
@@ -28,6 +30,10 @@ export interface FieldDef {
   placeholder?: string;
   /** Only shown/used when another field has this value (e.g. S3 fields when driver = s3). */
   when?: { key: string; equals: string | boolean };
+  /** Multi-line input (e.g. a private key). For secrets, whitespace is kept. */
+  multiline?: boolean;
+  /** Extra server-side validation; returns an error message or null. */
+  validate?: (value: string) => string | null;
 }
 
 export type Apply = "immediate" | "restart" | "redeploy";
@@ -58,7 +64,21 @@ export interface SectionDef {
   warning?: string;
   /** Read-only status page (no saved fields). */
   statusOnly?: boolean;
+  /**
+   * Alternative sets of fields: the section is complete when every field of at
+   * least one set has a value (e.g. Apple: a signing key, or a ready-made JWT).
+   */
+  requireOneOf?: string[][];
+  /** OAuth callback path to show with each site's origin (to register with the provider). */
+  callbackPath?: string;
 }
+
+/** The categories of Admin → Settings, in display order. */
+export const CATEGORIES = [
+  "Application and website", "Database", "Authentication and sessions", "Google OAuth", "Apple OAuth", "GitHub OAuth",
+  "Email and SMTP", "Payments", "Advertising", "Analytics", "File storage", "Security scanning", "Notifications",
+  "External APIs", "Developer services", "Background jobs", "PWA", "System and deployment",
+] as const;
 
 const HTTPS_URL = { source: "^https://\\S+$", message: "Use an https:// address." };
 const opt = (...v: Array<[string, string]>) => v.map(([value, label]) => ({ value, label }));
@@ -67,7 +87,7 @@ export const SECTIONS: SectionDef[] = [
   // ---------------------------------------------------------------- Website
   {
     id: "general",
-    group: "Website",
+    group: "Application and website",
     title: "General",
     description: "Site name, description, contact address and the banner shown above every public page.",
     usedBy: "Page titles and metadata, the footer, the public banner, the contact page.",
@@ -82,7 +102,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "seo",
-    group: "Website",
+    group: "Application and website",
     title: "Branding & SEO",
     description: "Search-engine indexing, default title, social preview image and social handles.",
     usedBy: "robots.txt, page metadata (titles, Open Graph, Twitter cards) and the noindex header.",
@@ -97,7 +117,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "pwa",
-    group: "Website",
+    group: "PWA",
     title: "PWA & app",
     description: "How Webcenta appears when installed as an app on phones and computers.",
     usedBy: "The web app manifest (/manifest.webmanifest).",
@@ -114,7 +134,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "social",
-    group: "Website",
+    group: "Application and website",
     title: "Social profiles",
     description: "Links to Webcenta's own social media profiles.",
     usedBy: "Footer links and the organisation's structured data (sameAs) for search engines.",
@@ -134,7 +154,7 @@ export const SECTIONS: SectionDef[] = [
   // ---------------------------------------------------------------- Platform
   {
     id: "database",
-    group: "Platform",
+    group: "Database",
     title: "Database",
     description: "Connection status, version, size and migrations of the MySQL / MariaDB database.",
     usedBy: "Everything. The connection itself comes from DATABASE_URL in the hosting environment and cannot be changed here: the application needs it before it can read any settings.",
@@ -145,7 +165,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "marketplace",
-    group: "Platform",
+    group: "Application and website",
     title: "Marketplace",
     description: "Search results per page and what counts as \"highly rated\".",
     usedBy: "Search and category pages, the \"Highly rated\" filter and homepage rail, \"better rated\" alternatives.",
@@ -159,7 +179,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "developer",
-    group: "Platform",
+    group: "Developer services",
     title: "Developer portal",
     description: "Who can create developer organisations and how domains can be verified.",
     usedBy: "Organisation creation, new submissions and domain verification in the developer portal.",
@@ -175,7 +195,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "jobs",
-    group: "Platform",
+    group: "Background jobs",
     title: "Scheduled tasks",
     description: "The secret the hosting cron job sends, how long each run may take, and the queue's health.",
     usedBy: "POST /api/cron/tick (Hostinger Cron) and the job runner (emails, analytics roll-ups, scans, clean-up).",
@@ -190,7 +210,7 @@ export const SECTIONS: SectionDef[] = [
   // ---------------------------------------------------------------- Email & notifications
   {
     id: "email",
-    group: "Email & notifications",
+    group: "Email and SMTP",
     title: "Email (SMTP)",
     description: "Outgoing email: account verification, password resets, notifications and admin alerts.",
     usedBy: "Every email Webcenta sends. When disabled, emails are recorded in Admin → Jobs & email but not sent.",
@@ -212,7 +232,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "notifications",
-    group: "Email & notifications",
+    group: "Notifications",
     title: "Notifications",
     description: "Who receives administrator alerts and whether user notifications are also emailed.",
     usedBy: "Admin alerts (security alerts, appeals, sponsorship requests) and the email copy of in-app user notifications.",
@@ -228,7 +248,7 @@ export const SECTIONS: SectionDef[] = [
   // ---------------------------------------------------------------- Sign-in
   {
     id: "security",
-    group: "Security & sign-in",
+    group: "Authentication and sessions",
     title: "Security & authentication",
     description: "Sign-ups, session length, admin IP restriction, client IPs and country detection.",
     usedBy: "Account sign-up and sessions, the admin portal, rate limits, analytics and geo-restrictions.",
@@ -245,17 +265,18 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "google",
-    group: "Security & sign-in",
+    group: "Google OAuth",
     title: "Google sign-in",
-    description: "\"Continue with Google\" for user accounts.",
-    usedBy: "Sign-in and sign-up pages, account linking.",
+    description: "\"Continue with Google\" on the marketplace and the developer portal.",
+    usedBy: "Sign-in and sign-up pages of webcenta.com and developers.webcenta.com, and account linking.",
     permission: "integrations.manage",
     toggle: true,
     envEnabled: (e) => Boolean(e.GOOGLE_CLIENT_ID && e.GOOGLE_CLIENT_SECRET),
     apply: "immediate",
     testable: true,
-    testNote: "Checks the client ID format and that Google's sign-in service is reachable. A full check needs a real sign-in.",
-    provider: { name: "Google Cloud Console → APIs & Services → Credentials (OAuth client, Web)", url: "https://console.cloud.google.com/apis/credentials" },
+    testNote: "Sends Google a deliberately invalid authorisation code with your client ID and secret: Google answers differently for a valid and an invalid client. A full check still needs one real sign-in.",
+    provider: { name: "Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Web application)", url: "https://console.cloud.google.com/apis/credentials" },
+    callbackPath: "/api/auth/callback/google",
     fields: [
       { key: "clientId", label: "Client ID", help: "Ends with .apps.googleusercontent.com.", type: "text", env: "GOOGLE_CLIENT_ID", required: true, pattern: { source: "^[0-9]+-[a-z0-9]+\\.apps\\.googleusercontent\\.com$", message: "A Google client ID ends with .apps.googleusercontent.com." } },
       { key: "clientSecret", label: "Client secret", help: "From the same OAuth client.", type: "secret", env: "GOOGLE_CLIENT_SECRET", required: true },
@@ -263,44 +284,54 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "apple",
-    group: "Security & sign-in",
+    group: "Apple OAuth",
     title: "Apple sign-in",
-    description: "\"Continue with Apple\" for user accounts.",
-    usedBy: "Sign-in and sign-up pages, account linking.",
+    description: "\"Sign in with Apple\" on the marketplace and the developer portal.",
+    usedBy: "Sign-in and sign-up pages of webcenta.com and developers.webcenta.com, and account linking.",
     permission: "integrations.manage",
     toggle: true,
-    envEnabled: (e) => Boolean(e.APPLE_CLIENT_ID && e.APPLE_CLIENT_SECRET),
+    envEnabled: (e) => Boolean(e.APPLE_CLIENT_ID && (e.APPLE_PRIVATE_KEY || e.APPLE_CLIENT_SECRET)),
     apply: "immediate",
     testable: true,
-    testNote: "Decodes the client secret (a signed JWT) and checks its issuer, audience and expiry. A full check needs a real sign-in.",
-    provider: { name: "Apple Developer → Certificates, Identifiers & Profiles → Services IDs", url: "https://developer.apple.com/account/resources/identifiers/list/serviceId", cost: "Apple Developer Program, US$99/year" },
-    warning: "Apple client secrets expire after at most 6 months; generate a new one before then.",
+    testNote: "Generates the client secret from your key, checks it, then sends Apple a deliberately invalid authorisation code: Apple answers differently for a valid and an invalid client. A full check still needs one real sign-in.",
+    provider: { name: "Apple Developer → Certificates, Identifiers & Profiles (a Services ID and a Sign in with Apple key)", url: "https://developer.apple.com/account/resources/identifiers/list/serviceId", cost: "Apple Developer Program, US$99/year" },
+    warning: "In the Services ID, add both domains (webcenta.com and developers.webcenta.com) and both return URLs shown below. Webcenta generates the client secret from your key and renews it automatically.",
+    callbackPath: "/api/auth/callback/apple",
+    requireOneOf: [["teamId", "keyId", "privateKey"], ["clientSecret"]],
     fields: [
-      { key: "clientId", label: "Services ID", help: "The Services ID used as the OAuth client ID (e.g. com.webcenta.signin).", type: "text", env: "APPLE_CLIENT_ID", required: true },
-      { key: "clientSecret", label: "Client secret (JWT)", help: "A JWT signed with your Sign in with Apple key (.p8).", type: "secret", env: "APPLE_CLIENT_SECRET", required: true },
+      { key: "clientId", label: "Services ID", help: "The identifier of the Services ID (e.g. com.webcenta.signin), used as the OAuth client ID.", type: "text", env: "APPLE_CLIENT_ID", required: true, pattern: { source: "^[A-Za-z0-9][A-Za-z0-9.-]{2,100}$", message: "A Services ID looks like com.webcenta.signin." } },
+      { key: "teamId", label: "Team ID", help: "10 characters, top right of the Apple Developer site.", type: "text", env: "APPLE_TEAM_ID", pattern: { source: "^[A-Z0-9]{10}$", message: "A Team ID is 10 capital letters or digits." } },
+      { key: "keyId", label: "Key ID", help: "10 characters, shown with the Sign in with Apple key.", type: "text", env: "APPLE_KEY_ID", pattern: { source: "^[A-Z0-9]{10}$", message: "A Key ID is 10 capital letters or digits." } },
+      { key: "privateKey", label: "Private key (.p8)", help: "Paste the whole contents of the AuthKey_XXXXXXXXXX.p8 file. It is encrypted and never shown again.", type: "secret", env: "APPLE_PRIVATE_KEY", multiline: true, validate: validateApplePrivateKey },
+      { key: "clientSecret", label: "Client secret JWT (legacy, optional)", help: "Only if you cannot provide the key: a pre-generated client-secret JWT. It expires after at most 6 months.", type: "secret", env: "APPLE_CLIENT_SECRET" },
       { key: "bundleId", label: "App bundle ID (optional)", help: "Only if a native iOS app also signs in.", type: "text", env: "APPLE_APP_BUNDLE_IDENTIFIER" },
     ],
   },
   {
     id: "github",
-    group: "Security & sign-in",
+    group: "GitHub OAuth",
     title: "GitHub sign-in",
-    description: "\"Continue with GitHub\" — useful for developers.",
-    usedBy: "Sign-in and sign-up pages, account linking.",
+    description: "\"Continue with GitHub\" on the marketplace and the developer portal.",
+    usedBy: "Sign-in and sign-up pages of webcenta.com and developers.webcenta.com, and account linking.",
     permission: "integrations.manage",
     toggle: true,
+    envEnabled: (e) => Boolean(e.GITHUB_CLIENT_ID && e.GITHUB_CLIENT_SECRET),
     apply: "immediate",
     testable: true,
-    testNote: "Checks the client ID format and that GitHub is reachable. A full check needs a real sign-in.",
+    testNote: "Sends GitHub a deliberately invalid authorisation code with your client ID and secret: GitHub answers differently for a valid and an invalid client. A full check still needs one real sign-in.",
     provider: { name: "GitHub → Settings → Developer settings → OAuth Apps", url: "https://github.com/settings/developers" },
+    warning: "A GitHub OAuth App has a single callback URL. Create one OAuth App for the marketplace and, to offer GitHub on the developer portal too, a second one with the developer-portal callback URL below.",
+    callbackPath: "/api/auth/callback/github",
     fields: [
-      { key: "clientId", label: "Client ID", help: "From the OAuth App.", type: "text", required: true, pattern: { source: "^[A-Za-z0-9._-]{10,64}$", message: "That does not look like a GitHub client ID." } },
-      { key: "clientSecret", label: "Client secret", help: "Generate it in the OAuth App.", type: "secret", required: true },
+      { key: "clientId", label: "Client ID", help: "From the OAuth App.", type: "text", env: "GITHUB_CLIENT_ID", required: true, pattern: { source: "^[A-Za-z0-9._-]{10,64}$", message: "That does not look like a GitHub client ID." } },
+      { key: "clientSecret", label: "Client secret", help: "Generate it in the OAuth App.", type: "secret", env: "GITHUB_CLIENT_SECRET", required: true },
+      { key: "devClientId", label: "Developer portal: Client ID (optional)", help: "From a second OAuth App whose callback is the developer-portal URL below. Empty: GitHub is offered on the marketplace only.", type: "text", pattern: { source: "^[A-Za-z0-9._-]{10,64}$", message: "That does not look like a GitHub client ID." } },
+      { key: "devClientSecret", label: "Developer portal: Client secret (optional)", help: "From the same second OAuth App.", type: "secret" },
     ],
   },
   {
     id: "microsoft",
-    group: "Security & sign-in",
+    group: "Authentication and sessions",
     title: "Microsoft sign-in",
     description: "\"Continue with Microsoft\" (personal, work and school accounts).",
     usedBy: "Sign-in and sign-up pages, account linking.",
@@ -320,7 +351,7 @@ export const SECTIONS: SectionDef[] = [
   // ---------------------------------------------------------------- Files
   {
     id: "storage",
-    group: "Files",
+    group: "File storage",
     title: "Storage & uploads",
     description: "Where developer logos, screenshots and compliance documents are stored.",
     usedBy: "Uploads in the developer and admin portals, /media/* and private document downloads.",
@@ -344,7 +375,7 @@ export const SECTIONS: SectionDef[] = [
   // ---------------------------------------------------------------- Scanning
   {
     id: "webrisk",
-    group: "URL scanning & security intelligence",
+    group: "Security scanning",
     title: "Google Web Risk",
     description: "Checks submitted and monitored websites against Google's unsafe-site lists.",
     usedBy: "Submission checks and scheduled monitoring scans. With at least one provider, low-risk submissions can be approved automatically.",
@@ -359,7 +390,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "urlhaus",
-    group: "URL scanning & security intelligence",
+    group: "Security scanning",
     title: "abuse.ch URLhaus",
     description: "Checks websites against URLhaus's database of malware distribution sites.",
     usedBy: "Submission checks and scheduled monitoring scans.",
@@ -374,7 +405,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "virustotal",
-    group: "URL scanning & security intelligence",
+    group: "Security scanning",
     title: "VirusTotal",
     description: "Checks websites against VirusTotal's aggregated engine verdicts.",
     usedBy: "Submission checks and scheduled monitoring scans.",
@@ -391,7 +422,7 @@ export const SECTIONS: SectionDef[] = [
   // ---------------------------------------------------------------- Analytics & advertising
   {
     id: "plausible",
-    group: "Analytics & advertising",
+    group: "Analytics",
     title: "Plausible Analytics",
     description: "Privacy-friendly, cookie-free visitor statistics, in addition to Webcenta's own analytics.",
     usedBy: "A script on public pages (not on the admin portal), allowed by the Content Security Policy.",
@@ -408,7 +439,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "ga4",
-    group: "Analytics & advertising",
+    group: "Analytics",
     title: "Google Analytics 4",
     description: "Google's visitor analytics.",
     usedBy: "The Google tag on public pages (not on the admin portal), allowed by the Content Security Policy.",
@@ -421,7 +452,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "adsense",
-    group: "Analytics & advertising",
+    group: "Advertising",
     title: "Google AdSense",
     description: "Display advertising on general pages, and the ads.txt file.",
     usedBy: "/ads.txt and the AdSense script on the home, category and search pages. Never on app detail pages, the leaving-Webcenta page, accounts, the developer portal or the admin portal.",
@@ -480,7 +511,7 @@ export const SECTIONS: SectionDef[] = [
   // ---------------------------------------------------------------- APIs
   {
     id: "webmaster",
-    group: "API integrations",
+    group: "External APIs",
     title: "Search engines & IndexNow",
     description: "Ownership verification for webmaster tools and instant indexing of new listings.",
     usedBy: "Verification meta tags on the home page; IndexNow notifications when a listing is published or changes.",
@@ -502,4 +533,4 @@ export function sectionById(id: string): SectionDef | undefined {
   return SECTIONS.find((s) => s.id === id);
 }
 
-export const GROUPS: string[] = [...new Set(SECTIONS.map((s) => s.group))];
+export const GROUPS: string[] = CATEGORIES.filter((c) => SECTIONS.some((s) => s.group === c));

@@ -221,7 +221,13 @@ function visible(def: SectionDef, f: FieldDef, values: Record<string, Scalar | u
 }
 
 export function missingFields(r: ResolvedSection): string[] {
-  return r.def.fields.filter((f) => f.required && visible(r.def, f, r.values) && (r.values[f.key] === undefined || r.values[f.key] === "")).map((f) => f.key);
+  const empty = (k: string) => r.values[k] === undefined || r.values[k] === "";
+  const missing = r.def.fields.filter((f) => f.required && visible(r.def, f, r.values) && empty(f.key)).map((f) => f.key);
+  // Alternatives (e.g. Apple: a signing key OR a ready-made JWT): report the first set's gaps.
+  if (r.def.requireOneOf && !r.def.requireOneOf.some((set) => set.every((k) => !empty(k)))) {
+    for (const k of r.def.requireOneOf[0]!) if (empty(k) && !missing.includes(k)) missing.push(k);
+  }
+  return missing;
 }
 
 /**
@@ -305,6 +311,8 @@ function parseField(f: FieldDef, raw: string): Scalar {
   if (f.type === "color" && !/^#[0-9a-fA-F]{6}$/.test(raw)) throw new SettingsError(`${f.label}: a colour like #4f46e5.`);
   if (f.type === "select" && !f.options?.some((o) => o.value === raw)) throw new SettingsError(`${f.label}: choose one of the options.`);
   if (f.pattern && !new RegExp(f.pattern.source).test(raw)) throw new SettingsError(`${f.label}: ${f.pattern.message}`);
+  const invalid = f.validate?.(raw);
+  if (invalid) throw new SettingsError(`${f.label}: ${invalid}`);
   return raw;
 }
 
@@ -335,9 +343,11 @@ export async function saveSection(id: string, input: SaveInput, actor: { adminId
     if (f.type === "secret") {
       const raw = input.secrets?.[f.key]?.trim();
       if (raw) {
-        if (/\s/.test(raw) && !/password/i.test(f.key)) throw new SettingsError(`${f.label}: must not contain spaces.`);
+        if (/\s/.test(raw) && !/password/i.test(f.key) && !f.multiline) throw new SettingsError(`${f.label}: must not contain spaces.`);
         if (raw.length > 8000) throw new SettingsError(`${f.label}: too long.`);
         if (f.pattern && !new RegExp(f.pattern.source).test(raw)) throw new SettingsError(`${f.label}: ${f.pattern.message}`);
+        const invalid = f.validate?.(raw);
+        if (invalid) throw new SettingsError(`${f.label}: ${invalid}`);
         next.secrets[f.key] = sealSecret(raw, aad(id, f.key));
         changed.push(`${f.key} (replaced)`);
       } else if (input.clearSecrets?.includes(f.key) && next.secrets[f.key]) {
