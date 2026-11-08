@@ -106,6 +106,25 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  # The build exactly as Hostinger runs it: production dependencies only, no database.
+  hostinger-build:
+    name: Hostinger build — production dependencies only
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev
+      - name: Build (webpack, standalone)
+        run: npm run build
+      - name: Standalone output includes the migrations
+        run: test -f .next/standalone/server.js && ls .next/standalone/prisma/migrations/*/migration.sql
+
   # Database-level suites on MySQL 8 — keeps a VPS / DigitalOcean move with MySQL working.
   mysql:
     name: MySQL 8.0 — migrations, unit/DB tests, smoke, compatibility, restore drill
