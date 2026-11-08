@@ -16,7 +16,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   return (
     <AuthShell title="Welcome back" subtitle="Sign in to save apps, write reviews and manage your listings."
       footer={<>New to Webcenta? <Link href={`/signup?next=${encodeURIComponent(next)}`} className="font-semibold text-brand hover:underline">Create an account</Link></>}>
-      <SignInForm providers={enabledSocialProviders()} next={next} initialError={sp.error ? "Sign-in with that provider failed. Please try again." : undefined} />
+      <SignInForm providers={await enabledSocialProviders()} next={next} initialError={sp.error ? "Sign-in with that provider failed. Please try again." : undefined} />
     </AuthShell>
   );
 }

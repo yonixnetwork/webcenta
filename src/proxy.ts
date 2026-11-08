@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_PREFIX, buildCsp, classifyHost, hostConfigFromEnv, isInternalSurfacePath } from "@/lib/hosts";
 import { STATIC_ERROR_CSP, staticErrorPage } from "@/lib/static-error-pages";
+import { getSectionWithin } from "@/server/settings/store";
+import { cspExtras } from "@/server/settings/site";
 
 /**
  * Edge of the application: host routing and per-request security headers.
  * Authorisation is NOT done here — admin permissions are enforced server-side
  * in every admin route/action (Phase 3).
  */
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const cfg = hostConfigFromEnv({
     PUBLIC_ORIGIN: process.env.PUBLIC_ORIGIN,
     ADMIN_ORIGIN: process.env.ADMIN_ORIGIN,
@@ -37,11 +39,17 @@ export function proxy(request: NextRequest) {
     return new NextResponse(null, { status: 308, headers: { location: target.toString() } });
   }
 
-  // Admin IP allow-list (optional, recommended behind Cloudflare or on a VPS).
-  if (surface === "admin" && process.env.ADMIN_IP_ALLOWLIST) {
-    const allowed = process.env.ADMIN_IP_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
-    const ip = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",").pop()?.trim() ?? "";
-    if (!allowed.includes(ip)) return new NextResponse("Not found", { status: 404 });
+  // Admin IP allow-list (Admin → Settings → Security, or ADMIN_IP_ALLOWLIST).
+  // The client IP honours the configured number of trusted proxies.
+  if (surface === "admin") {
+    const sec = await getSectionWithin("security", 1500);
+    const allowed = sec.str("adminIpAllowlist").split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+    if (allowed.length) {
+      const hops = Math.max(0, Math.min(5, sec.num("trustedProxyHops")));
+      const xff = (request.headers.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+      const ip = request.headers.get("cf-connecting-ip") ?? (hops > 0 ? xff[Math.max(0, xff.length - hops)] : undefined) ?? request.headers.get("x-real-ip") ?? "";
+      if (!allowed.includes(ip)) return new NextResponse("Not found", { status: 404 });
+    }
   }
 
   // Maintenance mode: every public request gets a real 503 with Retry-After,
@@ -64,8 +72,10 @@ export function proxy(request: NextRequest) {
   }
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const mediaOrigin = process.env.MEDIA_PUBLIC_BASE_URL ? new URL(process.env.MEDIA_PUBLIC_BASE_URL).origin : undefined;
-  const csp = buildCsp(nonce, process.env.NODE_ENV === "development", mediaOrigin, surface !== "admin" && /^\/go\/[a-z0-9-]+\/?$/.test(url.pathname));
+  // Analytics/advertising sources are added only on public pages (never the admin portal).
+  const extras = surface === "admin" ? { script: [], connect: [], img: [], frame: [] } : await cspExtras(url.pathname).catch(() => ({ script: [], connect: [], img: [], frame: [] }));
+  const mediaOrigin = (extras as { mediaOrigin?: string }).mediaOrigin;
+  const csp = buildCsp(nonce, process.env.NODE_ENV === "development", mediaOrigin, surface !== "admin" && /^\/go\/[a-z0-9-]+\/?$/.test(url.pathname), extras);
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
@@ -84,7 +94,7 @@ export function proxy(request: NextRequest) {
 
   response.headers.set("content-security-policy", csp);
   // The admin portal and unknown hosts (e.g. a temporary hosting domain) are never indexed.
-  if (surface !== "public") response.headers.set("x-robots-tag", "noindex, nofollow");
+  if (surface !== "public" || !(await getSectionWithin("seo", 1500)).bool("allowIndexing")) response.headers.set("x-robots-tag", "noindex, nofollow");
   if (surface === "admin") response.headers.set("cache-control", "no-store");
   // Pages rendered for a signed-in visitor are never stored by the service worker.
   if (request.cookies.getAll().some((c) => c.name.endsWith("session_token"))) response.headers.set("x-wc-personal", "1");

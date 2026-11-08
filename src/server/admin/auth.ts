@@ -6,6 +6,7 @@ import { db } from "@/server/db";
 import { audit } from "@/server/audit";
 import { DUMMY_HASH, decrypt, newToken, sha256, verifyPassword, verifyTotp } from "./crypto";
 import { can, type Permission } from "./permissions";
+import { adminOrigin } from "@/lib/hosts";
 
 /**
  * Administrator sessions — independent of public user accounts.
@@ -18,7 +19,7 @@ export const MAX_FAILURES = 5;
 export const LOCK_MINUTES = 15;
 
 export function adminCookieName() {
-  return (process.env.ADMIN_ORIGIN ?? "").startsWith("https://") ? "__Host-wc_admin" : "wc_admin";
+  return adminOrigin().startsWith("https://") ? "__Host-wc_admin" : "wc_admin";
 }
 
 async function reqMeta() {
@@ -28,7 +29,7 @@ async function reqMeta() {
 
 async function setCookie(token: string) {
   (await cookies()).set(adminCookieName(), token, {
-    httpOnly: true, sameSite: "strict", path: "/", secure: (process.env.ADMIN_ORIGIN ?? "").startsWith("https://"), maxAge: ABSOLUTE_HOURS * 3600,
+    httpOnly: true, sameSite: "strict", path: "/", secure: adminOrigin().startsWith("https://"), maxAge: ABSOLUTE_HOURS * 3600,
   });
 }
 

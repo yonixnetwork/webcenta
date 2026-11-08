@@ -20,7 +20,7 @@ export default async function SecurityAdmin() {
     db.systemSetting.findUnique({ where: { key: "security.domainBlocklist" } }),
     db.securityScan.count({ where: { status: "FAILED", createdAt: { gte: daysAgo(7) } } }),
   ]);
-  const providers = externalProvidersConfigured();
+  const providers = await externalProvidersConfigured();
   return (
     <>
       <h1 className="text-2xl font-extrabold tracking-tight">Security monitoring</h1>

@@ -4,7 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { AlertSeverity, CheckType, ScanTrigger } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import { analyzeHtml } from "./html";
-import { blocklistCheck, externalProvidersConfigured, googleWebRisk, urlhaus, virusTotal, type Verdict } from "./providers";
+import { blocklistCheck, googleWebRisk, urlhaus, virusTotal, type Verdict } from "./providers";
 import { safeFetch, type SafeResponse } from "./safe-fetch";
 import { brandLabel, levenshtein, PROTECTED_BRANDS, registrableDomain, skeleton } from "./domains";
 
@@ -174,9 +174,12 @@ export async function scanListing(listingId: string, trigger: ScanTrigger, opts:
   }
 }
 
-/** True when every required check passed AND at least one external threat-intel provider ran. */
+/**
+ * True when every required check passed AND at least one external threat-intel
+ * provider ran and passed (a THREAT_INTEL_URL PASS only comes from a configured provider).
+ */
 export function qualifiesForAutoApproval(outcomes: CheckOutcome[]): boolean {
   const relevant = outcomes.filter((o) => o.verdict !== "SKIPPED");
   const externalPass = outcomes.some((o) => o.check === "THREAT_INTEL_URL" && o.verdict === "PASS");
-  return externalPass && externalProvidersConfigured().length > 0 && relevant.every((o) => o.verdict === "PASS");
+  return externalPass && relevant.every((o) => o.verdict === "PASS");
 }

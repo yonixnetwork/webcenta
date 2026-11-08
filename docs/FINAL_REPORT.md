@@ -3,6 +3,33 @@
 Date: 2026-11-07 · Branch: `claude/youthful-cerf-4xclco` · Status: **ready for staging, then production
 deployment after owner approval**. Nothing has been deployed. No paid service has been activated.
 
+## 0. Update 2026-11-08: admin configuration system
+
+Admin → Settings now configures every integration at runtime (details: [SETTINGS.md](SETTINGS.md)).
+* 25 sections in 9 groups (plus the existing ranking/legal page), generated from one registry; each shows its status (Disabled / Missing
+  settings / Configured / Connected / Error), has Save, Enable/Disable where relevant, and a real
+  **Test connection** for 13 of them.
+* Settings live in MySQL (`SystemSetting`); credentials are encrypted with AES-256-GCM (HKDF key
+  from `FIELD_ENCRYPTION_KEY`, field-bound associated data), decrypted only on the server, masked
+  in the UI, and absent from audit entries. Credential sections need the Super Administrator role.
+* Every integration reads the settings service: email delivery, Better Auth (rebuilt on change;
+  GitHub and Microsoft added), storage driver, threat-intel providers, cron secret and budget,
+  proxy hops / country header / admin IP allow-list (proxy), notifications, marketplace thresholds,
+  developer-portal limits and verification methods, metadata, `robots.txt`, manifest, footer,
+  analytics/AdSense scripts with matching CSP sources, `/ads.txt`, `/indexnow-key.txt` and IndexNow
+  pings. Changes reach every process within ~5 s; no restart.
+* Startup environment reduced to `DATABASE_URL`, `FIELD_ENCRYPTION_KEY`, `PUBLIC_ORIGIN`,
+  `NODE_ENV` (+ `SETUP_TOKEN` once). The session secret and the admin/developer origins are derived.
+  Older integration variables keep working as fallbacks.
+* First-time setup at `admin.<host>/setup` (token-gated, closed once a Super Administrator exists):
+  applies migrations in-app (compatible with `prisma migrate deploy`, verified on MariaDB 10.11 and
+  MySQL 8.0 with no schema drift), seeds base data and issues the owner invitation.
+* Tests added: 23 unit and 15 database tests (encryption, AAD, key change, resolution order,
+  status, validation, masking, permissions, audit without values, cross-process refresh, every
+  integration reading its settings, migration runner, setup gate) and 5 E2E tests (setup 404,
+  settings index, banner applied live, secret never returned to the browser, enabling with missing
+  values refused). Full suites: 265 unit/DB tests on MariaDB and MySQL, 117 E2E tests (all passing).
+
 ## 1. What was built
 
 One integrated Next.js 16 application on **MySQL / MariaDB** (Hostinger MySQL; see [ADR-0008](adr/0008-mysql-mariadb-hostinger.md)) with 61 tables and one baseline migration:
@@ -217,8 +244,9 @@ network hop is added. **Not measured:** load or concurrency testing at scale.
 | Provider | Status |
 | --- | --- |
 | Email + password, verification, reset | Implemented and tested E2E (email via the log transport) |
-| Google | Implemented; buttons appear when `GOOGLE_CLIENT_ID/SECRET` are set. **Not tested against Google** (no credentials). |
-| Apple | Implemented; needs an Apple Developer account and a client-secret JWT. **Not tested against Apple.** |
+| Google | Implemented; enable in Admin → Settings → Google sign-in (or `GOOGLE_CLIENT_ID/SECRET`). Credential test available. **Not tested against Google** (no credentials). |
+| Apple | Implemented; needs an Apple Developer account and a client-secret JWT. Credential test available. **Not tested against Apple.** |
+| GitHub, Microsoft | Implemented; enable in Admin → Settings. Not auto-linked to existing accounts by email. **Not tested against the providers.** |
 | Admin (password + TOTP) | Implemented and tested E2E |
 
 ## 8. Cron jobs
@@ -266,7 +294,7 @@ the cron interval; that the uploads folder survives a redeploy.
 
 | Service | Purpose | Notes |
 | --- | --- | --- |
-| Hostinger MySQL database | Database | Included; create it in hPanel and run `db:check` |
+| Hostinger MySQL database | Database | Created (`u658485007_webcenta`); tables via `/setup` or `migrate deploy` |
 | SMTP | Email | Hostinger mailbox (included) |
 | Uploads folder | Uploads | A folder outside the app directory on the hosting account (included); S3 optional |
 | Google OAuth | Sign-in | Optional |

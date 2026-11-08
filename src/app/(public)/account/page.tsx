@@ -31,7 +31,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </ActionForm>
       </Card>
       {hasPassword > 0 && <Card><h2 className="mb-4 font-semibold">Password</h2><ChangePasswordForm /></Card>}
-      <Card><h2 className="mb-4 font-semibold">Sign-in methods</h2><LinkedAccounts providers={enabledSocialProviders()} /></Card>
+      <Card><h2 className="mb-4 font-semibold">Sign-in methods</h2><LinkedAccounts providers={await enabledSocialProviders()} /></Card>
       <Card>
         <h2 className="mb-3 font-semibold">Recent sign-in activity</h2>
         <ul className="mb-4 divide-y divide-border text-sm">

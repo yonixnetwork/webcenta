@@ -54,41 +54,42 @@ a folder outside the app directory survives redeploys (for uploads).
    Use `127.0.0.1`, not `localhost`.
 3. Check the server version in hPanel → **phpMyAdmin** → SQL: `SELECT VERSION();` (MariaDB ≥ 10.6).
 4. Create the tables. Choose one:
-   * **From your computer** (recommended): hPanel → Databases → **Remote MySQL** → allow your IP,
-     then run the commands in §4 step 2 with `DATABASE_URL` pointing at the remote host Hostinger
-     shows (e.g. `srv123.hstgr.io`). Remote access is only needed for this step; remove it afterwards.
-   * **Over SSH** (Business includes SSH): in the app directory, run the same commands with
-     `DATABASE_URL` using `127.0.0.1`.
-   * **phpMyAdmin**: import `prisma/migrations/*/migration.sql` in order. Then still run
-     `npm run db:seed` from a computer or SSH, because categories and settings come from the seed.
+   * **In the app** (recommended, no terminal): deploy with `SETUP_TOKEN` set and use
+     `https://admin.webcenta.com/setup` (§4 step 3).
+   * **From your computer**: hPanel → Databases → **Remote MySQL** → allow your IP, then run
+     `npx prisma migrate deploy && npm run db:seed` with `DATABASE_URL` pointing at the remote host
+     Hostinger shows (e.g. `srv123.hstgr.io`). Remove remote access afterwards.
+   * **Over SSH**: the same commands in the app directory with `DATABASE_URL` using `127.0.0.1`.
 
 ## 3. Environment variables (hPanel → Node.js app → Environment variables)
 
-Placeholders and notes for every variable are in [`.env.example`](../.env.example). After changing
-variables, redeploy (Hostinger applies them on deploy).
+Only the values the server needs **before it can reach the database** live in the hosting
+environment. Every integration (email, sign-in providers, storage, scanners, analytics, payments,
+cron secret, security options…) is configured in **Admin → Settings** and stored in MySQL, with
+credentials encrypted. See [`docs/SETTINGS.md`](SETTINGS.md).
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `NODE_ENV=production` | yes | |
-| `DATABASE_URL` | yes | `mysql://USER:PASSWORD@127.0.0.1:3306/DATABASE` (§2) |
-| `DIRECT_URL` | no | Only to run the Prisma CLI against a different host (e.g. Remote MySQL from your computer) |
-| `DATABASE_POOL_MAX` | no | default 5; lower it if Hostinger reports too many connections |
-| `PUBLIC_ORIGIN`, `ADMIN_ORIGIN`, `DEVELOPER_ORIGIN` | yes | `https://webcenta.com`, `https://admin.webcenta.com`, `https://developers.webcenta.com` |
-| `USER_AUTH_SECRET`, `ADMIN_AUTH_SECRET` | yes | ≥ 32 random characters each (`openssl rand -base64 32`) |
-| `FIELD_ENCRYPTION_KEY` | yes | 32-byte base64; encrypts admin TOTP seeds; **never change after admins enrol** |
-| `CRON_SECRET` | yes | ≥ 32 characters (`openssl rand -hex 32`); the cron endpoint is disabled otherwise |
-| `EMAIL_TRANSPORT=smtp`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM` | yes for real email | Hostinger mailbox: `smtp.hostinger.com`, 465 + `SMTP_SECURE=true` (confirm in hPanel → Emails) |
-| `STORAGE_DRIVER=local`, `STORAGE_LOCAL_DIR` | yes for uploads | Absolute folder outside the app directory, e.g. `/home/u123456789/webcenta-storage` (production rejects anything else) |
-| `STORAGE_DRIVER=s3`, `S3_*`, `MEDIA_PUBLIC_BASE_URL` | optional | Instead of local storage, if you approve an S3-compatible service |
-| `GOOGLE_CLIENT_ID/SECRET` | optional | Redirect URI `https://webcenta.com/api/auth/callback/google` |
-| `APPLE_CLIENT_ID/SECRET` (+ `APPLE_APP_BUNDLE_IDENTIFIER`) | optional | Return URL `https://webcenta.com/api/auth/callback/apple`; needs the paid Apple Developer Program |
-| `GOOGLE_WEB_RISK_API_KEY`, `URLHAUS_AUTH_KEY`, `VIRUSTOTAL_API_KEY` | recommended | Without at least one, every submission needs manual approval |
-| `GEO_COUNTRY_HEADER`, `GEO_UNKNOWN_POLICY`, `TRUSTED_PROXY_HOPS` | yes | `cf-ipcountry` behind Cloudflare; `deny` hides geo-restricted listings when the country is unknown |
-| `ADMIN_IP_ALLOWLIST` | optional | Comma-separated client IPs |
-| `MAINTENANCE_MODE`, `MAINTENANCE_RETRY_AFTER` | no | `true` serves a 503 page with `Retry-After` (seconds, default 600) to all public requests; admin and cron keep working (§5a) |
-| `SCANNER_ALLOW_PRIVATE_FOR_TESTS`, `ENABLE_TEST_ERROR_ROUTES` | **must be unset** | Test only (both are also ignored unless `PUBLIC_ORIGIN` is localhost) |
+| `DATABASE_URL` | **yes** | `mysql://USER:PASSWORD@127.0.0.1:3306/DATABASE` (§2). The dashboard cannot change it: it needs the database to read anything. |
+| `FIELD_ENCRYPTION_KEY` | **yes** | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts saved credentials and admin TOTP seeds and derives the session secret. **Keep a copy; never change it** (changing it means re-entering saved credentials, signing everyone out and re-enrolling admin 2FA). |
+| `PUBLIC_ORIGIN` | **yes** | `https://webcenta.com`. Admin and developer origins default to `admin.` / `developers.` subdomains. |
+| `NODE_ENV=production` | **yes** | |
+| `SETUP_TOKEN` | first deploy only | ≥ 32 characters (`openssl rand -hex 32`). Opens `https://admin.webcenta.com/setup` while no Super Administrator exists. Remove it afterwards. |
+| `ADMIN_ORIGIN`, `DEVELOPER_ORIGIN` | no | Only for non-standard hostnames |
+| `USER_AUTH_SECRET` | no | Derived from `FIELD_ENCRYPTION_KEY` when unset. If you already set one, keep it (removing it signs users out once). |
+| `DATABASE_POOL_MAX`, `DIRECT_URL`, `DATABASE_SSL`, `DATABASE_SSL_CA` | no | Pool size; Prisma CLI URL; TLS for a remote database only |
+| `MAINTENANCE_MODE`, `MAINTENANCE_RETRY_AFTER` | no | Maintenance page without touching the database (§5a) |
+| `SCANNER_ALLOW_PRIVATE_FOR_TESTS`, `ENABLE_TEST_ERROR_ROUTES`, `ALLOW_DEV_FIXTURES` | **must be unset** | Test only |
 
-Not needed any more: `DATABASE_SSL` and `DATABASE_SSL_CA` (only for a remote database over TLS).
+**Optional fallbacks.** The older integration variables (`SMTP_*`, `EMAIL_TRANSPORT`, `EMAIL_FROM`,
+`CRON_SECRET`, `JOBS_TICK_BUDGET_MS`, `STORAGE_*`, `S3_*`, `MEDIA_PUBLIC_BASE_URL`, `GOOGLE_*`,
+`APPLE_*`, `GOOGLE_WEB_RISK_API_KEY`, `URLHAUS_AUTH_KEY`, `VIRUSTOTAL_API_KEY`, `ADMIN_IP_ALLOWLIST`,
+`GEO_*`, `TRUSTED_PROXY_HOPS`, `SITE_BANNER`) still work: each is used only while nothing has been
+saved for that field in the dashboard. A value saved in Admin → Settings always wins. `ADMIN_AUTH_SECRET`
+is no longer used and can be deleted.
+
+Hostinger replaces the whole variable list on save; values read back masked. After changing
+variables, restart or redeploy the app.
 
 ## 4. Deploy procedure (after the owner's approval)
 
@@ -96,19 +97,19 @@ Not needed any more: `DATABASE_SSL` and `DATABASE_SSL_CA` (only for a remote dat
    brand check, lint, typecheck, unit/DB tests, smoke test, restore drill, the Hostinger-style build,
    the bundle secret scan and the E2E suite on the standalone server; MySQL 8.0 job with the database
    suites).
-2. **Database** (§2), from your computer (Remote MySQL) or over SSH:
-   ```bash
-   npm ci
-   npx prisma migrate deploy
-   npm run db:seed            # taxonomy, homepage sections, monitoring policy, plans, DRAFT legal templates
-   npm run db:check           # all required checks must PASS
-   ```
-   **Never** pass `--fixtures` in production; the seed refuses without `ALLOW_DEV_FIXTURES=true`.
-3. **First Super Administrator:**
-   ```bash
-   ADMIN_ORIGIN=https://admin.webcenta.com FIELD_ENCRYPTION_KEY=… npm run admin:provision -- --email you@yourcompany.com
-   ```
-   Open the printed single-use link (valid 72 hours), set a password and enrol TOTP.
+2. **Hostinger Node.js app:** see step 4 below; set the §3 variables including `SETUP_TOKEN`, then deploy.
+3. **First-time setup** (no terminal needed): open `https://admin.webcenta.com/setup`, enter the
+   setup token, click **Create tables and base data** (applies the database migrations and the
+   base data: categories, homepage sections, monitoring policies, plans, DRAFT legal templates),
+   then **Create owner invitation** with your email. Open the single-use link (valid 72 hours),
+   set a password and enrol TOTP, sign in, and configure **Settings** (email first, then test it).
+   Remove `SETUP_TOKEN` afterwards. The page answers 404 once a Super Administrator exists.
+
+   Command-line alternative (Remote MySQL or SSH): `npx prisma migrate deploy`, `npm run db:seed`,
+   `npm run db:check`, then `npm run admin:provision -- --email you@yourcompany.com`.
+   **Never** pass `--fixtures` in production. Later upgrades that add migrations: Admin →
+   Settings → Database → **Apply pending migrations** (Super Administrators; take a backup first),
+   or `npx prisma migrate deploy`. Both use the same `_prisma_migrations` table.
 4. **Hostinger Node.js app:** hPanel → Websites → **Add website** → **Node.js Apps** → import from
    GitHub → repository `yonixnetwork/webcenta`, branch `main`. Settings:
    | Setting | Value |

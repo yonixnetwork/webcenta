@@ -1,54 +1,71 @@
-import { ActionForm } from "@/components/ui/action-form";
-import { Card, Field, inputClass } from "@/components/ui/form";
-import { StatusPill } from "@/components/portal/table";
-import { buttonClass } from "@/components/ui/button";
-import { formatDate } from "@/lib/labels";
-import { db } from "@/server/db";
+import Link from "next/link";
+import { Card } from "@/components/ui/form";
+import { SettingsStatusPill } from "@/components/portal/settings-status";
 import { requireAdmin } from "@/server/admin/auth";
-import { rankingWeights } from "@/server/analytics/ranking";
-import { broadcastAction, publishLegalPolicyAction, rankingWeightsAction, saveLegalPolicyAction } from "@/server/actions/admin";
+import { can } from "@/server/admin/permissions";
+import { GROUPS } from "@/server/settings/registry";
+import { allSections, settingsDbError } from "@/server/settings/store";
+import { startupStatus } from "@/server/settings/startup";
 
-export const metadata = { title: "Settings & legal" };
-const TYPES = ["TERMS_OF_SERVICE", "PRIVACY_POLICY", "COOKIE_POLICY", "CONTENT_POLICY", "DEVELOPER_AGREEMENT", "REVIEW_GUIDELINES"] as const;
+export const metadata = { title: "Settings" };
 
-export default async function SettingsAdmin() {
-  await requireAdmin("settings.manage");
-  const [w, policies] = await Promise.all([rankingWeights(), db.legalPolicy.findMany({ orderBy: [{ type: "asc" }, { version: "desc" }] })]);
+export default async function SettingsIndex() {
+  const admin = await requireAdmin("settings.manage");
+  const [sections, dbError] = await Promise.all([allSections(), settingsDbError()]);
+  const startup = startupStatus();
+  const isProd = process.env.NODE_ENV === "production";
   return (
     <>
-      <h1 className="text-2xl font-extrabold tracking-tight">Settings & legal</h1>
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight">Settings</h1>
+        <p className="mt-1 text-sm text-muted">Configure integrations and site behaviour without editing code. Changes take effect within seconds unless a section says otherwise. Credentials are encrypted in the database and never shown again after saving.</p>
+      </div>
+      {process.env.SETUP_TOKEN && <p role="alert" className="rounded-xl bg-warning-soft px-3 py-2 text-sm text-warning">First-time setup is finished: remove <code>SETUP_TOKEN</code> from the hosting environment (the setup page is already closed because an owner account exists).</p>}
+      {dbError && <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">Settings could not be read from the database ({dbError}). Environment values and defaults are in use.</p>}
+      {GROUPS.map((g) => (
+        <section key={g} aria-labelledby={`g-${g}`} className="space-y-3">
+          <h2 id={`g-${g}`} className="text-lg font-bold">{g}</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {sections.filter((s) => s.section.r.def.group === g).map(({ section, status }) => {
+              const d = section.r.def;
+              return (
+                <Link key={d.id} href={`/settings/${d.id}`} className="block rounded-2xl border border-border bg-surface p-4 shadow-card transition hover:border-brand">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-semibold">{d.title}</h3>
+                    {d.statusOnly ? <span className="text-xs text-subtle">Status</span> : <SettingsStatusPill status={status.status} />}
+                  </div>
+                  <p className="mt-1 text-sm text-muted">{d.description}</p>
+                  {!d.statusOnly && (status.status === "missing" || status.status === "error") && <p className="mt-2 text-xs text-subtle">{status.detail}</p>}
+                  {d.permission === "integrations.manage" && !can(admin.role, "integrations.manage") && <p className="mt-2 text-xs text-subtle">View only: Super Administrators can change this.</p>}
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+      <section className="space-y-3">
+        <h2 className="text-lg font-bold">Content</h2>
+        <Link href="/settings/content" className="block rounded-2xl border border-border bg-surface p-4 shadow-card transition hover:border-brand">
+          <h3 className="font-semibold">Ranking, announcements & legal</h3>
+          <p className="mt-1 text-sm text-muted">Organic ranking weights, announcements to users and developers, and the legal policies.</p>
+        </Link>
+      </section>
       <Card>
-        <h2 className="mb-1 font-semibold">Organic ranking weights</h2>
-        <p className="mb-3 text-sm text-muted">Only on-platform signals are used. Sponsored placements are never ranking inputs. Changes are audited with before/after values.</p>
-        <ActionForm action={rankingWeightsAction} submitLabel="Save weights" variant="secondary">
-          <div className="grid gap-2 sm:grid-cols-3">{Object.entries(w).map(([k, v]) => <Field key={k} label={k}><input name={k} type="number" step="0.1" min={0} max={100} defaultValue={v} className={inputClass} /></Field>)}</div>
-        </ActionForm>
+        <h2 className="font-semibold">Hosting environment (set in hPanel, not here)</h2>
+        <p className="mt-1 text-sm text-muted">The application needs these before it can connect to the database, so they cannot be edited from the dashboard. Change them in hPanel → Websites → Node.js → Environment variables, then restart the app. Only whether each is set is shown.</p>
+        <ul className="mt-3 divide-y divide-border text-sm">
+          {startup.map((v) => {
+            const needed = v.required === "always" || (v.required === "production" && isProd);
+            return (
+              <li key={v.name} className="flex flex-wrap items-start gap-x-3 gap-y-1 py-2">
+                <code className="w-48 shrink-0 font-semibold">{v.name}</code>
+                <span className={v.set ? "text-success" : needed ? "text-danger" : "text-subtle"}>{v.set ? "Set" : needed ? "Missing" : "Not set (optional)"}</span>
+                <span className="basis-full text-xs text-subtle sm:basis-auto sm:flex-1">{v.purpose}</span>
+              </li>
+            );
+          })}
+        </ul>
       </Card>
-      <Card>
-        <h2 className="mb-1 font-semibold">Announcement</h2>
-        <p className="mb-3 text-sm text-muted">Sends an in-app notification (no email) to all active users or to developer members.</p>
-        <ActionForm action={broadcastAction} submitLabel="Queue announcement" variant="secondary">
-          <div className="grid gap-2 sm:grid-cols-[200px_1fr]"><Field label="Audience"><select name="audience" className={inputClass}><option value="DEVELOPERS">Developers</option><option value="ALL_USERS">All users</option></select></Field><Field label="Title"><input name="title" required className={inputClass} /></Field></div>
-          <Field label="Message"><textarea name="body" rows={2} className={inputClass} /></Field>
-        </ActionForm>
-      </Card>
-      <h2 className="text-lg font-bold">Legal policies</h2>
-      <p className="text-sm text-warning">Policy texts must be reviewed by a qualified lawyer before publication. Webcenta does not claim legal compliance without that review.</p>
-      {TYPES.map((t) => {
-        const versions = policies.filter((p) => p.type === t);
-        const latest = versions[0];
-        return (
-          <Card key={t} className="space-y-3">
-            <h3 className="font-semibold">{t.replace(/_/g, " ").toLowerCase()}</h3>
-            <ul className="space-y-1 text-sm">{versions.map((v) => <li key={v.id} className="flex flex-wrap items-center gap-2">v{v.version} “{v.title}” {v.publishedAt ? <StatusPill status="PUBLISHED" /> : <StatusPill status="DRAFT" />} {formatDate(v.createdAt)}{!v.publishedAt && <form action={publishLegalPolicyAction.bind(null, v.id)}><button className={buttonClass("ghost", "sm")}>Publish</button></form>}</li>)}</ul>
-            <ActionForm action={saveLegalPolicyAction.bind(null, t)} submitLabel="Save new version" variant="secondary">
-              <Field label="Title"><input name="title" required defaultValue={latest?.title} className={inputClass} /></Field>
-              <Field label="Text (Markdown; rendered without HTML)"><textarea name="body" required rows={6} defaultValue={latest?.body} className={`${inputClass} font-mono text-xs`} /></Field>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="publish" className="size-4 accent-[var(--brand)]" />Publish immediately</label>
-            </ActionForm>
-          </Card>
-        );
-      })}
     </>
   );
 }

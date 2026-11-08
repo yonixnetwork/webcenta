@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { PROVIDER_LABEL, type SocialProvider } from "@/lib/social-providers";
 import { buttonClass } from "@/components/ui/button";
 import { Field, FormMessage, inputClass } from "@/components/ui/form";
 
@@ -29,7 +30,7 @@ export function ChangePasswordForm() {
   );
 }
 
-export function LinkedAccounts({ providers }: { providers: Array<"google" | "apple"> }) {
+export function LinkedAccounts({ providers }: { providers: SocialProvider[] }) {
   const [accounts, setAccounts] = useState<Array<{ providerId: string }>>([]);
   useEffect(() => {
     authClient.listAccounts().then((r) => setAccounts((r.data as Array<{ providerId: string }>) ?? []));
@@ -38,7 +39,7 @@ export function LinkedAccounts({ providers }: { providers: Array<"google" | "app
     <ul className="space-y-2 text-sm">
       {(["credential", ...providers] as const).map((p) => {
         const linked = accounts.some((a) => a.providerId === p);
-        const label = p === "credential" ? "Email & password" : p === "google" ? "Google" : "Apple";
+        const label = p === "credential" ? "Email & password" : PROVIDER_LABEL[p];
         return (
           <li key={p} className="flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2">
             <span>{label}</span>
@@ -48,7 +49,7 @@ export function LinkedAccounts({ providers }: { providers: Array<"google" | "app
           </li>
         );
       })}
-      {providers.length === 0 && <li className="text-xs text-subtle">Google and Apple sign-in are not configured on this server.</li>}
+      {providers.length === 0 && <li className="text-xs text-subtle">No other sign-in methods are enabled on this server.</li>}
     </ul>
   );
 }

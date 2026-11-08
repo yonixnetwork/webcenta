@@ -5,7 +5,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ key: st
   const { key } = await params;
   const storageKey = `public/${key.join("/")}`;
   if (!/^public\/[a-z0-9/_-]+\.webp$/.test(storageKey)) return new Response("Not found", { status: 404 });
-  const body = await storage().get(storageKey).catch(() => null);
+  const body = await storage().then((s) => s.get(storageKey)).catch(() => null);
   if (!body) return new Response("Not found", { status: 404 });
   return new Response(body as unknown as BodyInit, {
     headers: {

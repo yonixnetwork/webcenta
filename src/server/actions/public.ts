@@ -3,9 +3,8 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 import { db } from "@/server/db";
-import { env } from "@/lib/env";
 import { rateLimit } from "@/server/rate-limit";
-import { clientIp } from "@/server/viewer";
+import { clientIp, networkSettings } from "@/server/viewer";
 import { dailySalt, visitorHash } from "@/server/analytics/visitor";
 import { getCurrentUser } from "@/server/auth/session";
 import { notifyAdmins } from "@/server/scanner/monitor";
@@ -20,7 +19,7 @@ export async function contactAction(_s: ActionState, f: FormData): Promise<Actio
     .safeParse({ email: user?.email ?? f.get("email"), subject: f.get("subject"), body: f.get("body") });
   if (!parsed.success) return { ok: false, message: "Please provide a valid email, a subject and a message of at least 10 characters." };
   const h = await headers();
-  const who = visitorHash(await dailySalt(), clientIp(h, env().TRUSTED_PROXY_HOPS), h.get("user-agent"), "contact");
+  const who = visitorHash(await dailySalt(), clientIp(h, (await networkSettings()).trustedProxyHops), h.get("user-agent"), "contact");
   if (!(await rateLimit(`contact:${who}`, 5, 3600))) return { ok: false, message: "Too many messages. Please try again later." };
   await db.supportCase.create({ data: { userId: user?.id ?? null, contactEmail: parsed.data.email.toLowerCase(), subject: parsed.data.subject, messages: { create: { body: parsed.data.body } } } });
   return { ok: true, message: "Thanks! Your message was received. We usually reply within a few working days." };

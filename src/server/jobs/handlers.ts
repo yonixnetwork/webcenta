@@ -6,6 +6,7 @@ import { processSubmission } from "@/server/listings/workflow";
 import { rollupDay } from "@/server/analytics/stats";
 import { recomputeScores } from "@/server/analytics/ranking";
 import { reconcileSearchDocuments } from "@/server/search/document";
+import { pingIndexNow } from "@/server/settings/site";
 
 export type JobHandler = (payload: unknown) => Promise<void>;
 
@@ -34,6 +35,11 @@ export const handlers: Record<string, JobHandler> = {
 
 Object.assign(handlers, {
   "email.deliver": async () => { await deliverPending(25); },
+  /** Tells IndexNow search engines about new or changed listing pages. */
+  "indexnow.ping": async (payload: unknown) => {
+    const r = await pingIndexNow((payload as { paths?: string[] }).paths ?? []);
+    if (!r.ok && r.status !== null) throw new Error(`IndexNow answered ${r.status}`);
+  },
   "stats.rollup": async () => {
     await rollupDay(new Date());
     await rollupDay(new Date(Date.now() - 86_400_000));

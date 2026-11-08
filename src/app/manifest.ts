@@ -1,18 +1,23 @@
 import type { MetadataRoute } from "next";
+import { connection } from "next/server";
+import { getSection } from "@/server/settings/store";
 
-export default function manifest(): MetadataRoute.Manifest {
+/** Web app manifest from Admin → Settings → PWA & app. */
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  await connection();
+  const c = await getSection("pwa");
   return {
     id: "/",
-    name: "Webcenta — Web app discovery",
-    short_name: "Webcenta",
-    description: "Discover, compare and safely visit web apps, AI tools and online services.",
+    name: c.str("appName"),
+    short_name: c.str("shortName"),
+    description: c.str("description"),
     start_url: "/?source=pwa",
     scope: "/",
     display: "standalone",
     display_override: ["window-controls-overlay", "standalone", "minimal-ui"],
     orientation: "any",
-    background_color: "#f7f7fb",
-    theme_color: "#4f46e5",
+    background_color: c.str("backgroundColor"),
+    theme_color: c.str("themeColor"),
     categories: ["productivity", "utilities", "business"],
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

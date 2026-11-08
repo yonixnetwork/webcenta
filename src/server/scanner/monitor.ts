@@ -5,17 +5,27 @@ import { notifyOrg } from "@/server/community/notifications";
 import { sendEmail } from "@/server/email/send";
 import { actionEmail } from "@/server/email/templates";
 import { maxSeverity, scanListing, type CheckOutcome } from "./scan";
+import { adminOrigin } from "@/lib/hosts";
+import { getSection } from "@/server/settings/store";
 
 const SEV: AlertSeverity[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 const STATUS_ORDER: SecurityStatus[] = ["NOT_SCANNED", "PASSED", "WARNING", "UNDER_INVESTIGATION", "RESTRICTED"];
 export const maxStatus = (a: SecurityStatus, b: SecurityStatus): SecurityStatus => (STATUS_ORDER.indexOf(a) >= STATUS_ORDER.indexOf(b) ? a : b);
 const atLeast = (s: AlertSeverity, min: AlertSeverity) => SEV.indexOf(s) >= SEV.indexOf(min);
 
+/**
+ * Emails an administrator alert to the recipients set in Admin → Settings →
+ * Notifications (default: every active Super Admin, Admin and Moderator).
+ */
 export async function notifyAdmins(subject: string, intro: string, path: string) {
-  const admins = await db.adminUser.findMany({ where: { status: "ACTIVE", role: { in: ["SUPER_ADMIN", "ADMIN", "MODERATOR"] } }, select: { email: true } });
-  const origin = process.env.ADMIN_ORIGIN || "http://admin.localhost:3000";
-  const m = actionEmail({ title: subject, intro, actionLabel: "Open admin portal", url: `${origin}${path}` });
-  for (const a of admins) await sendEmail({ to: a.email, subject: `[Webcenta Admin] ${subject}`, template: "admin-alert", ...m });
+  const c = await getSection("notifications");
+  if (!c.bool("emailAdminAlerts")) return;
+  const configured = c.str("adminAlertEmails").split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
+  const recipients = configured.length
+    ? [...new Set(configured)]
+    : (await db.adminUser.findMany({ where: { status: "ACTIVE", role: { in: ["SUPER_ADMIN", "ADMIN", "MODERATOR"] } }, select: { email: true } })).map((a) => a.email);
+  const m = actionEmail({ title: subject, intro, actionLabel: "Open admin portal", url: `${adminOrigin()}${path}` });
+  for (const to of recipients) await sendEmail({ to, subject: `[Webcenta Admin] ${subject}`, template: "admin-alert", ...m });
 }
 
 export async function nextScanDate(riskTier: "LOW" | "MEDIUM" | "HIGH" | "PROHIBITED", from = new Date()) {

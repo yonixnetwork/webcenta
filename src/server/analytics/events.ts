@@ -1,7 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
 import { db } from "@/server/db";
-import { clientIp, normalizeCountry } from "@/server/viewer";
+import { clientIp, normalizeCountry, networkSettings } from "@/server/viewer";
 import { dailySalt, deviceFromUserAgent, visitorHash } from "./visitor";
 
 /** Repeat views/clicks by the same visitor within this window are not counted again. */
@@ -25,12 +25,12 @@ export function referrerHost(h: Headers): string | null {
  * Returns true when a new event was stored.
  */
 export async function recordListingEvent(listingId: string, type: "VIEW" | "OUTBOUND_CLICK", h: Headers, opts: { surface?: string; referrer?: string | null } = {}): Promise<boolean> {
-  const e = env();
+  const e = await networkSettings();
   const ua = h.get("user-agent");
   const device = deviceFromUserAgent(ua);
   if (device === "BOT") return false;
-  const hash = visitorHash(await dailySalt(), clientIp(h, e.TRUSTED_PROXY_HOPS), ua, listingId);
-  const country = normalizeCountry(h.get(e.GEO_COUNTRY_HEADER));
+  const hash = visitorHash(await dailySalt(), clientIp(h, e.trustedProxyHops), ua, listingId);
+  const country = normalizeCountry(h.get(e.geoCountryHeader));
   const n = await db.$executeRaw`
     INSERT INTO ListingEvent (listingId, type, visitorHash, countryCode, device, referrerHost, surface, occurredAt)
     SELECT ${listingId}, ${type}, ${hash}, ${country}, ${device}, ${opts.referrer ?? null}, ${opts.surface ?? null}, UTC_TIMESTAMP(3)
@@ -45,13 +45,13 @@ export async function recordListingEvent(listingId: string, type: "VIEW" | "OUTB
 /** One search impression per listing per visitor per day. */
 export async function recordSearchImpressions(listingIds: string[], h: Headers): Promise<number> {
   if (listingIds.length === 0) return 0;
-  const e = env();
+  const e = await networkSettings();
   const ua = h.get("user-agent");
   const device = deviceFromUserAgent(ua);
   if (device === "BOT") return 0;
   const salt = await dailySalt();
-  const ip = clientIp(h, e.TRUSTED_PROXY_HOPS);
-  const country = normalizeCountry(h.get(e.GEO_COUNTRY_HEADER));
+  const ip = clientIp(h, e.trustedProxyHops);
+  const country = normalizeCountry(h.get(e.geoCountryHeader));
   const rows = listingIds.slice(0, 50).map((id) => Prisma.sql`SELECT ${id} AS id, ${visitorHash(salt, ip, ua, id)} AS hash`);
   return db.$executeRaw`
     INSERT INTO ListingEvent (listingId, type, visitorHash, countryCode, device, surface, occurredAt)

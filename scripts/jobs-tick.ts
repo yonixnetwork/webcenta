@@ -2,8 +2,10 @@
 import "dotenv/config";
 import { runTick } from "../src/server/jobs/runner";
 import { db } from "../src/server/db";
+import { getSection } from "../src/server/settings/store";
 
-runTick(Number(process.env.JOBS_TICK_BUDGET_MS ?? 25_000))
+getSection("jobs")
+  .then((c) => runTick(c.num("tickBudgetMs") || 25_000))
   .then((r) => console.log(JSON.stringify(r)))
   .catch((e) => {
     console.error(e);
