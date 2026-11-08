@@ -33,7 +33,7 @@ export default async function SettingsAdmin() {
         </ActionForm>
       </Card>
       <h2 className="text-lg font-bold">Legal policies</h2>
-      <p className="text-sm text-warning">Policy texts must be reviewed by a qualified lawyer before publication. WebCenter does not claim legal compliance without that review.</p>
+      <p className="text-sm text-warning">Policy texts must be reviewed by a qualified lawyer before publication. Webcenta does not claim legal compliance without that review.</p>
       {TYPES.map((t) => {
         const versions = policies.filter((p) => p.type === t);
         const latest = versions[0];

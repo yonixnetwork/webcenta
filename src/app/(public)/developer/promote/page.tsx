@@ -3,13 +3,13 @@ import { Card, Field, inputClass } from "@/components/ui/form";
 import { DataTable, StatusPill, td } from "@/components/portal/table";
 import { formatDate } from "@/lib/labels";
 import { db } from "@/server/db";
-import { requireDev } from "@/server/developer/context";
+import { requireDevPage } from "@/server/developer/context";
 import { sponsorshipRequestAction } from "@/server/actions/developer";
 
 export const metadata = { title: "Plans & promotion" };
 
 export default async function PromotePage() {
-  const ctx = await requireDev("ANALYST", "/developer/promote");
+  const ctx = await requireDevPage("ANALYST", "/developer/promote");
   const [plans, subs, requests, listings] = await Promise.all([
     db.developerPlan.findMany({ orderBy: { createdAt: "asc" } }),
     db.developerSubscription.findMany({ where: { orgId: ctx.org.id }, include: { plan: true } }),
@@ -21,7 +21,7 @@ export default async function PromotePage() {
       <h1 className="text-2xl font-extrabold tracking-tight">Plans & promotion</h1>
       <Card>
         <h2 className="mb-1 font-semibold">Your plan: {subs[0]?.plan.name ?? "Free"}</h2>
-        <p className="text-sm text-muted">Listing on WebCenter is free. Paid plans are not available yet: pricing and billing have not been launched.</p>
+        <p className="text-sm text-muted">Listing on Webcenta is free. Paid plans are not available yet: pricing and billing have not been launched.</p>
         {plans.length > 0 && <ul className="mt-3 grid gap-3 sm:grid-cols-3">{plans.map((p) => (
           <li key={p.id} className="rounded-xl border border-border p-3 text-sm"><strong>{p.name}</strong><p className="text-muted">{p.isActive && p.priceCents != null ? `${(p.priceCents / 100).toFixed(2)} ${p.currency}` : "Not available yet"}</p></li>
         ))}</ul>}

@@ -1,4 +1,4 @@
-# WebCenter — Architecture
+# Webcenta — Architecture
 
 Status: **Phase 1 implemented** (marketplace foundation). This document describes the target architecture. Only items marked
 ✅ in [ROADMAP.md](ROADMAP.md) are implemented.
@@ -16,16 +16,16 @@ Status: **Phase 1 implemented** (marketplace foundation). This document describe
 
 ```
                     ┌──────────────────────────── one Next.js deployment ───────────────────────────┐
- webcenter.com ───► │  proxy.ts (host routing, security headers, rate limits, geo/age context)    │
- admin.…       ───► │   ├─ app/(public)      marketplace pages (SSR/ISR)                            │
- developers.…  ───► │   ├─ app/(developer)   developer portal                                        │
- api.…         ───► │   ├─ app/(admin)       admin portal  (separate auth, MFA, host-only cookie)   │
+ webcenta.com ───► │  proxy.ts (host routing, CSP nonce, maintenance 503, x-pathname)             │
+ admin.…       ───► │   ├─ app/(public)      marketplace + /developer portal (SSR)                   │
+ developers.…  ───► │   │                    (developers.… redirects to webcenta.com/developer)     │
+ api.…         ───► │   ├─ app/admin-host    admin portal  (separate auth, MFA, host-only cookie)   │
                     │   └─ app/api/*         JSON API (public read API, webhooks, cron endpoint)    │
                     │                                                                                │
                     │  src/server/<module>   domain services — the only code that touches the DB    │
                     └───────┬───────────────────────┬───────────────────────┬────────────────────────┘
                             │                       │                       │
-                     PostgreSQL               Object storage          External services
+                    MySQL / MariaDB         Files (disk or S3)       External services
                 (data, FTS, job queue)     (local disk → S3/R2)   (email, OAuth, threat intel)
                             ▲
                             │  Hostinger Cron → POST /api/cron/tick (bearer secret, every ~10 min)
@@ -42,11 +42,11 @@ Hostinger Business runs a single Node.js app, so all four hostnames start out se
 
 | Host | Route group | Notes |
 | --- | --- | --- |
-| `webcenter.com` | `(public)` | Canonical public site. |
-| `www.webcenter.com` | — | Permanent 308 redirect to `https://webcenter.com`. |
-| `admin.webcenter.com` | `app/admin-host` (internal rewrite) | Only reachable on this host; requesting `/admin-host/…` directly on any host returns 404. Separate cookie, separate user table, MFA. `noindex`. |
-| `developers.webcenter.com` | `app/developer-host` (internal rewrite) | Uses the public user account (developers are users who belong to a developer organisation). |
-| `api.webcenter.com` | `app/api` | Optional. Same handlers are also reachable at `webcenter.com/api` at first; split later if a mobile client or third parties need it. |
+| `webcenta.com` | `(public)` | Canonical public site. |
+| `www.webcenta.com` | — | Permanent 308 redirect to `https://webcenta.com`. |
+| `admin.webcenta.com` | `app/admin-host` (internal rewrite) | Only reachable on this host; requesting `/admin-host/…` directly on any host returns 404. Separate cookie, separate user table, MFA. `noindex`. |
+| `developers.webcenta.com` | — | Permanent 308 redirect to `https://webcenta.com/developer` (the portal shares the public user session). |
+| `api.webcenta.com` | `app/api` | Optional. Serves `/api/*` only and redirects other paths to `webcenta.com`. The site calls `webcenta.com/api`; split later if a mobile client or third parties need it. |
 
 Isolation does **not** rely on hidden links. Admin authorisation is enforced on every admin route
 and server action, on the server. When traffic or risk justifies it, `(admin)` can become a second
@@ -62,13 +62,13 @@ Each choice has an ADR in [`docs/adr`](adr/).
 | Language | TypeScript (strict) | One language front to back; strong typing for a large schema. | — |
 | Web framework | **Next.js 16 (App Router), React** | SSR/ISR for SEO, server actions, route groups for the subdomains, first-class Hostinger support. | Runs unchanged on any Node host, VPS or container. |
 | UI | Tailwind CSS + Radix UI primitives (shadcn/ui pattern) + Lucide icons | Accessible primitives, consistent design tokens, dark/light themes. | — |
-| Database | **PostgreSQL 15+ on Supabase** (used as plain Postgres) | Relational integrity, full-text search (`tsvector`), trigram similarity (`pg_trgm`), JSONB, `SKIP LOCKED` job queue. See ADR-0002 and ADR-0007. | Supabase → self-hosted or other managed Postgres via `pg_dump`/`pg_restore`. |
-| ORM / migrations | **Prisma 7** (driver adapter `@prisma/adapter-pg`) | Typed client, migration history, readable multi-file schema. Raw SQL for FTS indexes and CHECK constraints. | — |
-| Search | Postgres FTS + `pg_trgm` behind a `SearchProvider` interface | No extra service on shared hosting; good enough for tens of thousands of listings. | Meilisearch/Typesense/OpenSearch adapter on a VPS, fed by the job queue. |
+| Database | **MySQL / MariaDB** — Hostinger MySQL (MariaDB ≥ 10.6) on the same account; MySQL ≥ 8.0 also supported | Included with Hostinger Business, no external service. InnoDB, FULLTEXT, JSON, CHECK constraints, `SKIP LOCKED` job queue. See ADR-0008. | Same engine on a VPS or DigitalOcean (managed MySQL with TLS) via `scripts/backup.sh` / restore. |
+| ORM / migrations | **Prisma 7** (driver adapter `@prisma/adapter-mariadb`) | Typed client, migration history, readable multi-file schema. Hand-written SQL only for collations and CHECKs; no triggers or routines. | — |
+| Search | InnoDB FULLTEXT on an app-maintained search document + trigram tokens for typo tolerance, behind the search module's small interface | No extra service on shared hosting; good enough for tens of thousands of listings. | Meilisearch/Typesense/OpenSearch adapter on a VPS, fed by the job queue. |
 | Auth (public users and developers) | **Better Auth** | Email+password, verification, reset, Google, Apple, rate limiting, 2FA plugin; Prisma adapter; self-hosted, no per-user cost. | — |
 | Auth (admins) | Separate, minimal custom session layer + TOTP (`AdminUser`, `AdminSession`) | Admin identity must not share tables, cookies or sign-up flows with public users. | WebAuthn/passkeys; SSO later. |
 | Validation | zod | One schema for forms, API and server actions. | — |
-| File storage | `StorageDriver` interface: local disk (dev) / **S3-compatible** (Cloudflare R2, Backblaze B2, AWS S3) | Shared hosting disk is not a durable CDN; R2 has no egress fees. | Change the driver configuration only. |
+| File storage | `StorageDriver` interface: **local disk** (Hostinger: an absolute folder outside the app directory, served at `/media`) / S3-compatible (R2, B2, S3), optional | No paid service needed to start; production refuses a storage folder that redeploys would wipe. | Change the driver configuration only. |
 | Images | Upload → validate (magic bytes, size, dimensions) → re-encode with `sharp` → store. Served via `next/image`. | Strips metadata and payloads embedded in images. | CDN in front of the bucket. |
 | Background jobs | DB-backed queue (`Job` table), ticked by Hostinger Cron via `POST /api/cron/tick` | No Redis or permanent worker needed. | Same runner as a long-lived process (systemd/pm2) on a VPS; BullMQ only if needed. |
 | Scheduled scanning | Job types `scan.listing` and `monitor.enqueue`; the scanner module uses SSRF-safe fetch | Works under cron; time-boxed. | Move the scanner to an **isolated host or container** with egress-only networking (recommended before high volume). |
@@ -77,8 +77,9 @@ Each choice has an ADR in [`docs/adr`](adr/).
 | Rate limiting | `RateLimitBucket` table (fixed window) + Better Auth's built-in limiter | Works on a single instance without Redis. | Redis-backed limiter. |
 | Email | SMTP via Nodemailer (Hostinger mailbox at first) behind an `EmailSender` interface | Zero extra cost to start. | Postmark, SES or Resend for deliverability. |
 | Error monitoring | Sentry (optional, free tier), structured JSON logs (pino) | Optional DSN; the app runs without it. | — |
-| Testing | Vitest (unit/integration against real Postgres), Playwright (E2E, PWA, mobile viewports) | Real database in tests, no mocks for SQL. | — |
-| CI | GitHub Actions: typecheck, lint, schema validate, DB smoke/integration tests with a Postgres service | Repository is the source of truth. | — |
+| Testing | Vitest (unit/integration against real MariaDB and MySQL), Playwright (E2E, PWA, mobile viewports) against the standalone server | Real database in tests, no mocks for SQL. | — |
+| CI | GitHub Actions: MariaDB 10.11 job (full pipeline incl. Hostinger-style build and E2E) and MySQL 8.0 job (database suites) | Repository is the source of truth. | — |
+| Build & runtime | `next build --webpack`, `output: "standalone"` | What Hostinger's Node.js hosting builds and runs for Next.js. | Same server under systemd/pm2 on a VPS. |
 
 ## 4. Source layout (target)
 
@@ -135,7 +136,7 @@ PUBLISHED ──(monitoring alert ≥ threshold)──► SUSPENDED (auto-restri
 2. The handler looks up the listing. If it is not `PUBLISHED`, or its security status is
    `RESTRICTED`, it shows a notice instead of redirecting.
 3. It records an `OUTBOUND_CLICK` `ListingEvent` (privacy-preserving visitor hash) and shows an
-   interstitial: "You are leaving WebCenter for example.com". The user continues with a click; an
+   interstitial: "You are leaving Webcenta for example.com". The user continues with a click; an
    optional auto-continue is allowed only for low-risk listings.
 4. The external link uses `rel="noopener noreferrer nofollow"` (sponsored links also get
    `rel="sponsored"`).

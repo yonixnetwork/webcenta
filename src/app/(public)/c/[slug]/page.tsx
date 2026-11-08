@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!cat) return { title: "Category not found", robots: { index: false } };
   return {
     title: `${cat.name} — web apps and websites`,
-    description: cat.seoDescription ?? cat.description ?? `Discover and compare ${cat.name.toLowerCase()} web apps on WebCenter.`,
+    description: cat.seoDescription ?? cat.description ?? `Discover and compare ${cat.name.toLowerCase()} web apps on Webcenta.`,
     alternates: { canonical: `/c/${cat.slug}` },
   };
 }
@@ -40,7 +40,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         {cat.parent && (<><ChevronRight className="size-4" aria-hidden /><Link href={`/c/${cat.parent.slug}`} className="hover:text-text">{cat.parent.name}</Link></>)}
       </nav>
       <header className="flex items-start gap-4">
-        <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand"><CategoryIcon icon={cat.icon} className="size-7" /></span>
+        <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand"><CategoryIcon icon={cat.icon} emoji={cat.emoji} preferEmoji className="grid size-7 place-items-center text-3xl" /></span>
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">{cat.name}</h1>
           {cat.description && <p className="mt-1 max-w-2xl text-muted">{cat.description}</p>}

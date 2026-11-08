@@ -52,7 +52,7 @@ export function isBlockedHostname(host: string): boolean {
 /**
  * Test-mode escape hatch: allows loopback for "*.localhost" fixture sites, but
  * ONLY when the app itself runs on a localhost origin. It can never activate on a
- * real deployment (PUBLIC_ORIGIN is https://webcenter.com there).
+ * real deployment (PUBLIC_ORIGIN is https://webcenta.com there).
  */
 export function testModeAllowsLoopback(): boolean {
   if (process.env.SCANNER_ALLOW_PRIVATE_FOR_TESTS !== "true") return false;

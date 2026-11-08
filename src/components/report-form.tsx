@@ -41,7 +41,7 @@ export function ReportForm({ action, reasons }: {
       {/* Honeypot: hidden from people, often filled by bots. */}
       <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden className="hidden" />
       {state.message && <p role="alert" className="text-sm text-danger">{state.message}</p>}
-      <p className="text-xs text-subtle">Reports are reviewed by the WebCenter team. Do not include personal information.</p>
+      <p className="text-xs text-subtle">Reports are reviewed by the Webcenta team. Do not include personal information.</p>
       <div className="flex gap-2">
         <button type="submit" disabled={pending} className={buttonClass("primary", "sm")}>{pending ? "Sending…" : "Send report"}</button>
         <button type="button" onClick={() => setOpen(false)} className={buttonClass("ghost", "sm")}>Cancel</button>

@@ -46,7 +46,7 @@ export async function getHomepage(ctx: ViewerContext): Promise<{ rails: HomeRail
         break;
       }
       case "EDITORS_PICKS":
-        rails.push({ key: s.key, title: s.title, subtitle: "Chosen by the WebCenter editorial team", sponsoredIds: [],
+        rails.push({ key: s.key, title: s.title, subtitle: "Chosen by the Webcenta editorial team", sponsoredIds: [],
           items: await listCards(ctx, { where: { isEditorsPick: true }, orderBy: [{ publishedAt: "desc" }], take }) });
         break;
       case "NEW":
@@ -56,9 +56,9 @@ export async function getHomepage(ctx: ViewerContext): Promise<{ rails: HomeRail
       case "RECENTLY_UPDATED": {
         // Only listings whose content changed after publication.
         const rows = await db.$queryRaw<Array<{ id: string }>>`
-          SELECT id FROM "Listing" WHERE status = 'PUBLISHED' AND "deletedAt" IS NULL
-            AND "contentUpdatedAt" > "publishedAt" + interval '1 day'
-          ORDER BY "contentUpdatedAt" DESC LIMIT ${take * 2}`;
+          SELECT id FROM Listing WHERE status = 'PUBLISHED' AND deletedAt IS NULL
+            AND contentUpdatedAt > publishedAt + INTERVAL 1 DAY
+          ORDER BY contentUpdatedAt DESC LIMIT ${take * 2}`;
         rails.push({ key: s.key, title: s.title, href: "/search?sort=updated", sponsoredIds: [],
           items: (await cardsByIds(ctx, rows.map((r) => r.id))).slice(0, take) });
         break;

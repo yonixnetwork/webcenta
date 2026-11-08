@@ -1,4 +1,5 @@
 import { resolveNs } from "node:dns/promises";
+import { stringArray } from "@/lib/json-arrays";
 import type { Prisma } from "@/generated/prisma/client";
 import type { AlertSeverity, CheckType, ScanTrigger } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
@@ -6,7 +7,6 @@ import { analyzeHtml } from "./html";
 import { blocklistCheck, externalProvidersConfigured, googleWebRisk, urlhaus, virusTotal, type Verdict } from "./providers";
 import { safeFetch, type SafeResponse } from "./safe-fetch";
 import { brandLabel, levenshtein, PROTECTED_BRANDS, registrableDomain, skeleton } from "./domains";
-import { isBlockedIp } from "./net";
 
 export interface CheckOutcome { check: CheckType; provider: string; verdict: Verdict; summary: string; evidence?: Record<string, unknown>; severity?: AlertSeverity }
 
@@ -64,7 +64,7 @@ export async function runChecks(target: { url: string; domain: string; privacyPo
   const hostsToCheck = [...new Set([target.domain, ...hopHosts])];
   const intel = await Promise.all([blocklistCheck(hostsToCheck), googleWebRisk(res.finalUrl || target.url), urlhaus(target.url), virusTotal(target.url)]);
   for (const r of intel) {
-    checks.push({ check: r.provider === "webcenter-blocklist" ? "THREAT_INTEL_DOMAIN" : "THREAT_INTEL_URL", provider: r.provider, verdict: r.verdict, summary: r.summary, evidence: r.evidence, severity: r.verdict === "FAIL" ? "CRITICAL" : r.verdict === "WARN" ? "HIGH" : undefined });
+    checks.push({ check: r.provider === "webcenta-blocklist" ? "THREAT_INTEL_DOMAIN" : "THREAT_INTEL_URL", provider: r.provider, verdict: r.verdict, summary: r.summary, evidence: r.evidence, severity: r.verdict === "FAIL" ? "CRITICAL" : r.verdict === "WARN" ? "HIGH" : undefined });
   }
 
   // Phishing heuristics
@@ -154,7 +154,7 @@ export async function scanListing(listingId: string, trigger: ScanTrigger, opts:
   const otherDomains = (await db.listing.findMany({ where: { status: "PUBLISHED", id: { not: listingId } }, select: { domain: true }, take: 5000 })).map((l) => l.domain);
   const scan = await db.securityScan.create({ data: { listingId, revisionId: opts.revisionId ?? null, trigger, status: "RUNNING", targetUrl: target.url, startedAt: new Date(), requestedByAdminId: opts.adminId ?? null } });
   try {
-    const { res, page, checks, nameservers } = await runChecks({ ...target, orgId: listing.developerId, previous: prevScan, otherDomains });
+    const { res, page, checks, nameservers } = await runChecks({ ...target, orgId: listing.developerId, previous: prevScan ? { ...prevScan, nameservers: stringArray(prevScan.nameservers) } : null, otherDomains });
     const overall = worst(checks.map((c) => c.verdict));
     const completed = await db.securityScan.update({
       where: { id: scan.id },

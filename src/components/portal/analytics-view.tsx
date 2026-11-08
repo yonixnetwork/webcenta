@@ -29,7 +29,7 @@ export function AnalyticsView({ title, stats, days, basePath }: { title: string;
         <div className="rounded-2xl border border-border bg-surface p-4"><BarList title="Referral sources" rows={stats.referrers.map((c) => ({ key: c.key, value: c.views, secondary: c.outboundClicks }))} /></div>
       </div>
       <p className="text-xs text-muted">
-        Outbound clicks count visitors who chose “Visit website” on WebCenter. WebCenter cannot see what happens on your website,
+        Outbound clicks count visitors who chose “Visit website” on Webcenta. Webcenta cannot see what happens on your website,
         so registrations, purchases and other conversions are not measured. Figures are updated about every 15 minutes, exclude
         detected bots, count repeat visits within 30 minutes once, and group countries/devices with fewer than 5 visits to protect privacy.
       </p>

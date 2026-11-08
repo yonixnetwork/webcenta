@@ -11,7 +11,7 @@ export default async function AdminLogin({ searchParams }: { searchParams: Promi
   if (await getAdmin()) redirect("/");
   const { invited } = await searchParams;
   return (
-    <AdminAuthShell title="Sign in" subtitle="Administrator accounts are separate from WebCenter user accounts.">
+    <AdminAuthShell title="Sign in" subtitle="Administrator accounts are separate from Webcenta user accounts.">
       {invited && <div className="mb-4"><FormMessage tone="success">Your administrator account is ready. Sign in to continue.</FormMessage></div>}
       <ActionForm action={adminLoginAction} submitLabel="Continue" pendingLabel="Checking…">
         <Field label="Email"><input name="email" type="email" required autoComplete="username" className={inputClass} /></Field>

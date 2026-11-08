@@ -30,7 +30,7 @@ function key(): Buffer {
   const k = env().FIELD_ENCRYPTION_KEY;
   if (!k) {
     if (env().NODE_ENV === "production") throw new Error("FIELD_ENCRYPTION_KEY is required in production");
-    return createHash("sha256").update("webcenter-development-only-key").digest();
+    return createHash("sha256").update("webcenta-development-only-key").digest();
   }
   const raw = Buffer.from(k, "base64");
   return raw.length === 32 ? raw : createHash("sha256").update(k).digest();
@@ -101,5 +101,5 @@ export function verifyTotp(secret: string, code: string, now = Date.now()): numb
 }
 
 export function otpauthUri(secret: string, email: string): string {
-  return `otpauth://totp/${encodeURIComponent(`WebCenter Admin:${email}`)}?secret=${secret}&issuer=${encodeURIComponent("WebCenter Admin")}&algorithm=SHA1&digits=6&period=30`;
+  return `otpauth://totp/${encodeURIComponent(`Webcenta Admin:${email}`)}?secret=${secret}&issuer=${encodeURIComponent("Webcenta Admin")}&algorithm=SHA1&digits=6&period=30`;
 }

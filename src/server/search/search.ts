@@ -3,10 +3,12 @@ import { db } from "@/server/db";
 import type { ViewerContext } from "@/server/viewer";
 import { cardSelect, MIN_RATINGS_FOR_DISPLAY, type ListingCard } from "@/server/catalog/listings";
 import { publicListingWhere } from "@/server/catalog/visibility";
-import { cleanText, escapeLike, normalizeQueryForStats, prefixTsQuery, type SearchFilters } from "@/lib/search-params";
+import { cleanText, escapeLike, mysqlSearchTerms, normalizeQueryForStats, wordPattern, type SearchFilters } from "@/lib/search-params";
+import { similarity, trigramTokens } from "@/lib/trigrams";
 
 /**
- * Search provider (Postgres FTS + pg_trgm). The interface is deliberately small
+ * Search provider (MySQL/MariaDB FULLTEXT + trigram typo tolerance; see
+ * src/server/search/document.ts). The interface is deliberately small
  * so it can be swapped for Meilisearch/Typesense on a VPS without touching pages.
  */
 export const PAGE_SIZE = 24;
@@ -28,8 +30,9 @@ export function filtersWhere(f: SearchFilters, now = new Date()): Prisma.Listing
     and.push({ categories: { some: { category: { OR: [{ slug: f.category }, { parent: { slug: f.category } }] } } } });
   }
   if (f.pricing.length) and.push({ pricingModel: { in: f.pricing } });
-  if (f.platform) and.push({ platforms: { has: f.platform } });
-  if (f.country) and.push({ OR: [{ supportedCountries: { has: f.country } }, { supportedCountries: { isEmpty: true } }] });
+  // JSON arrays (MySQL has no array columns): JSON_CONTAINS via Prisma's array_contains.
+  if (f.platform) and.push({ platforms: { array_contains: [f.platform] } });
+  if (f.country) and.push({ OR: [{ supportedCountries: { array_contains: [f.country] } }, { supportedCountries: { equals: [] } }] });
   if (f.openSource) and.push({ isOpenSource: true });
   if (f.browserBased) and.push({ isBrowserBased: true });
   if (f.mobileFriendly) and.push({ isMobileFriendly: true });
@@ -54,39 +57,59 @@ function orderFor(sort: SearchFilters["sort"]): Prisma.ListingOrderByWithRelatio
   }
 }
 
-/** Text-match candidates with a relevance score. Visibility is applied afterwards. */
+/** Names count as typo matches above this trigram similarity (pg_trgm's default threshold). */
+const FUZZY_THRESHOLD = 0.3;
+
+/**
+ * Text-match candidates with a relevance score. Visibility is applied afterwards.
+ * Matches: FULLTEXT on the search document (every word, as a prefix), short words
+ * (1–2 characters) as whole words, name/publisher substrings, tag and category
+ * names, and typo-tolerant name matches (trigram similarity > 0.3).
+ */
 export async function textCandidates(rawQ: string, limit = MAX_TEXT_CANDIDATES): Promise<Array<{ id: string; rank: number }>> {
   const q = cleanText(rawQ);
   if (!q) return [];
-  const tsq = prefixTsQuery(q);
+  const { boolean, shortWords } = mysqlSearchTerms(q);
   const like = `%${escapeLike(q)}%`;
   const prefix = `${escapeLike(q)}%`;
-  const tsMatch = tsq ? Prisma.sql`l."searchVector" @@ to_tsquery('simple', ${tsq})` : Prisma.sql`FALSE`;
-  const tsRank = tsq ? Prisma.sql`ts_rank_cd(l."searchVector", to_tsquery('simple', ${tsq}))` : Prisma.sql`0`;
-  const rows = await db.$queryRaw<Array<{ id: string; rank: number }>>`
-    SELECT l.id,
-      (${tsRank} * 4
-        + extensions.similarity(l.name, ${q}) * 3
-        + CASE WHEN lower(l.name) = lower(${q}) THEN 6 WHEN l.name ILIKE ${prefix} THEN 2 ELSE 0 END
-        + CASE WHEN EXISTS (SELECT 1 FROM "ListingTag" lt JOIN "Tag" t ON t.id = lt."tagId"
-                             WHERE lt."listingId" = l.id AND t.name ILIKE ${like}) THEN 1 ELSE 0 END
-        + CASE WHEN EXISTS (SELECT 1 FROM "ListingCategory" lc JOIN "Category" c ON c.id = lc."categoryId"
-                             WHERE lc."listingId" = l.id AND c.name ILIKE ${like}) THEN 1 ELSE 0 END
-      )::float8 AS rank
-    FROM "Listing" l
-    WHERE l.status = 'PUBLISHED' AND l."deletedAt" IS NULL AND (
-      ${tsMatch}
-      OR l.name ILIKE ${like}
-      OR l."publisherName" ILIKE ${like}
-      OR extensions.similarity(l.name, ${q}) > 0.3
-      OR EXISTS (SELECT 1 FROM "ListingTag" lt JOIN "Tag" t ON t.id = lt."tagId"
-                 WHERE lt."listingId" = l.id AND t.name ILIKE ${like})
-      OR EXISTS (SELECT 1 FROM "ListingCategory" lc JOIN "Category" c ON c.id = lc."categoryId"
-                 WHERE lc."listingId" = l.id AND c.name ILIKE ${like})
+  const trigrams = trigramTokens(q, 60);
+
+  // Word match: all long words via FULLTEXT, all short words via whole-word REGEXP.
+  const parts: Prisma.Sql[] = [];
+  if (boolean) parts.push(Prisma.sql`MATCH(l.searchText) AGAINST (${boolean} IN BOOLEAN MODE)`);
+  for (const w of shortWords) parts.push(Prisma.sql`l.searchText REGEXP ${wordPattern(w)}`);
+  const wordMatch = parts.length ? Prisma.join(parts, " AND ") : Prisma.sql`FALSE`;
+  const ftScore = boolean ? Prisma.sql`MATCH(l.searchText) AGAINST (${boolean} IN BOOLEAN MODE)` : Prisma.sql`0`;
+  const nameScore = boolean ? Prisma.sql`MATCH(l.name) AGAINST (${boolean} IN BOOLEAN MODE)` : Prisma.sql`0`;
+  const fuzzy = trigrams ? Prisma.sql`MATCH(l.searchTrigrams) AGAINST (${trigrams} IN NATURAL LANGUAGE MODE)` : Prisma.sql`0`;
+  const tagMatch = Prisma.sql`EXISTS (SELECT 1 FROM ListingTag lt JOIN Tag t ON t.id = lt.tagId WHERE lt.listingId = l.id AND t.name LIKE ${like})`;
+  const catMatch = Prisma.sql`EXISTS (SELECT 1 FROM ListingCategory lc JOIN Category c ON c.id = lc.categoryId WHERE lc.listingId = l.id AND c.name LIKE ${like})`;
+
+  // Collations are case-insensitive, so = and LIKE ignore case (as ILIKE did).
+  const rows = await db.$queryRaw<Array<{ id: string; name: string; publisherName: string; strong: number | bigint; score: number }>>`
+    SELECT l.id, l.name, l.publisherName,
+      ((${wordMatch}) OR l.name LIKE ${like} OR l.publisherName LIKE ${like} OR ${tagMatch} OR ${catMatch}) AS strong,
+      (LEAST(${ftScore}, 10) * 0.4 + LEAST(${nameScore}, 10) * 0.6
+        + CASE WHEN l.name = ${q} THEN 6 WHEN l.name LIKE ${prefix} THEN 2 ELSE 0 END
+        + CASE WHEN ${tagMatch} THEN 1 ELSE 0 END
+        + CASE WHEN ${catMatch} THEN 1 ELSE 0 END) AS score
+    FROM Listing l
+    WHERE l.status = 'PUBLISHED' AND l.deletedAt IS NULL AND (
+      (${wordMatch}) OR l.name LIKE ${like} OR l.publisherName LIKE ${like}
+      OR ${fuzzy} > 0 OR ${tagMatch} OR ${catMatch}
     )
-    ORDER BY rank DESC, l.name ASC
-    LIMIT ${limit}`;
-  return rows;
+    ORDER BY score DESC, l.name ASC
+    LIMIT ${limit * 2}`;
+
+  return rows
+    .map((r) => {
+      const sim = similarity(r.name, q);
+      return { id: r.id, name: r.name, keep: Number(r.strong) > 0 || sim > FUZZY_THRESHOLD, rank: Number(r.score) + sim * 3 };
+    })
+    .filter((r) => r.keep)
+    .sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name))
+    .slice(0, limit)
+    .map(({ id, rank }) => ({ id, rank }));
 }
 
 export async function searchListings(ctx: ViewerContext, f: SearchFilters): Promise<SearchResult> {
@@ -136,7 +159,7 @@ export async function suggest(ctx: ViewerContext, q: string): Promise<Suggestion
       select: { id: true, slug: true, name: true, publisherName: true },
     }),
     db.category.findMany({
-      where: { isEnabled: true, isRestricted: false, mergedIntoId: null, name: { contains: query, mode: "insensitive" },
+      where: { isEnabled: true, isRestricted: false, mergedIntoId: null, name: { contains: query },
         OR: [{ parentId: null }, { parent: { isEnabled: true, isRestricted: false } }] },
       select: { slug: true, name: true },
       orderBy: { sortOrder: "asc" },

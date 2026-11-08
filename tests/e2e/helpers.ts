@@ -1,21 +1,40 @@
 import { createHmac } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import pg from "pg";
+import mariadb, { type Connection } from "mariadb";
 import sharp from "sharp";
 import type { APIRequestContext, Page } from "@playwright/test";
+import { buildPoolConfig } from "../../src/server/db-config";
 
 export const PORT = Number(process.env.E2E_PORT ?? 3100);
 export const BASE = `http://localhost:${PORT}`;
 export const ADMIN = `http://admin.localhost:${PORT}`;
 export const CRON_SECRET = process.env.APP_CRON_SECRET!;
 
-let client: pg.Client | null = null;
+/**
+ * Translates the two portable-SQL conventions the specs use into MySQL syntax:
+ * "Identifier" → `Identifier` and $1, $2… placeholders → ? (expanded in order).
+ * Exported for unit testing.
+ */
+export function toMysql(text: string, params: unknown[]): { sql: string; values: unknown[] } {
+  const values: unknown[] = [];
+  const sql = text
+    .replace(/"([A-Za-z_][A-Za-z0-9_]*)"/g, "`$1`")
+    .replace(/\$(\d+)/g, (_m, n: string) => {
+      values.push(params[Number(n) - 1]);
+      return "?";
+    });
+  return { sql, values };
+}
+
+let client: Connection | null = null;
 export async function sql<T = Record<string, unknown>>(text: string, params: unknown[] = []): Promise<T[]> {
   if (!client) {
-    client = new pg.Client({ connectionString: process.env.E2E_DATABASE_URL });
-    await client.connect();
+    const { pool } = buildPoolConfig({ DATABASE_URL: process.env.E2E_DATABASE_URL ?? "" });
+    client = await mariadb.createConnection({ ...pool, bigIntAsNumber: true });
   }
-  return (await client.query(text, params)).rows as T[];
+  const { sql: q, values } = toMysql(text, params);
+  const res = await client.query(q, values);
+  return (Array.isArray(res) ? res : []) as T[];
 }
 export async function closeDb() { await client?.end(); client = null; }
 
@@ -73,7 +92,7 @@ export async function setSite(host: string, patch: { mode?: string; verification
 
 /** Runs the scheduler like Hostinger Cron would (optionally forcing specific jobs to run now). */
 export async function runCron(request: APIRequestContext, forceJobs: string[] = []) {
-  for (const type of forceJobs) await sql(`insert into "Job" (id, type, payload, "runAt") values (gen_random_uuid()::text, $1, '{}', now())`, [type]);
+  for (const type of forceJobs) await sql(`insert into "Job" (id, type, payload, "runAt") values (UUID(), $1, '{}', UTC_TIMESTAMP(3))`, [type]);
   const res = await request.post(`${BASE}/api/cron/tick`, { headers: { authorization: `Bearer ${CRON_SECRET}` }, timeout: 60_000 });
   if (res.status() !== 200) throw new Error(`cron tick failed: ${res.status()} ${await res.text()}`);
   return res.json();
@@ -118,4 +137,13 @@ export async function signIn(page: Page, email: string, password: string, next =
 
 export async function categoryId(slug: string) {
   return (await sql<{ id: string }>(`select id from "Category" where slug = $1`, [slug]))[0]!.id;
+}
+
+/**
+ * Waits for web fonts and short CSS colour transitions (150–200 ms) to finish so
+ * accessibility scans measure the final, user-visible colours.
+ */
+export async function settle(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(300);
 }

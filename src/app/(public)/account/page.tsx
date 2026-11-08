@@ -21,7 +21,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <h1 className="text-2xl font-extrabold tracking-tight">Profile & security</h1>
         <SignOutButton />
       </div>
-      {welcome && <FormMessage tone="success">Your email is confirmed. Welcome to WebCenter!</FormMessage>}
+      {welcome && <FormMessage tone="success">Your email is confirmed. Welcome to Webcenta!</FormMessage>}
       <Card>
         <h2 className="mb-4 font-semibold">Profile</h2>
         <ActionForm action={updateProfileAction} submitLabel="Save profile">

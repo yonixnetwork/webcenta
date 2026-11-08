@@ -39,7 +39,7 @@ export default async function SubmissionReview({ params }: { params: Promise<{ i
       <Link href="/submissions" className="text-sm text-muted hover:text-text">← Submissions</Link>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-extrabold tracking-tight">{d.name}</h1><StatusPill status={rev.status} /><StatusPill status={live.riskTier} />
-        <span className="text-sm text-muted">Revision #{rev.revisionNumber} · {live.publishedAt ? "update to a published listing" : "new listing"} · submitted {formatDate(rev.submittedAt)} by {rev.submittedBy?.email ?? (live.source === "EDITORIAL" ? "WebCenter editors" : "—")}</span>
+        <span className="text-sm text-muted">Revision #{rev.revisionNumber} · {live.publishedAt ? "update to a published listing" : "new listing"} · submitted {formatDate(rev.submittedAt)} by {rev.submittedBy?.email ?? (live.source === "EDITORIAL" ? "Webcenta editors" : "—")}</span>
       </div>
       <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
         <Card>

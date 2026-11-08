@@ -26,11 +26,11 @@ function buildAuth() {
     : undefined;
 
   return betterAuth({
-    appName: "WebCenter",
+    appName: "Webcenta",
     baseURL: e.PUBLIC_ORIGIN,
     basePath: "/api/auth",
     secret: e.USER_AUTH_SECRET || "development-only-secret-not-for-production-use-0000",
-    database: prismaAdapter(db, { provider: "postgresql" }),
+    database: prismaAdapter(db, { provider: "mysql" }),
     trustedOrigins: [e.PUBLIC_ORIGIN, ...(apple ? ["https://appleid.apple.com"] : [])],
     emailAndPassword: {
       enabled: true,
@@ -40,8 +40,8 @@ function buildAuth() {
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: 60 * 60,
       sendResetPassword: async ({ user, url }) => {
-        const m = actionEmail({ title: "Reset your password", intro: "Someone (hopefully you) asked to reset the password for your WebCenter account.", actionLabel: "Choose a new password", url, outro: "This link expires in 1 hour. If you did not ask for this, you can ignore this email." });
-        await sendEmail({ to: user.email, subject: "Reset your WebCenter password", template: "reset-password", ...m });
+        const m = actionEmail({ title: "Reset your password", intro: "Someone (hopefully you) asked to reset the password for your Webcenta account.", actionLabel: "Choose a new password", url, outro: "This link expires in 1 hour. If you did not ask for this, you can ignore this email." });
+        await sendEmail({ to: user.email, subject: "Reset your Webcenta password", template: "reset-password", ...m });
         await db.authEvent.create({ data: { userId: user.id, type: "PASSWORD_RESET_REQUESTED" } });
       },
       onPasswordReset: async ({ user }) => {
@@ -54,8 +54,8 @@ function buildAuth() {
       autoSignInAfterVerification: true,
       expiresIn: 60 * 60 * 24,
       sendVerificationEmail: async ({ user, url }) => {
-        const m = actionEmail({ title: "Confirm your email", intro: `Welcome to WebCenter, ${user.name}. Please confirm your email address to finish creating your account.`, actionLabel: "Confirm email", url, outro: "This link expires in 24 hours." });
-        await sendEmail({ to: user.email, subject: "Confirm your WebCenter email", template: "verify-email", ...m });
+        const m = actionEmail({ title: "Confirm your email", intro: `Welcome to Webcenta, ${user.name}. Please confirm your email address to finish creating your account.`, actionLabel: "Confirm email", url, outro: "This link expires in 24 hours." });
+        await sendEmail({ to: user.email, subject: "Confirm your Webcenta email", template: "verify-email", ...m });
       },
       afterEmailVerification: async (user) => {
         await db.authEvent.create({ data: { userId: user.id, type: "EMAIL_VERIFIED" } });
@@ -104,10 +104,10 @@ function buildAuth() {
 }
 
 type Auth = ReturnType<typeof buildAuth>;
-const g = globalThis as unknown as { __webcenterAuth?: Auth };
+const g = globalThis as unknown as { __webcentaAuth?: Auth };
 export function auth(): Auth {
-  g.__webcenterAuth ??= buildAuth();
-  return g.__webcenterAuth;
+  g.__webcentaAuth ??= buildAuth();
+  return g.__webcentaAuth;
 }
 
 export function enabledSocialProviders(): Array<"google" | "apple"> {

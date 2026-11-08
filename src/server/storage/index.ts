@@ -69,6 +69,25 @@ class S3Driver implements StorageDriver {
   }
 }
 
+/**
+ * Resolves the local storage folder. In production it must be an absolute path
+ * outside the running app: Hostinger (and any redeploy) replaces the app
+ * directory, which would delete uploaded logos and screenshots.
+ */
+export function localStorageRoot(dir: string, nodeEnv: string, cwd = process.cwd()): string {
+  const root = path.resolve(cwd, dir);
+  if (nodeEnv === "production") {
+    const inside = root === cwd || root.startsWith(cwd + path.sep);
+    if (!path.isAbsolute(dir) || inside) {
+      throw new Error(
+        "STORAGE_LOCAL_DIR must be an absolute path outside the app directory in production " +
+          "(e.g. /home/u123456789/webcenta-storage on Hostinger), because redeploys replace the app directory.",
+      );
+    }
+  }
+  return root;
+}
+
 let driver: StorageDriver | null = null;
 export function storage(): StorageDriver {
   if (driver) return driver;
@@ -79,7 +98,7 @@ export function storage(): StorageDriver {
     }
     driver = new S3Driver(e.S3_ENDPOINT, e.S3_BUCKET, e.S3_ACCESS_KEY_ID, e.S3_SECRET_ACCESS_KEY, e.S3_REGION);
   } else {
-    driver = new LocalDriver(e.STORAGE_LOCAL_DIR);
+    driver = new LocalDriver(localStorageRoot(e.STORAGE_LOCAL_DIR, e.NODE_ENV));
   }
   return driver;
 }

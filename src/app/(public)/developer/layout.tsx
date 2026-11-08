@@ -4,7 +4,7 @@ import { getDevContext } from "@/server/developer/context";
 import { switchOrgAction } from "@/server/actions/developer";
 import { StatusPill } from "@/components/portal/table";
 
-export const metadata: Metadata = { title: { default: "Developer portal", template: "%s · Developer portal · WebCenter" }, robots: { index: false } };
+export const metadata: Metadata = { title: { default: "Developer portal", template: "%s · Developer portal · Webcenta" }, robots: { index: false } };
 
 export default async function DeveloperLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getDevContext("/developer");

@@ -3,13 +3,13 @@ import { EmptyState } from "@/components/states";
 import { ReplyForm } from "@/components/community/review-actions";
 import { formatDate } from "@/lib/labels";
 import { db } from "@/server/db";
-import { canRole, requireDev } from "@/server/developer/context";
+import { canRole, requireDevPage } from "@/server/developer/context";
 import { replyToReviewAction } from "@/server/actions/user";
 
 export const metadata = { title: "Reviews" };
 
 export default async function DevReviewsPage() {
-  const ctx = await requireDev("ANALYST", "/developer/reviews");
+  const ctx = await requireDevPage("ANALYST", "/developer/reviews");
   const reviews = await db.review.findMany({
     where: { listing: { developerId: ctx.org.id }, status: "PUBLISHED" }, orderBy: { createdAt: "desc" }, take: 50,
     include: { listing: { select: { name: true, slug: true } }, user: { select: { name: true } }, reply: true },

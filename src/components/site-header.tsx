@@ -11,7 +11,7 @@ export function SiteHeader({ theme, suggested, user }: { theme: "system" | "ligh
         Skip to content
       </a>
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:gap-6 sm:px-6">
-        <Link href="/" aria-label="WebCenter home" className="shrink-0"><Logo /></Link>
+        <Link href="/" aria-label="Webcenta home" className="shrink-0"><Logo /></Link>
         <HeaderSearch suggested={suggested} className="hidden flex-1 md:block md:max-w-xl" />
         <nav aria-label="Main" className="ml-auto flex items-center gap-1">
           <Link href="/categories" className="hidden items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-muted hover:bg-surface-2 hover:text-text sm:inline-flex">

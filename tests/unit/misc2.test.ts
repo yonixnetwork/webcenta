@@ -56,7 +56,7 @@ describe("phishing heuristics inputs", () => {
   it("detects seed-phrase harvesting forms and verification meta tags", () => {
     expect(analyzeHtml(`<title>x</title><p>Enter your 12-word seed phrase to restore</p><textarea></textarea>`).asksForSeedPhrase).toBe(true);
     expect(analyzeHtml(`<p>Never share your seed phrase.</p>`).asksForSeedPhrase).toBe(false);
-    expect(analyzeHtml(`<head><meta name="webcenter-verification" content="wc-abc"></head>`).metaVerification).toEqual(["wc-abc"]);
+    expect(analyzeHtml(`<head><meta name="webcenta-verification" content="wc-abc"></head>`).metaVerification).toEqual(["wc-abc"]);
     expect(analyzeHtml(`<form action="https://evil.example/x"><input type="password"></form>`).passwordForms[0]?.action).toBe("https://evil.example/x");
   });
   it("detects look-alike domains", () => {
@@ -64,5 +64,17 @@ describe("phishing heuristics inputs", () => {
     expect(skeleton("xn--pypal-4ve")).toBe("paypal"); // Cyrillic а
     expect(levenshtein("binanse", "binance")).toBe(1);
     expect(registrableDomain("a.b.example.co.uk")).toBe("example.co.uk");
+  });
+});
+
+describe("local storage folder", async () => {
+  const { localStorageRoot } = await import("@/server/storage");
+  it("must be absolute and outside the app in production", () => {
+    expect(() => localStorageRoot("./storage", "production", "/srv/app")).toThrow(/absolute path outside/);
+    expect(() => localStorageRoot("/srv/app/uploads", "production", "/srv/app")).toThrow(/absolute path outside/);
+    expect(localStorageRoot("/home/u1/webcenta-storage", "production", "/srv/app")).toBe("/home/u1/webcenta-storage");
+  });
+  it("may be relative in development", () => {
+    expect(localStorageRoot("./storage", "development", "/srv/app")).toBe("/srv/app/storage");
   });
 });

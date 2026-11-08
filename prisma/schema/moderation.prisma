@@ -80,15 +80,15 @@ model Report {
   /// Null for anonymous reports (allowed for listings, rate-limited).
   reporterId      String?
   reason          ReportReason
-  details         String?
+  details         String? @db.Text
   /// For copyright complaints: claimant identity/contact and the work concerned.
   claimantDetails Json?
   status          ReportStatus     @default(OPEN)
   assignedAdminId String?
-  resolutionNotes String?
-  resolvedAt      DateTime?        @db.Timestamptz
-  createdAt       DateTime         @default(now()) @db.Timestamptz
-  updatedAt       DateTime         @updatedAt @db.Timestamptz
+  resolutionNotes String? @db.Text
+  resolvedAt      DateTime?        @db.DateTime(3)
+  createdAt       DateTime         @default(now()) @db.DateTime(3)
+  updatedAt       DateTime         @updatedAt @db.DateTime(3)
 
   listing       Listing?           @relation(fields: [listingId], references: [id], onDelete: Cascade)
   review        Review?            @relation(fields: [reviewId], references: [id], onDelete: Cascade)
@@ -114,11 +114,11 @@ model ModerationAction {
   action     ModerationActionType
   targetType String
   targetId   String
-  reason     String
+  reason     String @db.Text
   reportId   String?
   appealId   String?
   metadata   Json?
-  createdAt  DateTime             @default(now()) @db.Timestamptz
+  createdAt  DateTime             @default(now()) @db.DateTime(3)
 
   admin  AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
   report Report?    @relation(fields: [reportId], references: [id], onDelete: SetNull)
@@ -134,12 +134,12 @@ model Appeal {
   listingId        String?
   /// The moderation action being appealed, by id (kept as plain id to avoid cycles).
   originalActionId String?
-  statement        String
+  statement        String @db.Text
   status           AppealStatus @default(OPEN)
-  decisionNotes    String?
+  decisionNotes    String? @db.Text
   decidedById      String?
-  decidedAt        DateTime?    @db.Timestamptz
-  createdAt        DateTime     @default(now()) @db.Timestamptz
+  decidedAt        DateTime?    @db.DateTime(3)
+  createdAt        DateTime     @default(now()) @db.DateTime(3)
 
   appellant User               @relation(fields: [appellantId], references: [id], onDelete: Cascade)
   listing   Listing?           @relation(fields: [listingId], references: [id], onDelete: SetNull)
@@ -152,13 +152,13 @@ model Appeal {
 model SupportCase {
   id              String            @id @default(uuid(7))
   userId          String?
-  contactEmail    String
+  contactEmail    String @db.VarChar(254)
   subject         String
   status          SupportCaseStatus @default(OPEN)
   assignedAdminId String?
-  createdAt       DateTime          @default(now()) @db.Timestamptz
-  updatedAt       DateTime          @updatedAt @db.Timestamptz
-  closedAt        DateTime?         @db.Timestamptz
+  createdAt       DateTime          @default(now()) @db.DateTime(3)
+  updatedAt       DateTime          @updatedAt @db.DateTime(3)
+  closedAt        DateTime?         @db.DateTime(3)
 
   user          User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
   assignedAdmin AdminUser?           @relation(fields: [assignedAdminId], references: [id], onDelete: SetNull)
@@ -173,8 +173,8 @@ model SupportCaseMessage {
   fromAdminId String?
   /// Internal notes are never shown to the user.
   isInternal  Boolean  @default(false)
-  body        String
-  createdAt   DateTime @default(now()) @db.Timestamptz
+  body        String @db.Text
+  createdAt   DateTime @default(now()) @db.DateTime(3)
 
   case      SupportCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
   fromAdmin AdminUser?  @relation(fields: [fromAdminId], references: [id], onDelete: SetNull)

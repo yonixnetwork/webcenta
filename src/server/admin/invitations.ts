@@ -20,8 +20,8 @@ export async function createInvitation(email: string, role: AdminRole, invitedBy
   await db.adminInvitation.create({ data: { email: normalized, role, tokenHash: sha256(token), invitedById, expiresAt: new Date(Date.now() + INVITE_HOURS * 3600_000) } });
   await audit({ actorType: invitedById ? "ADMIN" : "SYSTEM", adminId: invitedById, action: "admin.invite.create", metadata: { email: normalized, role } });
   if (invitedById) {
-    const m = actionEmail({ title: "You have been invited to WebCenter Admin", intro: `You were invited as ${role.replace(/_/g, " ").toLowerCase()}. You will set a password and two-factor authentication.`, actionLabel: "Accept invitation", url: inviteUrl(token), outro: `This link expires in ${INVITE_HOURS} hours and can be used once.` });
-    await sendEmail({ to: normalized, subject: "WebCenter Admin invitation", template: "admin-invite", ...m });
+    const m = actionEmail({ title: "You have been invited to Webcenta Admin", intro: `You were invited as ${role.replace(/_/g, " ").toLowerCase()}. You will set a password and two-factor authentication.`, actionLabel: "Accept invitation", url: inviteUrl(token), outro: `This link expires in ${INVITE_HOURS} hours and can be used once.` });
+    await sendEmail({ to: normalized, subject: "Webcenta Admin invitation", template: "admin-invite", ...m });
   }
   return token;
 }

@@ -1,5 +1,5 @@
 /** Hostname → application surface mapping (pure; unit tested). */
-export type Surface = "public" | "www" | "admin" | "developer" | "unknown";
+export type Surface = "public" | "www" | "admin" | "developer" | "api" | "unknown";
 
 export interface HostConfig {
   publicHost: string;
@@ -21,6 +21,7 @@ export function classifyHost(rawHost: string | null, cfg: HostConfig): Surface {
   if (!host) return "unknown";
   if (host === cfg.publicHost) return "public";
   if (host === `www.${cfg.publicHost}`) return "www";
+  if (host === `api.${cfg.publicHost}`) return "api";
   if (host === cfg.adminHost) return "admin";
   if (host === cfg.developerHost) return "developer";
   return "unknown";

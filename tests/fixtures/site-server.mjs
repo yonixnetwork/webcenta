@@ -13,8 +13,8 @@ function page(host, s) {
   if (s.mode === "phishing") {
     return `<!doctype html><html><head><title>Wallet sync</title></head><body><h1>Validate your wallet</h1><p>Enter your 12-word seed phrase to restore and sync your wallet.</p><form action="/x"><textarea name="phrase"></textarea><button>Restore</button></form></body></html>`;
   }
-  return `<!doctype html><html><head><title>${name} — fixture app</title>${s.verification ? `<meta name="webcenter-verification" content="${s.verification}">` : ""}</head>
-<body><h1>${name}</h1><p>This is a local fixture website used by WebCenter end-to-end tests.</p><a href="/privacy">Privacy</a></body></html>`;
+  return `<!doctype html><html><head><title>${name} — fixture app</title>${s.verification ? `<meta name="webcenta-verification" content="${s.verification}">` : ""}</head>
+<body><h1>${name}</h1><p>This is a local fixture website used by Webcenta end-to-end tests.</p><a href="/privacy">Privacy</a></body></html>`;
 }
 
 const site = https({ key: readFileSync(new URL("site.key", dir)), cert: readFileSync(new URL("site.pem", dir)) }, (req, res) => {
@@ -25,7 +25,7 @@ const site = https({ key: readFileSync(new URL("site.key", dir)), cert: readFile
   if (s.mode === "redirect-private") { res.writeHead(302, { location: "http://169.254.169.254/latest/meta-data/" }); return res.end(); }
   if (s.mode === "redirect-evil") { res.writeHead(302, { location: "https://evil-site.localhost/landing" }); return res.end(); }
   if (s.mode === "down") { res.writeHead(503); return res.end("down"); }
-  if (path === "/.well-known/webcenter-verification.txt") {
+  if (path === "/.well-known/webcenta-verification.txt") {
     res.writeHead(s.verification ? 200 : 404, { "content-type": "text/plain" });
     return res.end(s.verification || "not found");
   }

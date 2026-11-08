@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escapeLike, filtersToQuery, normalizeQueryForStats, parseFilters, prefixTsQuery } from "@/lib/search-params";
+import { escapeLike, filtersToQuery, mysqlSearchTerms, normalizeQueryForStats, parseFilters, wordPattern } from "@/lib/search-params";
 
 describe("parseFilters", () => {
   it("parses valid params", () => {
@@ -16,12 +16,16 @@ describe("parseFilters", () => {
   });
 });
 
-describe("prefixTsQuery", () => {
-  it("sanitises tsquery syntax", () => {
-    expect(prefixTsQuery("note's & | ! (app):*")).toBe("note:* & s:* & app:*");
-    expect(prefixTsQuery("!!!")).toBeNull();
+describe("mysqlSearchTerms", () => {
+  it("builds a FULLTEXT boolean query of required prefix words, stripping operators", () => {
+    expect(mysqlSearchTerms("note's & | ! (app)* +-~<>\"").boolean).toBe("+note* +app*");
+    expect(mysqlSearchTerms("!!!")).toEqual({ boolean: null, shortWords: [] });
   });
-  it("keeps unicode letters", () => expect(prefixTsQuery("café 東京")).toBe("café:* & 東京:*"));
+  it("keeps 1–2 character words for whole-word matching", () => {
+    expect(mysqlSearchTerms("AI notes 3d")).toEqual({ boolean: "+notes*", shortWords: ["ai", "3d"] });
+    expect(wordPattern("ai")).toBe("\\bai\\b");
+  });
+  it("keeps unicode letters", () => expect(mysqlSearchTerms("café 東京都").boolean).toBe("+café* +東京都*"));
 });
 
 describe("cleanText", () => {

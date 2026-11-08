@@ -23,7 +23,7 @@ export default async function CategoriesPage() {
         {tree.map((c) => (
           <li key={c.id} className="rounded-2xl border border-border bg-surface p-5 shadow-card">
             <Link href={`/c/${c.slug}`} className="group flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-xl bg-brand-soft text-brand"><CategoryIcon icon={c.icon} className="size-5" /></span>
+              <span className="grid size-10 place-items-center rounded-xl bg-brand-soft text-brand"><CategoryIcon icon={c.icon} emoji={c.emoji} preferEmoji className="grid size-5 place-items-center text-xl" /></span>
               <span className="min-w-0">
                 <span className="block truncate font-semibold group-hover:text-brand">{c.name}</span>
                 <span className="text-xs text-subtle">{counts.get(c.id) ?? 0} listed</span>

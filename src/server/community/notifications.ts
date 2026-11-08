@@ -12,7 +12,7 @@ export async function notify(userId: string, n: { type: NotificationType; title:
     const user = await db.user.findUnique({ where: { id: userId }, select: { email: true, emailNotifications: true, status: true } });
     if (user && user.emailNotifications && user.status === "ACTIVE") {
       const origin = process.env.PUBLIC_ORIGIN || "http://localhost:3000";
-      const m = actionEmail({ title: n.title, intro: n.body ?? n.title, actionLabel: "Open WebCenter", url: `${origin}${linkPath ?? "/account/notifications"}`,
+      const m = actionEmail({ title: n.title, intro: n.body ?? n.title, actionLabel: "Open Webcenta", url: `${origin}${linkPath ?? "/account/notifications"}`,
         outro: "You can turn off email notifications in Account → Privacy & data." });
       await sendEmail({ to: user.email, subject: n.title, template: `notification:${n.type}`, ...m });
     }

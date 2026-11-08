@@ -6,10 +6,11 @@ import { z } from "zod";
  */
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+  /** mysql://USER:PASSWORD@127.0.0.1:3306/DATABASE (Hostinger: host 127.0.0.1, not localhost). */
+  DATABASE_URL: z.string().min(1, "DATABASE_URL is required").refine((v) => /^(mysql|mariadb):\/\//.test(v), "DATABASE_URL must start with mysql://"),
   /** "disable" | "require" (encrypt, no verification) | "verify-full" (encrypt + verify CA). */
   DATABASE_SSL: z.enum(["disable", "require", "verify-full"]).optional(),
-  /** PEM of the database CA (Supabase: Database Settings → SSL → Download certificate). */
+  /** PEM of the database server's CA, only for a remote database over TLS (not needed on Hostinger). */
   DATABASE_SSL_CA: z.string().optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
 
@@ -49,7 +50,7 @@ const schema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   SMTP_SECURE: z.enum(["true", "false"]).optional(),
-  EMAIL_FROM: z.string().default("WebCenter <no-reply@webcenter.com>"),
+  EMAIL_FROM: z.string().default("Webcenta <no-reply@webcenta.com>"),
 
   // --- Storage ---
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),

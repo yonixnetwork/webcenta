@@ -1,13 +1,16 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
+/** The copy the server actually serves: the standalone server uses its own public/ folder. */
+const SERVED_SW = existsSync(".next/standalone/public/sw.js") ? ".next/standalone/public/sw.js" : "public/sw.js";
 import { expect, test } from "@playwright/test";
 
-/** 10. A user installs WebCenter as a PWA and navigates through the marketplace. */
+/** 10. A user installs Webcenta as a PWA and navigates through the marketplace. */
 test.describe("PWA", () => {
   test("manifest and icons satisfy installability requirements", async ({ request }) => {
     const res = await request.get("/manifest.webmanifest");
     expect(res.status()).toBe(200);
     const m = await res.json();
-    expect(m).toMatchObject({ name: expect.stringContaining("WebCenter"), short_name: "WebCenter", start_url: expect.stringMatching(/^\//), scope: "/", display: "standalone" });
+    expect(m).toMatchObject({ name: expect.stringContaining("Webcenta"), short_name: "Webcenta", start_url: expect.stringMatching(/^\//), scope: "/", display: "standalone" });
     const sizes = m.icons.map((i: { sizes: string }) => i.sizes);
     expect(sizes).toEqual(expect.arrayContaining(["192x192", "512x512"]));
     expect(m.icons.some((i: { purpose?: string }) => i.purpose === "maskable")).toBe(true);
@@ -33,15 +36,29 @@ test.describe("PWA", () => {
     // Previously visited page still works offline.
     await page.goto("/categories");
     await expect(page.getByRole("heading", { level: 1, name: "All categories" })).toBeVisible();
-    // Never-visited page → offline fallback.
-    await page.goto("/about");
-    await expect(page.getByRole("heading", { name: "You are offline" })).toBeVisible();
     // Account/auth pages are never cached; offline they show the fallback, not stale private data.
     await page.goto("/signin");
-    await expect(page.getByRole("heading", { name: "You are offline" })).toBeVisible();
-    await context.setOffline(false);
+    await expect(page.getByRole("heading", { name: "You're currently offline." })).toBeVisible();
+    // Never-visited page → branded offline fallback, fully styled from the precache.
     await page.goto("/about");
-    await expect(page.getByRole("heading", { level: 1, name: "About WebCenter" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "You're currently offline." })).toBeVisible();
+    await expect(page.getByText("Please check your internet connection and try again.")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Webcenta home" })).toBeVisible();
+    const retry = page.getByRole("button", { name: "Retry" });
+    expect(await retry.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+    // Retry really checks the network: still offline → it says so and stays here.
+    await retry.click();
+    await expect(page.getByText(/Still no connection/)).toBeVisible();
+    expect(page.url()).toMatch(/\/about$/);
+    // Back online → the page that was originally requested loads again automatically.
+    await context.setOffline(false);
+    await expect(page.getByRole("heading", { level: 1, name: "About Webcenta" })).toBeVisible();
+    expect(page.url()).toMatch(/\/about$/);
+    // Manual Retry with a working connection: from /offline itself it continues to the homepage.
+    await page.goto("/offline");
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Find the right web app");
   });
 
   test("an updated service worker triggers the update prompt and reload", async ({ page }) => {
@@ -49,17 +66,17 @@ test.describe("PWA", () => {
     await page.evaluate(() => navigator.serviceWorker.ready);
     await page.reload();
     // Publish a new service-worker version (as a deployment would), then restore it.
-    const original = readFileSync("public/sw.js", "utf8");
+    const original = readFileSync(SERVED_SW, "utf8");
     try {
-      writeFileSync("public/sw.js", original.replace('const VERSION = "wc-v1"', 'const VERSION = "wc-v2"'));
+      writeFileSync(SERVED_SW, original.replace('const VERSION = "wc-v2"', 'const VERSION = "wc-v3"'));
       await page.evaluate(async () => { const reg = await navigator.serviceWorker.getRegistration(); await reg?.update(); });
-      await expect(page.getByText("A new version of WebCenter is available.")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText("A new version of Webcenta is available.")).toBeVisible({ timeout: 15_000 });
       const reload = page.waitForEvent("load");
       await page.getByRole("button", { name: "Reload" }).click();
       await reload;
-      await expect.poll(() => page.evaluate(async () => (await caches.keys()).some((k) => k.startsWith("wc-v2")))).toBe(true);
+      await expect.poll(() => page.evaluate(async () => (await caches.keys()).some((k) => k.startsWith("wc-v3")))).toBe(true);
     } finally {
-      writeFileSync("public/sw.js", original);
+      writeFileSync(SERVED_SW, original);
     }
   });
 
@@ -67,7 +84,7 @@ test.describe("PWA", () => {
     await page.goto("/");
     await page.evaluate(() => navigator.serviceWorker.ready); // the app's PWA handler is mounted
     // Chromium only fires beforeinstallprompt for real installable sites under engagement heuristics;
-    // dispatch an equivalent event to exercise WebCenter's handling of it.
+    // dispatch an equivalent event to exercise Webcenta's handling of it.
     await page.evaluate(() => {
       const e = new Event("beforeinstallprompt", { cancelable: true }) as Event & { prompt: () => Promise<void>; userChoice: Promise<unknown> };
       e.prompt = async () => { (window as unknown as { __prompted: boolean }).__prompted = true; };
@@ -95,7 +112,7 @@ test.describe("PWA on iOS Safari (emulated user agent)", () => {
     const banner = page.getByTestId("install-banner");
     await expect(banner).toBeVisible();
     await banner.getByRole("button", { name: "Install" }).click();
-    const dialog = page.getByRole("dialog", { name: "Add WebCenter to your Home Screen" });
+    const dialog = page.getByRole("dialog", { name: "Add Webcenta to your Home Screen" });
     await expect(dialog).toContainText("Add to Home Screen");
     await dialog.getByRole("button", { name: "Got it" }).click();
     await banner.getByRole("button", { name: "Dismiss" }).click();

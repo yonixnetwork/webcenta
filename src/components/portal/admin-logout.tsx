@@ -8,7 +8,7 @@ export function AdminLogoutButton({ action }: { action: () => Promise<void> }) {
   const [pending, start] = useTransition();
   return (
     <button type="button" disabled={pending} className={buttonClass("secondary", "sm")}
-      onClick={() => start(async () => { await action(); window.location.assign("/login"); })}>
+      onClick={() => start(async () => { await action(); window.location.assign(new URL("/login", window.location.href).href); })}>
       {pending ? "Signing out…" : "Sign out"}
     </button>
   );

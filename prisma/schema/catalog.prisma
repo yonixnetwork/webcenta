@@ -34,7 +34,7 @@ enum RevisionStatus {
 enum ListingSource {
   /// Submitted by a verified developer organisation.
   DEVELOPER_SUBMITTED
-  /// Added by WebCenter editors; credited to the original publisher, claimable.
+  /// Added by Webcenta editors; credited to the original publisher, claimable.
   EDITORIAL
 }
 
@@ -95,9 +95,11 @@ model Category {
   id          String  @id @default(uuid(7))
   slug        String  @unique
   name        String
-  description String?
+  description String? @db.Text
   /// Icon identifier from the UI icon set (not a URL).
   icon        String?
+  /// Optional emoji used sparingly for visual personality in category browsing (never for controls).
+  emoji       String?
   parentId    String?
   sortOrder   Int     @default(0)
   isEnabled   Boolean @default(true)
@@ -116,10 +118,10 @@ model Category {
   mergedIntoId String?
 
   seoTitle       String?
-  seoDescription String?
+  seoDescription String? @db.Text
 
-  createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt @db.Timestamptz
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
 
   parent     Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
   children   Category[] @relation("CategoryTree")
@@ -141,7 +143,7 @@ model Tag {
   id        String   @id @default(uuid(7))
   slug      String   @unique
   name      String
-  createdAt DateTime @default(now()) @db.Timestamptz
+  createdAt DateTime @default(now()) @db.DateTime(3)
 
   listings ListingTag[]
 }
@@ -154,47 +156,49 @@ model Listing {
 
   // --- Public content (the currently approved version) ---
   name        String
-  tagline     String?
-  description String
-  /// Short feature bullet points (searchable).
-  features    String[]
+  tagline     String? @db.Text
+  description String @db.Text
+  /// Short feature bullet points (searchable). JSON array of strings.
+  features    Json     @default("[]")
   /// Official website. Outbound clicks always go to this stored value via /go/:slug.
-  websiteUrl  String
+  websiteUrl  String @db.Text
   /// Registrable/host domain extracted from websiteUrl, lower-case (e.g. "example.com").
-  domain      String
+  domain      String @db.VarChar(255)
 
-  privacyPolicyUrl String?
-  termsUrl         String?
-  supportUrl       String?
+  privacyPolicyUrl String? @db.Text
+  termsUrl         String? @db.Text
+  supportUrl       String? @db.Text
 
   // --- Ownership / credit ---
   developerId   String?
   /// Original publisher name — always shown; mandatory for editorial listings.
   publisherName String
-  publisherUrl  String?
-  claimedAt     DateTime? @db.Timestamptz
+  publisherUrl  String? @db.Text
+  claimedAt     DateTime? @db.DateTime(3)
 
   // --- Classification ---
   primaryCategoryId  String?
   pricingModel       PricingModel @default(FREE)
-  pricingDetails     String?
+  pricingDetails     String? @db.Text
   isOpenSource       Boolean      @default(false)
-  sourceCodeUrl      String?
-  platforms          Platform[]   @default([WEB])
+  sourceCodeUrl      String? @db.Text
+  /// JSON array of Platform values.
+  platforms          Json         @default("[\"WEB\"]")
   isBrowserBased     Boolean      @default(true)
   isMobileFriendly   Boolean      @default(false)
   isPwaInstallable   Boolean      @default(false)
   ageRating          AgeRating    @default(ALL_AGES)
   riskTier           RiskTier     @default(LOW)
-  /// Developer-declared supported countries (informational). Empty = worldwide.
-  supportedCountries String[]
-  languages          String[]
+  /// Developer-declared supported countries (informational). JSON array; empty = worldwide.
+  supportedCountries Json         @default("[]")
+  /// JSON array of language codes.
+  languages          Json         @default("[]")
 
   // --- Trust signals ---
   securityStatus SecurityStatus @default(NOT_SCANNED)
-  lastVerifiedAt DateTime?      @db.Timestamptz
-  lastScannedAt  DateTime?      @db.Timestamptz
-  nextScanAt     DateTime?      @db.Timestamptz
+  lastVerifiedAt DateTime?      @db.DateTime(3)
+  lastScannedAt  DateTime?      @db.DateTime(3)
+  nextScanAt     DateTime?      @db.DateTime(3)
 
   // --- Denormalised ranking/aggregate fields (organic only; never set by payment) ---
   ratingCount     Int   @default(0)
@@ -206,19 +210,21 @@ model Listing {
   // --- Editorial ---
   isEditorsPick     Boolean @default(false)
   /// Where the editor learned of the site and what evidence was checked.
-  editorialSource   String?
-  editorialEvidence String?
+  editorialSource   String? @db.Text
+  editorialEvidence String? @db.Text
 
-  publishedAt      DateTime? @db.Timestamptz
+  publishedAt      DateTime? @db.DateTime(3)
   /// Last time public content materially changed (drives "Recently updated").
-  contentUpdatedAt DateTime? @db.Timestamptz
-  createdAt        DateTime  @default(now()) @db.Timestamptz
-  updatedAt        DateTime  @updatedAt @db.Timestamptz
-  deletedAt        DateTime? @db.Timestamptz
+  contentUpdatedAt DateTime? @db.DateTime(3)
+  createdAt        DateTime  @default(now()) @db.DateTime(3)
+  updatedAt        DateTime  @updatedAt @db.DateTime(3)
+  deletedAt        DateTime? @db.DateTime(3)
 
-  /// Full-text search vector. Created in the migration as a GENERATED column
-  /// (see docs/DATABASE.md §3); never written by application code.
-  searchVector Unsupported("tsvector")?
+  /// Search document (name, tagline, publisher, features, description) and
+  /// name trigram tokens for typo tolerance. Derived data, kept in sync by the
+  /// Prisma client extension in src/server/db.ts (see docs/DATABASE.md §3).
+  searchText     String? @db.MediumText
+  searchTrigrams String? @db.Text
 
   developer       DeveloperOrg? @relation(fields: [developerId], references: [id], onDelete: SetNull)
   primaryCategory Category?     @relation("ListingPrimaryCategory", fields: [primaryCategoryId], references: [id], onDelete: SetNull)
@@ -257,12 +263,9 @@ model Listing {
   @@index([domain])
   @@index([nextScanAt])
   @@index([securityStatus])
-  @@index([searchVector], type: Gin)
-  /// Trigram index for autocomplete / typo tolerance. pg_trgm is installed in the
-  /// "extensions" schema (Supabase convention). The migration SQL uses the
-  /// qualified name extensions.gin_trgm_ops; Postgres introspection reports the
-  /// unqualified name, so it is written unqualified here to keep diffs empty.
-  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "Listing_name_trgm_idx")
+  @@fulltext([name])
+  @@fulltext([searchText])
+  @@fulltext([searchTrigrams])
 }
 
 model ListingCategory {
@@ -302,7 +305,7 @@ model MediaAsset {
   moderationStatus  MediaModerationStatus @default(PENDING)
   uploadedByUserId  String?
   uploadedByAdminId String?
-  createdAt         DateTime              @default(now()) @db.Timestamptz
+  createdAt         DateTime              @default(now()) @db.DateTime(3)
 
   uploadedByUser  User?      @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
   uploadedByAdmin AdminUser? @relation(fields: [uploadedByAdminId], references: [id], onDelete: SetNull)
@@ -320,7 +323,7 @@ model ListingMedia {
   assetId   String
   kind      MediaKind
   sortOrder Int       @default(0)
-  altText   String?
+  altText   String? @db.Text
 
   listing Listing    @relation(fields: [listingId], references: [id], onDelete: Cascade)
   asset   MediaAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
@@ -338,15 +341,15 @@ model ListingRevision {
   /// Full proposed content snapshot, validated by the app's schema (zod).
   data           Json
   /// Reviewer-visible notes from the submitter.
-  submitterNotes String?
+  submitterNotes String? @db.Text
   submittedById  String?
-  submittedAt    DateTime?      @db.Timestamptz
+  submittedAt    DateTime?      @db.DateTime(3)
   reviewedById   String?
-  reviewedAt     DateTime?      @db.Timestamptz
+  reviewedAt     DateTime?      @db.DateTime(3)
   /// Reason shown to the developer (rejection / info request).
-  decisionNotes  String?
-  createdAt      DateTime       @default(now()) @db.Timestamptz
-  updatedAt      DateTime       @updatedAt @db.Timestamptz
+  decisionNotes  String? @db.Text
+  createdAt      DateTime       @default(now()) @db.DateTime(3)
+  updatedAt      DateTime       @updatedAt @db.DateTime(3)
 
   listing     Listing        @relation(fields: [listingId], references: [id], onDelete: Cascade)
   submittedBy User?          @relation(fields: [submittedById], references: [id], onDelete: SetNull)
@@ -365,8 +368,8 @@ model ListingStatusChange {
   toStatus   ListingStatus
   actorType  ActorType
   actorId    String?
-  reason     String?
-  createdAt  DateTime       @default(now()) @db.Timestamptz
+  reason     String? @db.Text
+  createdAt  DateTime       @default(now()) @db.DateTime(3)
 
   listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
@@ -379,7 +382,7 @@ model ListingRelation {
   type          ListingRelationType
   source        RelationSource
   score         Float               @default(0)
-  createdAt     DateTime            @default(now()) @db.Timestamptz
+  createdAt     DateTime            @default(now()) @db.DateTime(3)
 
   fromListing Listing @relation("RelationFrom", fields: [fromListingId], references: [id], onDelete: Cascade)
   toListing   Listing @relation("RelationTo", fields: [toListingId], references: [id], onDelete: Cascade)
@@ -395,9 +398,9 @@ model GeoRestriction {
   listingId        String?
   categoryId       String?
   countryCode      String   @db.Char(2)
-  reason           String
+  reason           String @db.Text
   createdByAdminId String?
-  createdAt        DateTime @default(now()) @db.Timestamptz
+  createdAt        DateTime @default(now()) @db.DateTime(3)
 
   listing        Listing?   @relation(fields: [listingId], references: [id], onDelete: Cascade)
   category       Category?  @relation(fields: [categoryId], references: [id], onDelete: Cascade)

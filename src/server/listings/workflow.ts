@@ -141,7 +141,7 @@ export async function processSubmission(revisionId: string) {
     await statusChange(rev.listingId, "AUTOMATED_CHECKS", "UNDER_REVIEW", { type: "SYSTEM" }, `Automated checks: ${worst(outcomes.map((o) => o.verdict))}`);
   }
   if (rev.listing.developerId) {
-    await notifyOrg(rev.listing.developerId, { type: "LISTING_STATUS", title: `${input.name} is under review`, body: "Automated checks are complete. A WebCenter moderator will review your submission.", linkPath: `/developer/listings/${rev.listingId}`, email: false });
+    await notifyOrg(rev.listing.developerId, { type: "LISTING_STATUS", title: `${input.name} is under review`, body: "Automated checks are complete. A Webcenta moderator will review your submission.", linkPath: `/developer/listings/${rev.listingId}`, email: false });
   }
   return { decision: "MANUAL_REVIEW" as const, scanId: scan.id };
 }
@@ -210,7 +210,7 @@ export async function approveRevision(revisionId: string, actor: Actor, opts: { 
     await notifyOrg(rev.listing.developerId, {
       type: "LISTING_STATUS",
       title: newStatus === "PUBLISHED" ? (wasPublished ? `Your update to ${input.name} is live` : `${input.name} is now published`) : `${input.name} was approved`,
-      body: opts.notes ?? (newStatus === "PUBLISHED" ? "Your listing is visible on WebCenter." : "It will be visible once published."),
+      body: opts.notes ?? (newStatus === "PUBLISHED" ? "Your listing is visible on Webcenta." : "It will be visible once published."),
       linkPath: `/developer/listings/${rev.listingId}`,
     });
   }
@@ -300,7 +300,7 @@ export async function createEditorialListing(adminId: string, raw: unknown, evid
 export async function adminEditListing(listingId: string, adminId: string, raw: unknown, reason: string) {
   const rev = await saveRevision(listingId, raw, { type: "ADMIN", adminId });
   await db.listingRevision.update({ where: { id: rev.id }, data: { status: "UNDER_REVIEW", submittedAt: new Date() } });
-  await approveRevision(rev.id, { type: "ADMIN", adminId }, { publish: false, notes: `Edited by WebCenter: ${reason}` });
+  await approveRevision(rev.id, { type: "ADMIN", adminId }, { publish: false, notes: `Edited by Webcenta: ${reason}` });
 }
 
 export async function requestClaim(listingId: string, orgId: string, userId: string, evidence: string) {

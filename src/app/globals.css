@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   WebCenter design tokens. Components use tokens (bg-surface, text-muted, …)
+   Webcenta design tokens. Components use tokens (bg-surface, text-muted, …)
    rather than dark: variants, so the system preference works without JS and
    an explicit choice (html.light / html.dark) overrides it.
 --------------------------------------------------------------------------- */

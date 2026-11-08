@@ -53,12 +53,12 @@ model ListingEvent {
   id           BigInt           @id @default(autoincrement())
   listingId    String
   type         ListingEventType
-  occurredAt   DateTime         @default(now()) @db.Timestamptz
+  occurredAt   DateTime         @default(now()) @db.DateTime(3)
   visitorHash  String
   countryCode  String?          @db.Char(2)
   device       DeviceType       @default(UNKNOWN)
   /// Referrer host only (no path/query) to avoid leaking third-party URLs.
-  referrerHost String?
+  referrerHost String? @db.VarChar(255)
   /// Internal surface that produced the event, e.g. "search", "home:trending".
   surface      String?
 
@@ -89,7 +89,7 @@ model ListingDailyDimensionStat {
   date           DateTime      @db.Date
   dimension      StatDimension
   /// Country code, device type or referrer host.
-  key            String
+  key            String @db.VarChar(255)
   views          Int           @default(0)
   outboundClicks Int           @default(0)
 
@@ -119,9 +119,9 @@ model InteractionEvent {
   type       InteractionType
   listingId  String?
   categoryId String?
-  query      String?
+  query      String? @db.Text
   dwellMs    Int?
-  createdAt  DateTime        @default(now()) @db.Timestamptz
+  createdAt  DateTime        @default(now()) @db.DateTime(3)
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   listing  Listing?  @relation(fields: [listingId], references: [id], onDelete: Cascade)
@@ -135,7 +135,7 @@ model UserInterest {
   categoryId String
   source     InterestSource
   weight     Float          @default(1)
-  updatedAt  DateTime       @updatedAt @db.Timestamptz
+  updatedAt  DateTime       @updatedAt @db.DateTime(3)
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)

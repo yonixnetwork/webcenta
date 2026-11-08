@@ -29,7 +29,8 @@ export async function toggleFavoriteAction(slug: string): Promise<{ saved: boole
     const saved = await toggleFavorite(await getViewerContext(), u.id, slug);
     revalidatePath("/account/favorites");
     return { saved };
-  } catch {
+  } catch (e) {
+    console.error("toggleFavorite failed", e instanceof Error ? e.message : e);
     return { error: "unavailable" };
   }
 }

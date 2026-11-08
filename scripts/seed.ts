@@ -8,10 +8,11 @@
  * administrator changes survive re-seeding.
  */
 import "dotenv/config";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { buildPoolConfig } from "../src/server/db-config";
-import { flattenTaxonomy } from "../src/server/catalog/taxonomy";
+import { extendClient } from "../src/server/db";
+import { CATEGORY_EMOJI, flattenTaxonomy } from "../src/server/catalog/taxonomy";
 import { FIXTURE_COLLECTIONS, FIXTURE_FEATURED, FIXTURE_LISTINGS, FIXTURE_RELATIONS } from "../prisma/seed/dev-fixtures";
 
 const { pool } = buildPoolConfig({
@@ -20,7 +21,7 @@ const { pool } = buildPoolConfig({
   DATABASE_SSL_CA: process.env.DATABASE_SSL_CA,
   NODE_ENV: process.env.NODE_ENV,
 });
-const db = new PrismaClient({ adapter: new PrismaPg({ ...pool, max: 2 }) });
+const db = extendClient(new PrismaClient({ adapter: new PrismaMariaDb({ ...pool, connectionLimit: 2 }) }));
 
 const RISK_ORDER = ["LOW", "MEDIUM", "HIGH", "PROHIBITED"] as const;
 
@@ -33,14 +34,17 @@ async function seedTaxonomy() {
     const parent = n.parentSlug ? flat.find((p) => p.slug === n.parentSlug) : undefined;
     // Children inherit the stricter of their own and their parent's settings.
     const risk = [n.riskTier ?? "LOW", parent?.riskTier ?? "LOW"].sort((a, b) => RISK_ORDER.indexOf(b) - RISK_ORDER.indexOf(a))[0]!;
-    const existing = await db.category.findUnique({ where: { slug: n.slug }, select: { id: true } });
+    const emoji = n.parentSlug ? null : (CATEGORY_EMOJI[n.slug] ?? null);
+    const existing = await db.category.findUnique({ where: { slug: n.slug }, select: { id: true, emoji: true } });
     if (existing) {
       ids.set(n.slug, existing.id);
+      // Fill in an emoji only where none is set; never overwrite an administrator's choice.
+      if (emoji && existing.emoji === null) await db.category.update({ where: { id: existing.id }, data: { emoji } });
       continue;
     }
     const row = await db.category.create({
       data: {
-        slug: n.slug, name: n.name, icon: n.icon, description: n.description ?? null, parentId, sortOrder: n.sortOrder,
+        slug: n.slug, name: n.name, icon: n.icon, emoji, description: n.description ?? null, parentId, sortOrder: n.sortOrder,
         riskTier: risk, defaultAgeRating: n.ageRating ?? parent?.ageRating ?? "ALL_AGES",
         isRestricted: Boolean(n.restricted || parent?.restricted),
         requiresManualReview: Boolean(n.manualReview || parent?.manualReview || risk === "HIGH"),
@@ -60,7 +64,7 @@ async function seedHomepageSections() {
     { key: "trending", title: "Trending now", type: "TRENDING" },
     { key: "popular", title: "Most popular", type: "POPULAR" },
     { key: "top-rated", title: "Highly rated", type: "TOP_RATED" },
-    { key: "new", title: "New on WebCenter", type: "NEW" },
+    { key: "new", title: "New on Webcenta", type: "NEW" },
     { key: "recently-updated", title: "Recently updated", type: "RECENTLY_UPDATED" },
     { key: "by-category", title: "By category", type: "BY_CATEGORY",
       config: { categorySlugs: ["ai", "productivity", "developer-tools", "education", "games"] } },
@@ -94,7 +98,7 @@ async function seedPlatformDefaults() {
   await db.developerPlan.upsert({ where: { code: "pro" }, create: { code: "pro", name: "Pro (planned)", entitlements: { listings: 100, analyticsHistoryDays: 365, sponsoredRequests: true }, isActive: false }, update: {} });
   // Legal policy templates are created as UNPUBLISHED drafts for review by a lawyer.
   const drafts: Array<[string, string, string]> = [
-    ["TERMS_OF_SERVICE", "Terms of Service", "DRAFT — requires legal review before publication.\n\n## Using WebCenter\nWebCenter lists third-party websites. We do not operate them.\n\n## Accounts\nKeep your credentials secure. We may suspend accounts that break these terms."],
+    ["TERMS_OF_SERVICE", "Terms of Service", "DRAFT — requires legal review before publication.\n\n## Using Webcenta\nWebcenta lists third-party websites. We do not operate them.\n\n## Accounts\nKeep your credentials secure. We may suspend accounts that break these terms."],
     ["PRIVACY_POLICY", "Privacy Policy", "DRAFT — requires legal review before publication.\n\n## What we collect\n- Account details you provide\n- Anonymous, daily-rotating visit counters (no IP addresses stored in analytics)\n- Browsing history only if you are signed in and keep it enabled\n\n## Your rights\nYou can export or delete your data from Account → Privacy & data."],
     ["CONTENT_POLICY", "Content Policy", "DRAFT — requires legal review before publication.\n\nProhibited: phishing, malware, fraud, impersonation, illegal marketplaces and content that exploits minors."],
     ["DEVELOPER_AGREEMENT", "Developer Agreement", "DRAFT — requires legal review before publication.\n\nSubmissions are reviewed and monitored. Payment never bypasses moderation."],

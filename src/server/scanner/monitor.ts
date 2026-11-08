@@ -15,7 +15,7 @@ export async function notifyAdmins(subject: string, intro: string, path: string)
   const admins = await db.adminUser.findMany({ where: { status: "ACTIVE", role: { in: ["SUPER_ADMIN", "ADMIN", "MODERATOR"] } }, select: { email: true } });
   const origin = process.env.ADMIN_ORIGIN || "http://admin.localhost:3000";
   const m = actionEmail({ title: subject, intro, actionLabel: "Open admin portal", url: `${origin}${path}` });
-  for (const a of admins) await sendEmail({ to: a.email, subject: `[WebCenter Admin] ${subject}`, template: "admin-alert", ...m });
+  for (const a of admins) await sendEmail({ to: a.email, subject: `[Webcenta Admin] ${subject}`, template: "admin-alert", ...m });
 }
 
 export async function nextScanDate(riskTier: "LOW" | "MEDIUM" | "HIGH" | "PROHIBITED", from = new Date()) {

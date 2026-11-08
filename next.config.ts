@@ -5,11 +5,16 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
-  // node-postgres must stay a runtime dependency rather than being bundled.
-  serverExternalPackages: ["pg", "@prisma/adapter-pg", "sharp"],
+  // Self-contained server (.next/standalone/server.js). Hostinger's Node.js hosting
+  // runs Next.js this way; `npm start` does the same locally and on a VPS.
+  output: "standalone",
+  // Native/driver packages stay runtime dependencies rather than being bundled.
+  serverExternalPackages: ["mariadb", "@prisma/adapter-mariadb", "sharp"],
   experimental: {
     // Media uploads (logos/screenshots ≤ 6 MB, documents ≤ 10 MB) go through server actions.
     serverActions: { bodySizeLimit: "12mb" },
+    // Enables forbidden() so access-denied pages return a real 403 status.
+    authInterrupts: true,
   },
   images: {
     // Listing media is served from object storage; the host is configured via env.
@@ -21,6 +26,8 @@ const nextConfig: NextConfig = {
     // Headers that do not depend on the request. CSP (with a per-request nonce)
     // is set in src/proxy.ts.
     return [
+      // Static error pages (public/errors/*.html) bypass the proxy, so they get their own strict CSP.
+      { source: "/errors/:file*", headers: [{ key: "Content-Security-Policy", value: "default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'" }, { key: "X-Robots-Tag", value: "noindex" }, { key: "Cache-Control", value: "public, max-age=300" }] },
       { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Service-Worker-Allowed", value: "/" }] },
       {
         source: "/:path*",

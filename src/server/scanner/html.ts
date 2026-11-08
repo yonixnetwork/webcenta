@@ -17,7 +17,7 @@ export function analyzeHtml(html: string): PageInfo {
   const root = parse(html, { blockTextElements: { script: false, style: false, noscript: false } });
   const title = root.querySelector("title")?.text.trim().slice(0, 200) || null;
   const text = root.text.replace(/\s+/g, " ").trim().slice(0, 20000);
-  const metaVerification = root.querySelectorAll('meta[name="webcenter-verification"]').map((m) => m.getAttribute("content") ?? "").filter(Boolean);
+  const metaVerification = root.querySelectorAll('meta[name="webcenta-verification"]').map((m) => m.getAttribute("content") ?? "").filter(Boolean);
   const passwordForms = root.querySelectorAll("form").filter((f) => f.querySelector('input[type="password"]')).map((f) => ({ action: f.getAttribute("action") ?? null }));
   const lower = text.toLowerCase();
   const asksForSeedPhrase = /(seed phrase|recovery phrase|secret recovery|mnemonic phrase|12[- ]word|24[- ]word|private key)/.test(lower)

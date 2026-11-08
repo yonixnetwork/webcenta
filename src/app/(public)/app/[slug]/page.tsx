@@ -10,8 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
 import { AGE_LABEL, PLATFORM_LABEL, PRICING_LABEL, SECURITY_LABEL, VERIFICATION_LABEL, formatDate, isSampleListing } from "@/lib/labels";
 import { displayDomain } from "@/lib/url";
+import { enumArray, stringArray } from "@/lib/json-arrays";
+import { Platform } from "@/generated/prisma/enums";
 import { getRelated } from "@/server/catalog/alternatives";
-import { getPublicListing, MIN_RATINGS_FOR_DISPLAY } from "@/server/catalog/listings";
+import { getPublicListing } from "@/server/catalog/listings";
 import { submitListingReport } from "@/server/catalog/report-action";
 import { LISTING_REPORT_REASONS } from "@/server/moderation/reports";
 import { getViewerContext } from "@/server/viewer";
@@ -67,7 +69,11 @@ export default async function AppPage({ params, searchParams }: Props) {
   const security = SECURITY_LABEL[listing.securityStatus];
   const logo = listing.media.find((m) => m.kind === "LOGO");
   const screenshots = listing.media.filter((m) => m.kind === "SCREENSHOT" || m.kind === "PREVIEW");
-  const showRating = listing.ratingCount >= MIN_RATINGS_FOR_DISPLAY;
+  const showRating = listing.ratingCount > 0;
+  const platforms = enumArray(listing.platforms, Object.values(Platform));
+  const features = stringArray(listing.features);
+  const supportedCountries = stringArray(listing.supportedCountries);
+  const languages = stringArray(listing.languages);
   const verification = listing.developer ? VERIFICATION_LABEL[listing.developer.verificationLevel] : "Unclaimed listing";
   const reportAction = submitListingReport.bind(null, listing.slug);
 
@@ -78,10 +84,10 @@ export default async function AppPage({ params, searchParams }: Props) {
     description: listing.tagline ?? listing.description.slice(0, 300),
     url: listing.websiteUrl,
     applicationCategory: listing.primaryCategory?.name,
-    operatingSystem: listing.platforms.map((p) => PLATFORM_LABEL[p]).join(", "),
+    operatingSystem: platforms.map((p) => PLATFORM_LABEL[p]).join(", "),
     author: { "@type": "Organization", name: listing.publisherName },
     ...(listing.pricingModel === "FREE" ? { offers: { "@type": "Offer", price: "0", priceCurrency: "USD" } } : {}),
-    ...(showRating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: listing.ratingAverage.toFixed(1), ratingCount: listing.ratingCount } } : {}),
+    ...(showRating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: Number(listing.ratingAverage.toFixed(1)), bestRating: 5, worstRating: 1, ratingCount: listing.ratingCount, reviewCount: listing.ratingCount } } : {}),
   };
 
   return (
@@ -108,25 +114,24 @@ export default async function AppPage({ params, searchParams }: Props) {
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
               <span className="font-medium text-brand">{listing.publisherName}</span>
               {listing.developer && listing.developer.verificationLevel !== "UNVERIFIED" && <BadgeCheck className="size-4 text-brand" aria-label={verification} />}
-              {listing.source === "EDITORIAL" && <span className="text-subtle">· Listed by WebCenter editors</span>}
+              {listing.source === "EDITORIAL" && <span className="text-subtle">· Listed by Webcenta editors</span>}
             </p>
             <div className="flex flex-wrap gap-1.5 pt-1">
               <Badge tone={listing.pricingModel === "FREE" ? "success" : "neutral"}>{PRICING_LABEL[listing.pricingModel]}</Badge>
               {listing.isOpenSource && <Badge tone="brand">Open source</Badge>}
               {listing.isPwaInstallable && <Badge>Installable PWA</Badge>}
               <Badge tone="outline">Age {AGE_LABEL[listing.ageRating]}</Badge>
-              {showRating && <Badge><Star className="size-3 fill-current text-amber-500" aria-hidden /> {listing.ratingAverage.toFixed(1)} ({listing.ratingCount})</Badge>}
+              {showRating && <a href="#reviews" className="inline-flex"><Badge><Star className="size-3 fill-current text-amber-500" aria-hidden /> {listing.ratingAverage.toFixed(1)}/5 · {listing.ratingCount} review{listing.ratingCount === 1 ? "" : "s"}</Badge></a>}
             </div>
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row lg:w-auto lg:flex-col">
           {/* Full-page navigation on purpose: the interstitial must load as its own document so
               its CSP (form-action allowing the https redirect) applies. */}
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href={`/go/${listing.slug}`} rel="nofollow" className={buttonClass("primary", "lg", "w-full sm:w-auto lg:w-64")}>
             Visit website <ArrowUpRight className="size-5" aria-hidden />
           </a>
-          <p className="text-center text-xs text-subtle lg:w-64">Opens {domain} · you’ll see a notice before leaving WebCenter</p>
+          <p className="text-center text-xs text-subtle lg:w-64">Opens {domain} · you’ll see a notice before leaving Webcenta</p>
           <div className="flex gap-2 sm:ml-2 lg:ml-0">
             <ShareButton url={`${origin}/app/${listing.slug}`} title={listing.name} />
             <FavoriteButton slug={listing.slug} initial={Boolean(favorite)} signedIn={Boolean(user)} />
@@ -167,11 +172,11 @@ export default async function AppPage({ params, searchParams }: Props) {
             <div className="whitespace-pre-line text-pretty leading-relaxed text-muted">{listing.description}</div>
           </section>
 
-          {listing.features.length > 0 && (
+          {features.length > 0 && (
             <section aria-labelledby="features">
               <h2 id="features" className="mb-3 text-xl font-bold">Features</h2>
               <ul className="grid gap-2 sm:grid-cols-2">
-                {listing.features.map((f) => (
+                {features.map((f) => (
                   <li key={f} className="flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-2 text-sm"><span className="size-1.5 rounded-full bg-brand" aria-hidden />{f}</li>
                 ))}
               </ul>
@@ -199,7 +204,7 @@ export default async function AppPage({ params, searchParams }: Props) {
               <li className="flex gap-3">
                 <UserRound className="size-5 shrink-0 text-muted" aria-hidden />
                 <span><span className="font-medium">{verification}</span><br />
-                  <span className="text-muted">{listing.developer ? `Managed by ${listing.developer.displayName}` : "Added by WebCenter editors and credited to the original publisher. Developers will be able to claim listings after verifying ownership."}</span></span>
+                  <span className="text-muted">{listing.developer ? `Managed by ${listing.developer.displayName}` : "Added by Webcenta editors and credited to the original publisher. Developers will be able to claim listings after verifying ownership."}</span></span>
               </li>
             </ul>
           </section>
@@ -210,10 +215,10 @@ export default async function AppPage({ params, searchParams }: Props) {
               <Fact label="Website"><span className="inline-flex items-center gap-1"><Globe className="size-3.5" aria-hidden />{domain}</span></Fact>
               <Fact label="Publisher">{listing.publisherName}</Fact>
               <Fact label="Pricing">{PRICING_LABEL[listing.pricingModel]}{listing.pricingDetails ? ` — ${listing.pricingDetails}` : ""}</Fact>
-              <Fact label="Platforms">{listing.platforms.map((p) => PLATFORM_LABEL[p]).join(", ")}</Fact>
+              <Fact label="Platforms">{platforms.map((p) => PLATFORM_LABEL[p]).join(", ")}</Fact>
               <Fact label="Age rating">{AGE_LABEL[listing.ageRating]}</Fact>
-              <Fact label="Countries">{listing.supportedCountries.length ? listing.supportedCountries.join(", ") : "Worldwide (as declared)"}</Fact>
-              {listing.languages.length > 0 && <Fact label="Languages">{listing.languages.join(", ").toUpperCase()}</Fact>}
+              <Fact label="Countries">{supportedCountries.length ? supportedCountries.join(", ") : "Worldwide (as declared)"}</Fact>
+              {languages.length > 0 && <Fact label="Languages">{languages.join(", ").toUpperCase()}</Fact>}
               <Fact label="Listed since">{formatDate(listing.publishedAt)}</Fact>
               {listing.contentUpdatedAt && <Fact label="Last updated">{formatDate(listing.contentUpdatedAt)}</Fact>}
             </dl>

@@ -57,7 +57,7 @@ model HomepageSection {
   isEnabled Boolean             @default(true)
   /// e.g. { "categoryId": "...", "collectionId": "...", "limit": 12 }
   config    Json?
-  updatedAt DateTime            @updatedAt @db.Timestamptz
+  updatedAt DateTime            @updatedAt @db.DateTime(3)
 
   @@index([isEnabled, sortOrder])
 }
@@ -72,10 +72,10 @@ model FeaturedPlacement {
   isSponsored      Boolean       @default(false)
   sponsorshipId    String?
   sortOrder        Int           @default(0)
-  startsAt         DateTime      @db.Timestamptz
-  endsAt           DateTime?     @db.Timestamptz
+  startsAt         DateTime      @db.DateTime(3)
+  endsAt           DateTime?     @db.DateTime(3)
   createdByAdminId String?
-  createdAt        DateTime      @default(now()) @db.Timestamptz
+  createdAt        DateTime      @default(now()) @db.DateTime(3)
 
   listing        Listing      @relation(fields: [listingId], references: [id], onDelete: Cascade)
   category       Category?    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
@@ -89,9 +89,9 @@ model FeaturedPlacement {
 model SystemSetting {
   key              String   @id
   value            Json
-  description      String?
+  description      String? @db.Text
   updatedByAdminId String?
-  updatedAt        DateTime @updatedAt @db.Timestamptz
+  updatedAt        DateTime @updatedAt @db.DateTime(3)
 
   updatedByAdmin AdminUser? @relation(fields: [updatedByAdminId], references: [id], onDelete: SetNull)
 }
@@ -102,11 +102,11 @@ model LegalPolicy {
   version          Int
   title            String
   /// Markdown, rendered with a sanitising renderer.
-  body             String
-  effectiveAt      DateTime        @db.Timestamptz
-  publishedAt      DateTime?       @db.Timestamptz
+  body             String @db.MediumText
+  effectiveAt      DateTime        @db.DateTime(3)
+  publishedAt      DateTime?       @db.DateTime(3)
   createdByAdminId String?
-  createdAt        DateTime        @default(now()) @db.Timestamptz
+  createdAt        DateTime        @default(now()) @db.DateTime(3)
 
   createdByAdmin AdminUser? @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
 
@@ -125,7 +125,7 @@ model DeveloperPlan {
   priceCents   Int?
   currency     String?  @db.Char(3)
   isActive     Boolean  @default(false)
-  createdAt    DateTime @default(now()) @db.Timestamptz
+  createdAt    DateTime @default(now()) @db.DateTime(3)
 
   subscriptions DeveloperSubscription[]
 }
@@ -138,9 +138,9 @@ model DeveloperSubscription {
   /// Payment provider name and external id (e.g. "stripe", "sub_...").
   provider         String?
   providerRef      String?
-  currentPeriodEnd DateTime?          @db.Timestamptz
-  createdAt        DateTime           @default(now()) @db.Timestamptz
-  updatedAt        DateTime           @updatedAt @db.Timestamptz
+  currentPeriodEnd DateTime?          @db.DateTime(3)
+  createdAt        DateTime           @default(now()) @db.DateTime(3)
+  updatedAt        DateTime           @updatedAt @db.DateTime(3)
 
   org  DeveloperOrg  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   plan DeveloperPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
@@ -156,11 +156,11 @@ model Sponsorship {
   listingId     String
   status        SponsorshipStatus @default(PENDING_REVIEW)
   slot          PlacementSlot     @default(HOME_FEATURED)
-  startsAt      DateTime?         @db.Timestamptz
-  endsAt        DateTime?         @db.Timestamptz
-  message       String?
-  decisionNotes String?
-  createdAt     DateTime          @default(now()) @db.Timestamptz
+  startsAt      DateTime?         @db.DateTime(3)
+  endsAt        DateTime?         @db.DateTime(3)
+  message       String? @db.Text
+  decisionNotes String? @db.Text
+  createdAt     DateTime          @default(now()) @db.DateTime(3)
 
   org        DeveloperOrg        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   listing    Listing             @relation(fields: [listingId], references: [id], onDelete: Cascade)

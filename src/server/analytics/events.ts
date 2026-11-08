@@ -32,11 +32,12 @@ export async function recordListingEvent(listingId: string, type: "VIEW" | "OUTB
   const hash = visitorHash(await dailySalt(), clientIp(h, e.TRUSTED_PROXY_HOPS), ua, listingId);
   const country = normalizeCountry(h.get(e.GEO_COUNTRY_HEADER));
   const n = await db.$executeRaw`
-    INSERT INTO "ListingEvent" ("listingId", type, "visitorHash", "countryCode", device, "referrerHost", surface)
-    SELECT ${listingId}, ${type}::"ListingEventType", ${hash}, ${country}, ${device}::"DeviceType", ${opts.referrer ?? null}, ${opts.surface ?? null}
+    INSERT INTO ListingEvent (listingId, type, visitorHash, countryCode, device, referrerHost, surface, occurredAt)
+    SELECT ${listingId}, ${type}, ${hash}, ${country}, ${device}, ${opts.referrer ?? null}, ${opts.surface ?? null}, UTC_TIMESTAMP(3)
+    FROM DUAL
     WHERE NOT EXISTS (
-      SELECT 1 FROM "ListingEvent" WHERE "listingId" = ${listingId} AND type = ${type}::"ListingEventType"
-        AND "visitorHash" = ${hash} AND "occurredAt" > now() - make_interval(mins => ${DEDUPE_MINUTES})
+      SELECT 1 FROM ListingEvent WHERE listingId = ${listingId} AND type = ${type}
+        AND visitorHash = ${hash} AND occurredAt > UTC_TIMESTAMP(3) - INTERVAL ${DEDUPE_MINUTES} MINUTE
     )`;
   return n > 0;
 }
@@ -51,14 +52,14 @@ export async function recordSearchImpressions(listingIds: string[], h: Headers):
   const salt = await dailySalt();
   const ip = clientIp(h, e.TRUSTED_PROXY_HOPS);
   const country = normalizeCountry(h.get(e.GEO_COUNTRY_HEADER));
-  const rows = listingIds.slice(0, 50).map((id) => Prisma.sql`(${id}, ${visitorHash(salt, ip, ua, id)})`);
+  const rows = listingIds.slice(0, 50).map((id) => Prisma.sql`SELECT ${id} AS id, ${visitorHash(salt, ip, ua, id)} AS hash`);
   return db.$executeRaw`
-    INSERT INTO "ListingEvent" ("listingId", type, "visitorHash", "countryCode", device, surface)
-    SELECT v.id, 'SEARCH_IMPRESSION', v.hash, ${country}, ${device}::"DeviceType", 'search'
-    FROM (VALUES ${Prisma.join(rows)}) AS v(id, hash)
+    INSERT INTO ListingEvent (listingId, type, visitorHash, countryCode, device, surface, occurredAt)
+    SELECT v.id, 'SEARCH_IMPRESSION', v.hash, ${country}, ${device}, 'search', UTC_TIMESTAMP(3)
+    FROM (${Prisma.join(rows, " UNION ALL ")}) AS v
     WHERE NOT EXISTS (
-      SELECT 1 FROM "ListingEvent" le WHERE le."listingId" = v.id AND le.type = 'SEARCH_IMPRESSION'
-        AND le."visitorHash" = v.hash AND le."occurredAt" >= date_trunc('day', now())
+      SELECT 1 FROM ListingEvent le WHERE le.listingId = v.id AND le.type = 'SEARCH_IMPRESSION'
+        AND le.visitorHash = v.hash AND le.occurredAt >= UTC_DATE()
     )`;
 }
 

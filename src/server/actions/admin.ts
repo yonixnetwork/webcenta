@@ -193,18 +193,18 @@ export async function removePlacementAction(id: string) {
 // ---------------- Categories & homepage ----------------
 const categorySchema = z.object({
   name: z.string().trim().min(2).max(80), slug: z.string().trim().max(80).optional(), description: z.string().trim().max(500).optional(),
-  icon: z.string().trim().max(40).optional(), parentId: z.string().optional(), sortOrder: z.coerce.number().int().min(0).max(10000),
+  icon: z.string().trim().max(40).optional(), emoji: z.string().trim().max(16).optional(), parentId: z.string().optional(), sortOrder: z.coerce.number().int().min(0).max(10000),
   riskTier: z.enum(["LOW", "MEDIUM", "HIGH", "PROHIBITED"]), defaultAgeRating: z.enum(["ALL_AGES", "AGE_13_PLUS", "AGE_16_PLUS", "AGE_18_PLUS"]),
 });
 const flags = (f: FormData) => ({ isEnabled: f.get("isEnabled") === "on", isRestricted: f.get("isRestricted") === "on", requiresManualReview: f.get("requiresManualReview") === "on", requiresComplianceDocs: f.get("requiresComplianceDocs") === "on" });
 export async function saveCategoryAction(id: string | null, _s: ActionState, f: FormData): Promise<ActionState> {
   try {
     const a = await assertAdmin("catalog.manage");
-    const d = categorySchema.parse({ name: f.get("name"), slug: str(f, "slug") || undefined, description: str(f, "description") || undefined, icon: str(f, "icon") || undefined, parentId: str(f, "parentId") || undefined, sortOrder: f.get("sortOrder") || 0, riskTier: f.get("riskTier"), defaultAgeRating: f.get("defaultAgeRating") });
+    const d = categorySchema.parse({ name: f.get("name"), slug: str(f, "slug") || undefined, description: str(f, "description") || undefined, icon: str(f, "icon") || undefined, emoji: str(f, "emoji") || undefined, parentId: str(f, "parentId") || undefined, sortOrder: f.get("sortOrder") || 0, riskTier: f.get("riskTier"), defaultAgeRating: f.get("defaultAgeRating") });
     const slug = slugify(d.slug || d.name);
     if (d.parentId && d.parentId === id) return fail("A category cannot be its own parent.");
     if (d.parentId && (await db.category.findUnique({ where: { id: d.parentId } }))?.parentId) return fail("Only two levels are supported (choose a top-level parent).");
-    const data = { ...d, slug, description: d.description ?? null, icon: d.icon ?? null, parentId: d.parentId ?? null, ...flags(f) };
+    const data = { ...d, slug, description: d.description ?? null, icon: d.icon ?? null, emoji: d.emoji ?? null, parentId: d.parentId ?? null, ...flags(f) };
     const c = id ? await db.category.update({ where: { id }, data }) : await db.category.create({ data });
     await audit({ actorType: "ADMIN", adminId: a.id, action: id ? "category.update" : "category.create", targetType: "Category", targetId: c.id, metadata: data as Prisma.InputJsonValue });
     invalidateCategoryCache();
@@ -433,7 +433,7 @@ export async function supportReplyAction(caseId: string, _s: ActionState, f: For
     await db.supportCaseMessage.create({ data: { caseId, fromAdminId: a.id, body, isInternal: internal } });
     await db.supportCase.update({ where: { id: caseId }, data: { status: internal ? c.status : "PENDING_USER", assignedAdminId: c.assignedAdminId ?? a.id } });
     if (!internal) {
-      const m = actionEmail({ title: `Re: ${c.subject}`, intro: body, actionLabel: "Visit WebCenter", url: process.env.PUBLIC_ORIGIN || "http://localhost:3000" });
+      const m = actionEmail({ title: `Re: ${c.subject}`, intro: body, actionLabel: "Visit Webcenta", url: process.env.PUBLIC_ORIGIN || "http://localhost:3000" });
       await sendEmail({ to: c.contactEmail, subject: `Re: ${c.subject}`, template: "support-reply", ...m });
     }
     await audit({ actorType: "ADMIN", adminId: a.id, action: internal ? "support.note" : "support.reply", targetType: "SupportCase", targetId: caseId });

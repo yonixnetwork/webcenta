@@ -1,12 +1,12 @@
-# WebCenter — Final Integrated Verification Report
+# Webcenta — Final Integrated Verification Report
 
 Date: 2026-11-07 · Branch: `claude/youthful-cerf-4xclco` · Status: **ready for staging, then production
 deployment after owner approval**. Nothing has been deployed. No paid service has been activated.
 
 ## 1. What was built
 
-One integrated Next.js 16 application with a PostgreSQL schema of 61 tables and 2 migrations:
-- **Public marketplace** on `webcenter.com`.
+One integrated Next.js 16 application on **MySQL / MariaDB** (Hostinger MySQL; see [ADR-0008](adr/0008-mysql-mariadb-hostinger.md)) with 61 tables and one baseline migration:
+- **Public marketplace** on `webcenta.com`.
 - **Developer portal** at `/developer` (`developers.` redirects there).
 - **Admin portal** on `admin.` with a separate identity system.
 - **Cron-driven job runner** and **SSRF-safe security scanner**.
@@ -22,23 +22,32 @@ The required integrations were exercised end to end by the E2E journeys:
 - suspension and country/age rules → hidden from search, categories, recommendations, sitemap,
   autocomplete and direct URLs.
 
-## 2. Tests executed (final run, all on real PostgreSQL 16)
+## 2. Tests executed (final run after the move to MySQL / MariaDB)
+
+Local runs used MariaDB 10.11.14 (the engine Hostinger runs) and MySQL 8.0.46, each reached over
+TCP at `127.0.0.1` with a password user, as on Hostinger. E2E ran against the Next.js **standalone
+server** built with `next build --webpack`, as Hostinger builds and runs it.
 
 | Suite | Result |
 | --- | --- |
 | ESLint (`eslint .`) | 0 errors, 0 warnings |
 | TypeScript (`tsc --noEmit`, strict) | 0 errors |
-| Unit + DB integration (Vitest, 14 files) | **182 passed, 0 failed** (passed twice consecutively on the same database) |
-| Schema smoke test | 13/13 passed |
-| Prisma migration drift (`migrate diff --exit-code`) | no drift |
-| Supabase-like role simulation (`anon` denied, no default grants) | passed |
-| `npm run db:check` (local) | all required checks passed |
-| E2E (Playwright/Chromium, fresh database) | **89 passed, 0 failed, 0 skipped** across the `journeys`, `desktop`, `tablet` (iPad landscape) and `mobile` (Pixel 7) projects |
-| Backup → restore drill | 61 tables restored with identical row counts; RLS and search trigger intact |
-| Client bundle secret scan | no secrets, connection strings or source maps (29 files) |
+| Unit + DB integration (Vitest, 18 files) | **227 passed, 0 failed on MariaDB 10.11** and **227 passed, 0 failed on MySQL 8.0** |
+| Migrations | baseline applies to empty MariaDB and MySQL databases |
+| Prisma migration drift (`migrate diff --exit-code`) | no drift on either engine |
+| Seed twice (idempotence) | passed |
+| Schema smoke test | 13/13 passed on both engines |
+| `npm run db:check` | all required checks passed on both engines |
+| Backup → restore drill | 61 tables, identical exact row counts; CHECK constraints, 97 foreign keys, 3 FULLTEXT indexes and binary collations identical — on both engines |
+| Build (`next build --webpack`, standalone, no database access) | passed |
+| E2E (Playwright/Chromium, fresh MariaDB database, standalone server) | **112 passed, 0 failed, 0 skipped** across the `journeys` (9), `desktop` (50), `tablet` (24, iPad landscape) and `mobile` (29, Pixel 7) projects |
+| www redirect on the standalone server | absolute 308 to `https://webcenta.com/…` |
+| Brand check (`npm run brand:check`) | no references to the retired name |
+| Static error pages up to date | yes (also a unit test) |
+| Client bundle secret scan | no secrets, connection strings or source maps (124 files) |
 | `npm audit --omit=dev` (production dependencies) | 0 vulnerabilities |
-| **GitHub Actions CI on a clean runner** (all of the above plus the E2E suite) | **passed**: run #17 for commit `a61df60` (https://github.com/yonixnetwork/webcenta/actions/runs/42325660895) |
 | `npm audit` (incl. dev tooling) | 8 moderate in ESLint tooling (`minimatch` via typescript-eslint); the only offered fix downgrades `eslint-config-next` across a major version. Dev-only, not shipped. |
+| **GitHub Actions CI on clean runners** | **Run #28 passed** for `0ee3bd9` (https://github.com/yonixnetwork/webcenta/actions/runs/42401767539): MySQL 8.0 job and MariaDB 10.11 job, every step green — migrations, drift, seed, lint, typecheck, unit/DB tests, smoke, `db:check`, restore drill, Hostinger-style build, bundle scan, the full E2E suite on the standalone server and the www-redirect check. Before the fix, run #27 failed 1 E2E test (defect 24). |
 
 The E2E coverage:
 - **10 user journeys:** see [TESTING.md](TESTING.md).
@@ -69,6 +78,69 @@ All of these were fixed and re-verified by the failing test and its related suit
 10. **Developers got no confirmation after submitting** (now a persistent status banner).
 11. **Recommendations returned short lists** when interest matches ran out (now backfilled).
 12. **Soft-404s:** hidden pages returned 200 under a group loading boundary (Phase 1).
+
+Found during the brand correction and its re-test:
+
+13. **The logo still read "Web…Center".** The wordmark is split across two elements, so the textual
+    rename missed it. The new brand check (`npm run brand:check`, in CI) catches split wordmarks.
+14. **Rated cards widened the page on phones by about 1,100 px.** Screen-reader text on a rated card
+    inside a horizontal rail was positioned outside the scroller. Only visible once a listing had
+    ratings; caught by the mobile overflow test and now covered explicitly in the reviews spec.
+15. **Admin permission denials were redirects with status 200 and were not audited** (and the
+    E2E assertion for the audit entry was vacuous: `>= 0`). They now return a real 403 and every
+    page-level denial is audited; the test asserts exactly five entries.
+16. **Documentation drift:** `SECURITY.md` listed a "same network" review heuristic that does not
+    exist, and `ARCHITECTURE.md` described a `developers.` host rewrite and an `api.` host that did not
+    match the code. Both are corrected; `api.webcenta.com` now has a defined, tested behaviour.
+17. **Seven lint warnings** (unused code, stale disable directives) had crept in although the
+    previous report said zero; fixed.
+18. **The new brand check failed on a clean CI checkout** (false positive when there were no
+    untracked files; it passed locally only because untracked files existed). Found by CI run #22;
+    the script now tests its output instead of `xargs`'s exit code, and was verified on a clean tree.
+
+Found during the move to MySQL / MariaDB and its re-test:
+
+19. **The Better Auth adapter was still configured for PostgreSQL** after the switch; set to `mysql`.
+20. **Two CHECK constraints are impossible on MySQL and MariaDB** (columns with foreign-key actions);
+    both engines rejected the migration. The rules (one geo-restriction target; no self-parent
+    category) are now enforced in the Prisma client extension and tested.
+21. **Hostinger-style standalone serving broke a PWA test**: the update test edited `public/sw.js`,
+    but the standalone server serves its own copy. The test now edits the copy actually served.
+22. **MySQL's `mysqldump` against MariaDB** needs `--column-statistics=0`; the backup script detects it.
+23. **The standalone server bound only to IPv4 or failed on hosts without IPv6**; the E2E
+    configuration now chooses the address from the machine's interfaces.
+24. **Concurrent upserts failed on MySQL** (found by CI run #27). On PostgreSQL, Prisma's `upsert`
+    is one atomic statement; on MySQL / MariaDB it is a read followed by an insert. A page view and
+    a "Save" click at the same moment both tried to create the same interest row, and one failed
+    with a unique violation, so the favourite was not saved. The same race affected the daily
+    analytics salt and search statistics. It was hard to see because the action swallowed the
+    error; it now logs it, and the CI log showed `Unique constraint failed on the constraint:
+    PRIMARY`. Fix: every `upsert` retries on a unique violation (Prisma's documented remedy), in
+    the client extension. `tests/db/concurrency.test.ts` fires 12 concurrent upserts at the same
+    new rows; it fails without the fix and passes with it on MariaDB and MySQL.
+
+## 3a. Brand correction and user-experience additions
+
+- **Brand:** the product is **Webcenta** at **webcenta.com** everywhere: code, metadata, Open Graph,
+  manifest, service worker, emails, seed data, scripts, CI, tests, docs and screenshots. Identifiers
+  changed include the database trigger function (`webcenta_listing_search_vector`; the baseline
+  migration was edited, which is safe only because nothing has been deployed), the domain-verification
+  prefix (`webcenta-verification`). The cookie prefix `wc` and theme cookie `wc-theme` were already
+  brand-neutral and are unchanged.
+- **No decorative photography:** Lucide icons throughout, one emoji per top-level category
+  (`Category.emoji`, editable by admins), real developer logos and screenshots only.
+- **Reviews:** "★★★★★ 4.8/5 · Based on N reviews", per-star counts and percentages (always summing to
+  100), dated reviews, developer replies, edit/delete/helpful/report, honest empty state. The average
+  is shown from the first published review (with its count beside it), on the app page, cards and
+  JSON-LD. Held reviews are never counted.
+- **Offline:** branded page ("You're currently offline.") precached with its CSS and JS. Retry checks
+  the network and reloads the requested page, which also happens automatically when the connection
+  returns. It states which features need a connection.
+- **Error pages:** 404 / 403 / 500 / maintenance 503 with correct status codes; JSON 404 for unknown API
+  paths; "application unavailable" page with same-category and alternative suggestions and no
+  moderation details; static fallback pages for the host or CDN. See
+  [DEPLOYMENT.md §5a](DEPLOYMENT.md) for what happens when the app itself is down and the limits of
+  each option.
 
 ## 4. Security assessment
 
@@ -128,8 +200,9 @@ Profile: Pixel 7 emulation, 4× CPU slowdown, ~1.6 Mbps, 150 ms latency.
 
 Server medians (30 requests): autocomplete 8 ms, search 15 ms, app page 26 ms.
 
-These are measured against a **local** database. Production adds Supabase network latency (choose
-the same region as Hostinger). **Not measured:** load or concurrency testing at scale.
+These were measured on the earlier PostgreSQL build against a **local** database and have **not**
+been re-measured on MySQL. On Hostinger the database is on the same machine (127.0.0.1), so no
+network hop is added. **Not measured:** load or concurrency testing at scale.
 
 ## 6. PWA compatibility
 
@@ -169,21 +242,33 @@ Recurring jobs:
 
 ## 9. Hostinger deployment compatibility
 
-The app uses no WebSockets, permanent worker, Docker or Redis, and no hosting-specific paths.
-- **Background work** is time-boxed (25 s per tick).
-- **The database pool** is small and safe for the Supabase pooler.
-- **Uploads** go to S3-compatible storage (the local driver is for development and VPS use only).
+The app uses no WebSockets, permanent worker, Docker, Redis, external database or hosting-specific
+paths.
+- **Database:** Hostinger MySQL (MariaDB) at `127.0.0.1`; small pool (5); no triggers or routines
+  (shared-hosting privileges); tested on MariaDB 10.11 and MySQL 8.0.
+- **Build:** `prisma generate && next build --webpack` (Hostinger's documented fix for Next.js ≥ 16.3.3
+  Turbopack builds), standalone output as Hostinger runs it, no database access during the build,
+  build tools in `dependencies`. Verified locally and in CI; E2E runs against the standalone server.
+- **Background work** is time-boxed (25 s per tick) and driven by Hostinger Cron.
+- **Uploads** stay on the hosting disk in an absolute folder outside the app directory (enforced in
+  production); S3 is optional.
 
-**To verify in hPanel:** the Node 22 runtime; that the build installs devDependencies; build memory;
-multiple domains on one app; the cron interval.
+**Researched (Hostinger help centre and docs, not verified on the account):** Node.js 18/20/22/24 with
+the version taken from `engines`; build script chosen from `package.json`; Next.js output `.next`
+with the standalone server started by Hostinger; MySQL means MariaDB; Node.js apps must use
+`127.0.0.1`. Direct page fetches were blocked in this environment, so these come from search
+summaries of Hostinger's pages.
+
+**To verify in hPanel:** the MariaDB version (≥ 10.6); build memory; multiple domains on one app;
+the cron interval; that the uploads folder survives a redeploy.
 
 ## 10. External services still requiring configuration (owner)
 
 | Service | Purpose | Notes |
 | --- | --- | --- |
-| Supabase | Database | Run `db:check` against the project |
-| SMTP | Email | Hostinger mailbox or another provider |
-| S3-compatible bucket | Uploads | Cloudflare R2 recommended |
+| Hostinger MySQL database | Database | Included; create it in hPanel and run `db:check` |
+| SMTP | Email | Hostinger mailbox (included) |
+| Uploads folder | Uploads | A folder outside the app directory on the hosting account (included); S3 optional |
 | Google OAuth | Sign-in | Optional |
 | Apple Developer Program | Sign in with Apple | US$99/yr, optional |
 | Threat intelligence | Scanner | Google Web Risk (commercial terms) and/or abuse.ch URLhaus; VirusTotal needs a commercial licence |
@@ -193,11 +278,11 @@ multiple domains on one app; the cron interval.
 ## 11. Exact deployment instructions
 
 See [DEPLOYMENT.md §2–4](DEPLOYMENT.md). In short:
-1. Create the Supabase project and run `db:check`.
-2. `prisma migrate deploy` and `db:seed`, using `DIRECT_URL`.
+1. Create the Hostinger MySQL database and user; run `db:check`.
+2. `prisma migrate deploy` and `db:seed` (from your computer with Remote MySQL, or over SSH).
 3. `admin:provision` for the first Super Administrator.
-4. Configure the Hostinger app (Node 22, `npm ci` / `npm run build` / `npm start`, environment
-   variables from §3).
+4. Create the Hostinger Node.js app from GitHub (`main`): Next.js, Node 22, build script `build`,
+   output `.next`, environment variables from DEPLOYMENT.md §3.
 5. Attach the four domains with HTTPS.
 6. Add the cron curl job (every 10 minutes).
 7. Run the smoke checklist.

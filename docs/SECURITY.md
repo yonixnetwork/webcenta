@@ -1,7 +1,7 @@
-# WebCenter — Security Design
+# Webcenta — Security Design
 
 Status: **implemented**. Evidence and remaining risks are in [FINAL_REPORT.md](FINAL_REPORT.md) §4.
-Implementation status per feature is in [ROADMAP.md](ROADMAP.md). WebCenter never claims complete
+Implementation status per feature is in [ROADMAP.md](ROADMAP.md). Webcenta never claims complete
 security, legal compliance or that a listed website is "guaranteed safe".
 
 ## 1. Assets and threats
@@ -29,7 +29,7 @@ security, legal compliance or that a listed website is "guaranteed safe".
 
 ### 2.2 Administrators (fully isolated)
 * Separate tables (`AdminUser`, `AdminSession`) and a separate cookie scoped **host-only** to
-  `admin.webcenter.com` (`__Host-wc_admin`, `SameSite=Strict`). A public user session can never
+  `admin.webcenta.com` (`__Host-wc_admin`, `SameSite=Strict`). A public user session can never
   authorise admin access, and an admin session is not sent to the public site.
 * **No public registration.** The first Super Administrator is created by a server-side CLI
   (`npm run admin:provision`) run from the hosting shell. Everyone else joins by `AdminInvitation`:
@@ -107,7 +107,7 @@ Nothing else in the app may fetch user-supplied URLs.
 
 | Check | Source |
 | --- | --- |
-| Domain ownership | `DomainVerification` (DNS TXT, meta tag or `/.well-known/webcenter-verification.txt`) |
+| Domain ownership | `DomainVerification` (DNS TXT, meta tag or `/.well-known/webcenta-verification.txt`) |
 | DNS resolution, HTTPS reachability, TLS validity and expiry, HSTS | Internal |
 | Redirect chain (off-domain hops, URL shorteners, too many hops) | Internal |
 | Known malicious URL or domain | Google **Web Risk** (commercial terms; the Safe Browsing v4 API is non-commercial only), abuse.ch **URLhaus**, optionally **VirusTotal** (commercial use needs a paid licence) |
@@ -173,7 +173,7 @@ material. CSAM is reported to the relevant authorities as legally required.
 | Headers | HSTS (preload after launch), CSP, `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `frame-ancestors 'none'`. |
 | Secrets | Environment variables only; `.env*` git-ignored; GitHub secret scanning and push protection enabled; keys rotated on staff changes. |
 | Dependencies | Lockfile committed; `npm audit` and Dependabot in CI. |
-| Abuse | Rate limits on reviews, reports, sign-ups, search and `/go`; review spam heuristics (new account, burst, duplicate text, same network); held reviews go to moderation. |
+| Abuse | Rate limits on reviews, reports, sign-ups, search and `/go`; review spam heuristics (account younger than 24 h, links in the text, a burst of reviews, text duplicated from another user); held reviews go to moderation. One review per user per listing (database unique constraint); a second submission edits the first. |
 | Logging | Structured logs without secrets, tokens or full IPs in application logs. |
 
 ## 6. Privacy
@@ -198,7 +198,7 @@ material. CSAM is reported to the relevant authorities as legally required.
   jurisdictions that legally require verification need a third-party provider and legal review
   before enabling those categories there.
 * Country restrictions are best-effort, based on IP and user preference. VPNs can bypass them,
-  and WebCenter must not claim perfect geo-enforcement. Restricted categories stay
+  and Webcenta must not claim perfect geo-enforcement. Restricted categories stay
   `isRestricted = true` until legal review enables them for specific markets.
 
 ## 8. Incident response (outline)
@@ -210,7 +210,7 @@ material. CSAM is reported to the relevant authorities as legally required.
 
 ## 9. As-built notes (differences from the original design)
 
-* **Developer portal** is served at `webcenter.com/developer`; `developers.webcenter.com` redirects there.
+* **Developer portal** is served at `webcenta.com/developer`; `developers.webcenta.com` redirects there.
   Developer and user sessions therefore share one **host-only** cookie (no cross-subdomain cookie).
 * **Admin sessions** use a custom layer (scrypt passwords, SHA-256-hashed session tokens, AES-256-GCM
   encrypted TOTP seeds, TOTP replay protection), not the user auth library.
@@ -219,5 +219,20 @@ material. CSAM is reported to the relevant authorities as legally required.
   POST endpoint only ever redirects to the listing's stored `https://` website.
 * **The scanner** runs in-process on shared hosting (guards in §3), with test-only loopback access gated
   by `SCANNER_ALLOW_PRIVATE_FOR_TESTS` **and** a localhost `PUBLIC_ORIGIN`.
-* **Every migration** ends with the standard RLS and Data API privilege-revocation footer
-  (`prisma/rls-footer.sql`).
+* **Error responses** use real status codes: 404 (pages and `/api/*` as JSON), 403 via `forbidden()`
+  (`experimental.authInterrupts`; admin page denials are audited), 500 from error boundaries, and a
+  maintenance 503 with `Retry-After` served by the proxy. The "application unavailable" page never
+  names a listing that was never published and never shows moderation reasons.
+* **Static fallback pages** (`public/errors/*.html`) carry their own CSP (`default-src 'none'`, inline
+  styles only) because they bypass the proxy.
+* **Service worker** never stores pages rendered for a signed-in visitor: the proxy adds
+  `x-wc-personal: 1` when a session cookie is present, in addition to the path exclusions.
+* **Test-only routes** (`/e2e-test/*`) need `ENABLE_TEST_ERROR_ROUTES=true` **and** a localhost
+  `PUBLIC_ORIGIN`; otherwise they return 404.
+* **`api.webcenta.com`** (optional) serves `/api/*` only; host-only session cookies never reach it.
+* **Database:** MySQL / MariaDB on the hosting account, reached only at `127.0.0.1` by the app;
+  no public data API exists (the earlier Supabase/RLS layer was removed with Supabase). Secrets and
+  opaque keys use a binary collation so they compare exactly; remote databases require TLS in
+  production; migrations contain no triggers or routines.
+* **Uploads on local disk** are stored outside the app directory (enforced in production) and
+  served only for `public/` keys; `private/` keys (compliance documents) are never served.

@@ -69,25 +69,25 @@ model SecurityScan {
   overallVerdict     CheckVerdict?
   /// 0–100, higher = riskier. Input to the approval engine, not a public score.
   riskScore          Int?
-  targetUrl          String
-  finalUrl           String?
+  targetUrl          String @db.Text
+  finalUrl           String? @db.Text
   httpStatus         Int?
   redirectChain      Json?
-  resolvedIps        String[]
-  nameservers        String[]
-  tlsIssuer          String?
-  tlsValidTo         DateTime?     @db.Timestamptz
+  resolvedIps        Json      @default("[]")
+  nameservers        Json      @default("[]")
+  tlsIssuer          String? @db.Text
+  tlsValidTo         DateTime?     @db.DateTime(3)
   tlsFingerprint     String?
-  pageTitle          String?
+  pageTitle          String? @db.Text
   /// Hash of normalised visible text, for change detection.
   contentHash        String?
   bytesFetched       Int?
   durationMs         Int?
-  error              String?
+  error              String? @db.Text
   requestedByAdminId String?
-  startedAt          DateTime?     @db.Timestamptz
-  completedAt        DateTime?     @db.Timestamptz
-  createdAt          DateTime      @default(now()) @db.Timestamptz
+  startedAt          DateTime?     @db.DateTime(3)
+  completedAt        DateTime?     @db.DateTime(3)
+  createdAt          DateTime      @default(now()) @db.DateTime(3)
 
   listing          Listing               @relation(fields: [listingId], references: [id], onDelete: Cascade)
   revision         ListingRevision?      @relation(fields: [revisionId], references: [id], onDelete: SetNull)
@@ -106,11 +106,11 @@ model SecurityCheckResult {
   /// e.g. "internal", "google-web-risk", "urlhaus", "virustotal"
   provider   String
   verdict    CheckVerdict
-  summary    String?
+  summary    String? @db.Text
   /// Structured evidence (provider response excerpt, matched indicators).
   evidence   Json?
   durationMs Int?
-  createdAt  DateTime     @default(now()) @db.Timestamptz
+  createdAt  DateTime     @default(now()) @db.DateTime(3)
 
   scan SecurityScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
 
@@ -124,16 +124,16 @@ model SecurityAlert {
   scanId          String?
   severity        AlertSeverity
   status          AlertStatus   @default(OPEN)
-  title           String
-  details         String?
+  title           String @db.Text
+  details         String? @db.Text
   evidence        Json?
   /// True when the system restricted visibility automatically.
   autoRestricted  Boolean       @default(false)
   assignedAdminId String?
-  resolutionNotes String?
-  resolvedAt      DateTime?     @db.Timestamptz
-  createdAt       DateTime      @default(now()) @db.Timestamptz
-  updatedAt       DateTime      @updatedAt @db.Timestamptz
+  resolutionNotes String? @db.Text
+  resolvedAt      DateTime?     @db.DateTime(3)
+  createdAt       DateTime      @default(now()) @db.DateTime(3)
+  updatedAt       DateTime      @updatedAt @db.DateTime(3)
 
   listing       Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
   scan          SecurityScan? @relation(fields: [scanId], references: [id], onDelete: SetNull)
@@ -151,5 +151,5 @@ model MonitoringPolicy {
   autoRestrictAtSeverity AlertSeverity @default(CRITICAL)
   /// Whether automated approval is permitted at all for this tier.
   allowAutoApproval      Boolean       @default(false)
-  updatedAt              DateTime      @updatedAt @db.Timestamptz
+  updatedAt              DateTime      @updatedAt @db.DateTime(3)
 }

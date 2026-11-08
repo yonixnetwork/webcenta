@@ -1,12 +1,15 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { settle } from "./helpers";
 
 /** Every public page on desktop, tablet and mobile, in light and dark themes. */
 const PAGES = [
   "/", "/categories", "/c/ai", "/c/productivity-notes", "/search", "/search?q=notes&pricing=FREE&openSource=1", "/app/sample-lumen-notes",
   "/app/sample-codewisp/alternatives", "/go/sample-lumen-notes", "/collections/sample-student-starter-kit", "/about", "/contact",
   "/legal/terms", "/legal/privacy", "/signin", "/signup", "/forgot-password", "/reset-password", "/offline", "/does-not-exist",
+  "/app/does-not-exist", "/app/sample-hidden-exchange", "/errors/404.html", "/errors/503.html",
 ];
+const NOT_FOUND = new Set(["/does-not-exist", "/app/does-not-exist", "/app/sample-hidden-exchange"]);
 
 for (const theme of ["light", "dark"] as const) {
   test.describe(`${theme} theme`, () => {
@@ -17,7 +20,7 @@ for (const theme of ["light", "dark"] as const) {
       page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource: the server responded with a status of 404/.test(m.text())) errors.push(`${page.url()}: ${m.text()}`); });
       for (const path of PAGES) {
         const res = await page.goto(path);
-        expect(res!.status(), path).toBe(path === "/does-not-exist" ? 404 : 200);
+        expect(res!.status(), path).toBe(NOT_FOUND.has(path) ? 404 : 200);
         await expect(page.locator("h1").first(), path).toBeVisible();
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(overflow, `${path} horizontal overflow`).toBeLessThanOrEqual(1);
@@ -31,8 +34,9 @@ for (const theme of ["light", "dark"] as const) {
 
 test("no serious accessibility violations in dark theme", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
-  for (const path of ["/", "/app/sample-lumen-notes", "/search?q=notes", "/signin", "/categories"]) {
+  for (const path of ["/", "/app/sample-lumen-notes", "/search?q=notes", "/signin", "/categories", "/does-not-exist", "/app/sample-hidden-exchange", "/offline", "/errors/404.html", "/errors/503.html"]) {
     await page.goto(path);
+    await settle(page);
     const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     expect(r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${v.id}: ${v.nodes[0]?.target}`), path).toEqual([]);
   }

@@ -2,7 +2,7 @@ import type { AgeRating, RiskTier } from "@/generated/prisma/enums";
 import { slugify } from "@/lib/url";
 
 /**
- * WebCenter category taxonomy — real platform configuration (not fake data).
+ * Webcenta category taxonomy — real platform configuration (not fake data).
  * Seeded idempotently by `npm run db:seed`; administrators manage it afterwards
  * (Phase 3). Icons are lucide-react icon names.
  *
@@ -137,3 +137,23 @@ export function flattenTaxonomy(nodes: TaxonomyNode[] = TAXONOMY) {
   });
   return out;
 }
+
+/**
+ * One emoji per top-level category, used sparingly as a friendly visual next to
+ * the category name (category index and category headers). Lucide icons remain
+ * the primary iconography; administrators can change or clear these.
+ */
+export const CATEGORY_EMOJI: Record<string, string> = {
+  ai: "🤖", business: "💼", productivity: "✅", "developer-tools": "🛠️", programming: "💻",
+  education: "🎓", science: "🔬", cryptocurrency: "🪙", "blockchain-web3": "⛓️", forex: "💱",
+  finance: "💰", "banking-fintech": "🏦", investing: "📈", sports: "⚽", "betting-gambling": "🎲",
+  games: "🎮", entertainment: "🎭", "video-streaming": "📺", "adult-entertainment": "🔞",
+  "art-design": "🎨", photography: "📷", "books-reading": "📚", "music-audio": "🎵",
+  communication: "💬", "social-networks": "🌐", community: "👥", dating: "💞", shopping: "🛍️",
+  ecommerce: "🛒", "food-drink": "🍽️", "health-fitness": "💪", medical: "🩺", parenting: "🍼",
+  "children-family": "👨‍👩‍👧", lifestyle: "🌿", household: "🏠", travel: "✈️",
+  "transport-automotive": "🚗", "news-magazines": "📰", "marketing-seo": "📣",
+  "website-builders": "🧱", "hosting-cloud": "☁️", cybersecurity: "🔐", "data-analysis": "📊",
+  automation: "⚙️", "utilities-converters": "🧰", weather: "⛅", "maps-navigation": "🗺️",
+  "browser-tools": "🧭", other: "🗂️",
+};

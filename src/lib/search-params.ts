@@ -6,10 +6,9 @@ export const PLATFORMS = ["WEB", "ANDROID", "IOS", "WINDOWS", "MACOS", "LINUX", 
 export const SORTS = ["relevance", "newest", "updated", "rating", "name"] as const;
 export type SortKey = (typeof SORTS)[number];
 
-/** Removes NUL and other control characters (PostgreSQL rejects NUL in text). */
+/** Removes NUL and other control characters (databases and logs should never receive NUL bytes). */
 export function cleanText(v: string): string {
-  // eslint-disable-next-line no-control-regex
-  return v.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  return v.replace(new RegExp("[\\u0000-\\u001f\\u007f]", "g"), " ").replace(/\s+/g, " ").trim();
 }
 
 const flag = z.preprocess((v) => v === "1" || v === "true", z.boolean()).catch(false);
@@ -61,14 +60,30 @@ export function filtersToQuery(f: Partial<SearchFilters>): string {
   return s ? `?${s}` : "";
 }
 
-/** Tokens safe to embed in a to_tsquery prefix expression. */
+/** Query tokens: letters and digits only (safe inside FULLTEXT boolean queries and REGEXP). */
 export function queryTokens(q: string): string[] {
   return (q.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).slice(0, 8).map((t) => t.slice(0, 40));
 }
 
-export function prefixTsQuery(q: string): string | null {
+/** InnoDB FULLTEXT ignores tokens shorter than this (innodb_ft_min_token_size, default 3). */
+export const FT_MIN_TOKEN = 3;
+
+/**
+ * Splits a query for MySQL/MariaDB search: tokens of 3+ characters become a
+ * FULLTEXT boolean-mode expression where every word is required and matched as a
+ * prefix ("+note* +app*"); shorter tokens ("ai", "3d") are matched as whole
+ * words with a REGEXP word-boundary pattern instead.
+ */
+export function mysqlSearchTerms(q: string): { boolean: string | null; shortWords: string[] } {
   const tokens = queryTokens(q);
-  return tokens.length ? tokens.map((t) => `${t}:*`).join(" & ") : null;
+  const long = tokens.filter((t) => [...t].length >= FT_MIN_TOKEN);
+  const short = tokens.filter((t) => [...t].length < FT_MIN_TOKEN);
+  return { boolean: long.length ? long.map((t) => `+${t}*`).join(" ") : null, shortWords: short };
+}
+
+/** REGEXP pattern matching a whole word (works on MySQL 8 ICU and MariaDB PCRE). */
+export function wordPattern(word: string): string {
+  return `\\b${word}\\b`;
 }
 
 export function escapeLike(s: string): string {

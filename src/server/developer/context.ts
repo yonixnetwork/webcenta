@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 import type { DeveloperMemberRole } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import { requireUser, type CurrentUser } from "@/server/auth/session";
@@ -28,6 +28,14 @@ export async function requireDev(min: DeveloperMemberRole = "ANALYST", next = "/
   const ctx = await getDevContext(next);
   if (!ctx) redirect("/developer");
   if (!canRole(ctx.role, min)) throw new Error("FORBIDDEN");
+  return ctx;
+}
+
+/** For pages: like requireDev, but renders the 403 page when the role is insufficient. */
+export async function requireDevPage(min: DeveloperMemberRole = "ANALYST", next = "/developer"): Promise<DevContext> {
+  const ctx = await getDevContext(next);
+  if (!ctx) redirect("/developer");
+  if (!canRole(ctx.role, min)) forbidden();
   return ctx;
 }
 

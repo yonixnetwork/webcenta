@@ -13,26 +13,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Lint, unit/DB tests, build, E2E, security checks
+  # Full pipeline on MariaDB — the engine Hostinger Business runs.
+  mariadb:
+    name: MariaDB 10.11 — lint, unit/DB tests, build, E2E, security checks
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
-      postgres:
-        image: postgres:16
+      db:
+        image: mariadb:10.11
         env:
-          POSTGRES_USER: webcenter
-          POSTGRES_PASSWORD: ci-only-password
-          POSTGRES_DB: webcenter_ci
-        ports: ["5432:5432"]
+          MARIADB_ROOT_PASSWORD: ci-only-password
+          MARIADB_DATABASE: webcenta_ci
+        ports: ["3306:3306"]
         options: >-
-          --health-cmd "pg_isready -U webcenter"
-          --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       # CI-only, disposable values. No real credentials are used in CI.
-      DATABASE_URL: postgresql://webcenter:ci-only-password@localhost:5432/webcenter_ci
-      E2E_DATABASE_URL: postgresql://webcenter:ci-only-password@localhost:5432/webcenter_e2e
-      PGPASSWORD: ci-only-password
+      DATABASE_URL: mysql://root:ci-only-password@127.0.0.1:3306/webcenta_ci
+      E2E_DATABASE_URL: mysql://root:ci-only-password@127.0.0.1:3306/webcenta_e2e
+      DB_SERVER_URL: mysql://root:ci-only-password@127.0.0.1:3306
       PUBLIC_ORIGIN: http://localhost:3100
       ADMIN_ORIGIN: http://admin.localhost:3100
       DEVELOPER_ORIGIN: http://developers.localhost:3100
@@ -49,30 +49,27 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Hostinger may install production dependencies only: prove the build needs nothing else.
+      - name: Build-time packages are production dependencies
+        run: |
+          node -e 'const p=require("./package.json");const need=["prisma","typescript","tailwindcss","@tailwindcss/postcss","postcss","dotenv","tsx","@types/react","@types/node"];const miss=need.filter(n=>!p.dependencies[n]);if(miss.length){console.error("Move to dependencies:",miss);process.exit(1)}'
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=low
 
-      - name: Simulate Supabase roles and default privileges
-        run: |
-          psql -h localhost -U webcenter -d webcenter_ci -v ON_ERROR_STOP=1 <<'SQL'
-          CREATE ROLE anon NOLOGIN;
-          CREATE ROLE authenticated NOLOGIN;
-          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;
-          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated;
-          CREATE SCHEMA extensions;
-          SQL
       - run: npx prisma migrate deploy
       - name: Schema drift check (migrations == Prisma schema)
         run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code
-      - name: Data API roles cannot read data
-        run: |
-          out=$(psql -h localhost -U webcenter -d webcenter_ci -c 'SET ROLE anon; SELECT 1 FROM "Listing" LIMIT 1;' 2>&1 || true)
-          echo "$out"; echo "$out" | grep -q "permission denied"
       - name: Seed (twice, to prove idempotence)
         run: |
           npm run db:seed -- --fixtures
           npm run db:seed -- --fixtures
 
+      - name: Brand check (no references to the retired name)
+        run: npm run brand:check
+      - name: Static error pages are up to date
+        run: |
+          npm run errors:generate
+          git diff --exit-code -- public/errors
       - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm test
@@ -81,21 +78,24 @@ jobs:
 
       - name: Backup and restore drill
         run: |
-          psql -h localhost -U webcenter -d webcenter_ci -qc "CREATE DATABASE webcenter_restore"
-          F=$(DIRECT_URL="$DATABASE_URL" bash scripts/backup.sh ./backups)
-          SOURCE_URL="$DATABASE_URL" SCRATCH_URL="postgresql://webcenter:ci-only-password@localhost:5432/webcenter_restore" bash scripts/restore-drill.sh "$F"
+          npx tsx tests/e2e/db-util.ts create-db "$DB_SERVER_URL" webcenta_e2e_1
+          F=$(bash scripts/backup.sh ./backups)
+          SOURCE_URL="$DATABASE_URL" SCRATCH_URL="$DB_SERVER_URL/webcenta_e2e_1" bash scripts/restore-drill.sh "$F"
 
-      - run: npm run build
+      # Same build Hostinger runs: webpack, standalone output, no database access.
+      - name: Build (webpack, standalone)
+        run: env -u DATABASE_URL npm run build
       - run: bash scripts/check-bundle-secrets.sh
 
       - name: Prepare E2E (fresh database, fixture certificates, port 443 for fixture sites)
         run: |
-          psql -h localhost -U webcenter -d webcenter_ci -qc "CREATE DATABASE webcenter_e2e"
+          npx tsx tests/e2e/db-util.ts create-db "$DB_SERVER_URL" webcenta_e2e_2
+          echo "E2E_DATABASE_URL=$DB_SERVER_URL/webcenta_e2e_2" >> "$GITHUB_ENV"
           sudo sysctl -w net.ipv4.ip_unprivileged_port_start=0
-          bash tests/e2e/prepare.sh
+          E2E_DATABASE_URL="$DB_SERVER_URL/webcenta_e2e_2" bash tests/e2e/prepare.sh
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
-      - name: E2E (journeys, marketplace, security, PWA, responsive on desktop/tablet/mobile)
+      - name: E2E on the standalone server (journeys, marketplace, reviews, error pages, security, PWA, responsive)
         run: npx playwright test
       - name: www redirect is absolute in production-like config
         run: bash scripts/check-www-redirect.sh
@@ -105,3 +105,49 @@ jobs:
           name: playwright-results
           path: test-results/
           retention-days: 7
+
+  # Database-level suites on MySQL 8 — keeps a VPS / DigitalOcean move with MySQL working.
+  mysql:
+    name: MySQL 8.0 — migrations, unit/DB tests, smoke, compatibility, restore drill
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      db:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-only-password
+          MYSQL_DATABASE: webcenta_ci
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pci-only-password"
+          --health-interval 5s --health-timeout 5s --health-retries 30
+    env:
+      DATABASE_URL: mysql://root:ci-only-password@127.0.0.1:3306/webcenta_ci
+      DB_SERVER_URL: mysql://root:ci-only-password@127.0.0.1:3306
+      USER_AUTH_SECRET: ci-only-user-auth-secret-0123456789abcdef
+      ADMIN_AUTH_SECRET: ci-only-admin-auth-secret-0123456789abcdef
+      FIELD_ENCRYPTION_KEY: Y2ktb25seS1maWVsZC1lbmNyeXB0aW9uLWtleS0zMiE=
+      EMAIL_TRANSPORT: log
+      ALLOW_DEV_FIXTURES: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - name: Schema drift check
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code
+      - name: Seed (twice)
+        run: |
+          npm run db:seed -- --fixtures
+          npm run db:seed -- --fixtures
+      - run: npm test
+      - run: npm run db:smoke
+      - run: npm run db:check
+      - name: Backup and restore drill
+        run: |
+          npx tsx tests/e2e/db-util.ts create-db "$DB_SERVER_URL" webcenta_e2e_1
+          F=$(bash scripts/backup.sh ./backups)
+          SOURCE_URL="$DATABASE_URL" SCRATCH_URL="$DB_SERVER_URL/webcenta_e2e_1" bash scripts/restore-drill.sh "$F"

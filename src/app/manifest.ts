@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "WebCenter — Web app discovery",
-    short_name: "WebCenter",
+    name: "Webcenta — Web app discovery",
+    short_name: "Webcenta",
     description: "Discover, compare and safely visit web apps, AI tools and online services.",
     start_url: "/?source=pwa",
     scope: "/",

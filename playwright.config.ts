@@ -1,8 +1,11 @@
 import "dotenv/config";
 import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
+import os from "node:os";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
+/** Dual-stack ("::") where IPv6 exists, so "localhost" works whether it resolves to ::1 or 127.0.0.1. */
+const HOST = Object.values(os.networkInterfaces()).flat().some((i) => i?.family === "IPv6" && i.internal) ? "::" : "0.0.0.0";
 const DB = process.env.E2E_DATABASE_URL;
 if (!DB) throw new Error("Set E2E_DATABASE_URL to a disposable test database (see tests/e2e/prepare.sh)");
 
@@ -20,8 +23,10 @@ export const appEnv = {
   FIELD_ENCRYPTION_KEY: "ZTJlLW9ubHktZmllbGQtZW5jcnlwdGlvbi1rZXkhIQ==",
   EMAIL_TRANSPORT: "log",
   STORAGE_DRIVER: "local",
-  STORAGE_LOCAL_DIR: "./.e2e-storage",
+  // Absolute and outside the app, as production requires.
+  STORAGE_LOCAL_DIR: path.resolve(".e2e-storage"),
   SCANNER_ALLOW_PRIVATE_FOR_TESTS: "true",
+  ENABLE_TEST_ERROR_ROUTES: "true",
   NODE_EXTRA_CA_CERTS: path.resolve("tests/fixtures/.certs/ca.pem"),
   GEO_UNKNOWN_POLICY: "deny",
   ALLOW_DEV_FIXTURES: "",
@@ -39,7 +44,7 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${PORT}`, trace: "off", ignoreHTTPSErrors: true },
   projects: [
     { name: "journeys", testMatch: /journeys\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
-    { name: "desktop", testMatch: /(marketplace|responsive|security|pwa)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
+    { name: "desktop", testMatch: /(marketplace|responsive|security|pwa|reviews)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
     { name: "tablet", testMatch: /(marketplace|responsive)\.spec\.ts/, use: { ...devices["iPad (gen 7) landscape"], browserName: "chromium" } },
     { name: "mobile", testMatch: /(marketplace|responsive|pwa)\.spec\.ts/, use: { ...devices["Pixel 7"] } },
   ],
@@ -51,11 +56,12 @@ export default defineConfig({
       timeout: 20_000,
     },
     {
-      command: `npx next start -p ${PORT}`,
+      // The standalone server, exactly as Hostinger runs it (see scripts/prepare-standalone.mjs).
+      command: `node .next/standalone/server.js`,
       url: `http://localhost:${PORT}/api/health`,
       reuseExistingServer: false,
       timeout: 90_000,
-      env: appEnv,
+      env: { ...appEnv, PORT: String(PORT), HOSTNAME: HOST },
     },
   ],
 });

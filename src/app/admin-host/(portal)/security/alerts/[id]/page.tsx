@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { stringArray } from "@/lib/json-arrays";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/ui/action-form";
 import { Card, Field, inputClass } from "@/components/ui/form";
@@ -25,7 +26,7 @@ export default async function AlertDetail({ params }: { params: Promise<{ id: st
       {a.scan && (
         <Card>
           <h2 className="mb-2 font-semibold">Evidence — scan of {formatDate(a.scan.createdAt)}</h2>
-          <p className="mb-2 text-xs text-muted">Final URL {a.scan.finalUrl} · HTTP {a.scan.httpStatus ?? "—"} · IPs {a.scan.resolvedIps.join(", ") || "—"} · title “{a.scan.pageTitle ?? ""}”</p>
+          <p className="mb-2 text-xs text-muted">Final URL {a.scan.finalUrl} · HTTP {a.scan.httpStatus ?? "—"} · IPs {stringArray(a.scan.resolvedIps).join(", ") || "—"} · title “{a.scan.pageTitle ?? ""}”</p>
           <ul className="space-y-1 text-sm">{a.scan.checks.map((c) => <li key={c.id} className="flex gap-2"><StatusPill status={c.verdict} /><span>{c.check.replace(/_/g, " ").toLowerCase()} ({c.provider}): <span className="text-muted">{c.summary}</span></span></li>)}</ul>
           {a.scan.redirectChain && <details className="mt-2 text-xs"><summary className="cursor-pointer">Redirect chain</summary><pre className="mt-1 overflow-auto rounded bg-surface-2 p-2">{JSON.stringify(a.scan.redirectChain, null, 2)}</pre></details>}
         </Card>

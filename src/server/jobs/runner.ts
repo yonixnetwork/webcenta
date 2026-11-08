@@ -35,13 +35,17 @@ export async function enqueueRecurring(now = new Date()): Promise<number> {
 }
 
 async function claim(runner: string): Promise<Array<{ id: string; type: string; payload: unknown; attempts: number; maxAttempts: number }>> {
-  return db.$queryRaw`
-    UPDATE "Job" SET status = 'RUNNING', "lockedAt" = now(), "lockedBy" = ${runner}, attempts = attempts + 1
-    WHERE id IN (
-      SELECT id FROM "Job" WHERE status = 'PENDING' AND "runAt" <= now()
-      ORDER BY priority DESC, "runAt" ASC LIMIT ${BATCH} FOR UPDATE SKIP LOCKED
-    )
-    RETURNING id, type, payload, attempts, "maxAttempts"`;
+  // Lock a batch that no other runner holds (SKIP LOCKED: MariaDB >= 10.6, MySQL >= 8.0),
+  // mark it RUNNING and read it back, all in one transaction.
+  return db.$transaction(async (tx) => {
+    const picked = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM Job WHERE status = 'PENDING' AND runAt <= UTC_TIMESTAMP(3)
+      ORDER BY priority DESC, runAt ASC LIMIT ${BATCH} FOR UPDATE SKIP LOCKED`;
+    const ids = picked.map((r) => r.id);
+    if (ids.length === 0) return [];
+    await tx.job.updateMany({ where: { id: { in: ids } }, data: { status: "RUNNING", lockedAt: new Date(), lockedBy: runner, attempts: { increment: 1 } } });
+    return tx.job.findMany({ where: { id: { in: ids } }, select: { id: true, type: true, payload: true, attempts: true, maxAttempts: true } });
+  });
 }
 
 export async function runTick(budgetMs: number): Promise<TickResult> {
