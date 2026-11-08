@@ -47,7 +47,7 @@ server** built with `next build --webpack`, as Hostinger builds and runs it.
 | Client bundle secret scan | no secrets, connection strings or source maps (124 files) |
 | `npm audit --omit=dev` (production dependencies) | 0 vulnerabilities |
 | `npm audit` (incl. dev tooling) | 8 moderate in ESLint tooling (`minimatch` via typescript-eslint); the only offered fix downgrades `eslint-config-next` across a major version. Dev-only, not shipped. |
-| **GitHub Actions CI on clean runners** | Run #27 (`4b9b851`): MySQL 8.0 job passed; MariaDB job passed everything except 1 of 105 E2E tests (journey 2, "Save" a favourite), which exposed defect 24 below. The fix is in the next commit; its CI result is recorded on the branch's latest run. |
+| **GitHub Actions CI on clean runners** | **Run #28 passed** for `0ee3bd9` (https://github.com/yonixnetwork/webcenta/actions/runs/42401767539): MySQL 8.0 job and MariaDB 10.11 job, every step green — migrations, drift, seed, lint, typecheck, unit/DB tests, smoke, `db:check`, restore drill, Hostinger-style build, bundle scan, the full E2E suite on the standalone server and the www-redirect check. Before the fix, run #27 failed 1 E2E test (defect 24). |
 
 The E2E coverage:
 - **10 user journeys:** see [TESTING.md](TESTING.md).
