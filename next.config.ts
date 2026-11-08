@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
   // production dependencies only, and tests/scripts import dev dependencies.
   typescript: { tsconfigPath: "tsconfig.build.json" },
   experimental: {
+    // Build workers. Next.js starts one per CPU it sees (63 on Hostinger's build hosts),
+    // which exceeds the account's thread/process limit and aborts the build with
+    // "OS can't spawn worker thread". NEXT_BUILD_CPUS overrides the default of 2.
+    cpus: Math.max(1, Number(process.env.NEXT_BUILD_CPUS) || 2),
     // Media uploads (logos/screenshots ≤ 6 MB, documents ≤ 10 MB) go through server actions.
     serverActions: { bodySizeLimit: "12mb" },
     // Enables forbidden() so access-denied pages return a real 403 status.
