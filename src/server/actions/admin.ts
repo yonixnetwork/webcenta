@@ -572,3 +572,62 @@ export async function retryJobAction(jobId: string) {
   await audit({ actorType: "ADMIN", adminId: a.id, action: "job.retry", targetType: "Job", targetId: jobId });
   refresh();
 }
+
+// ---------------- Push notifications ----------------
+/** Sends a push notification to every subscribed browser (signed in or not). */
+export async function sendPushAction(_s: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const a = await assertAdmin("push.send");
+    const title = z.string().trim().min(3).max(120).parse(f.get("title"));
+    const body = z.string().trim().min(3).max(400).parse(f.get("body"));
+    // Only pages on Webcenta: a notification can never send people to another website.
+    const url = z.string().trim().max(500).regex(/^\/(?!\/)[^\s]*$/, "Use a Webcenta path, for example /c/ai or /app/notion").parse(str(f, "url") || "/");
+    const subscribers = await db.pushSubscription.count({ where: { failureCount: { lt: 5 } } });
+    if (!subscribers) return fail("No browser has turned on notifications yet.");
+    const c = await db.pushCampaign.create({ data: { title, body, url, createdByAdminId: a.id } });
+    await audit({ actorType: "ADMIN", adminId: a.id, action: "push.send", targetType: "PushCampaign", targetId: c.id, metadata: { title, url, subscribers } });
+    // First batch now; the rest continue on the scheduled job.
+    const { runCampaignBatch } = await import("@/server/push/push");
+    await runCampaignBatch(c.id).catch(() => undefined);
+    refresh();
+    return ok(`Sending to ${subscribers} device${subscribers === 1 ? "" : "s"}.`);
+  } catch (e) { return err(e); }
+}
+
+// ---------------- Automatic web app imports ----------------
+/** Queues one or more URLs (one per line) under a category; "now" imports the first immediately. */
+export async function queueImportsAction(_s: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const a = await assertAdmin("imports.manage");
+    const urls = str(f, "urls").split(/[\s,]+/).map((u) => u.trim()).filter(Boolean).slice(0, 200);
+    if (!urls.length) return fail("Enter at least one website address.");
+    const categorySlug = z.string().trim().min(1).max(191).parse(str(f, "category"));
+    const name = urls.length === 1 ? str(f, "name").trim().slice(0, 120) || null : null;
+    const { queueImports, importCandidate, urlHash } = await import("@/server/importer/importer");
+    const added = await queueImports(urls.map((url) => ({ url, categorySlug, name, source: "admin", priority: 10, adminId: a.id })));
+    await audit({ actorType: "ADMIN", adminId: a.id, action: "imports.queue", metadata: { count: added, categorySlug } });
+    if (f.get("now") === "1" && urls.length === 1) {
+      const { normalizeWebsiteUrl } = await import("@/lib/url");
+      const u = normalizeWebsiteUrl(urls[0]!);
+      const c = u ? await db.importCandidate.findUnique({ where: { urlHash: urlHash(u.toString()) } }) : null;
+      if (c) {
+        const r = await importCandidate(c.id);
+        refresh();
+        return r.status === "IMPORTED" ? ok("Imported. The security checks run within a few minutes; see Submissions.") : fail(`Not imported: ${r.reason}`);
+      }
+    }
+    refresh();
+    return ok(added ? `${added} web app(s) added to the queue.` : "Those addresses are already in the queue or invalid.");
+  } catch (e) { return err(e); }
+}
+
+export async function importActionFor(id: string, op: "now" | "retry" | "skip") {
+  const a = await assertAdmin("imports.manage");
+  if (op === "skip") await db.importCandidate.update({ where: { id }, data: { status: "SKIPPED", processedAt: new Date() } });
+  else {
+    await db.importCandidate.update({ where: { id }, data: { status: "QUEUED", attempts: 0, lastError: null, createdByAdminId: a.id } });
+    if (op === "now") { const { importCandidate } = await import("@/server/importer/importer"); await importCandidate(id); }
+  }
+  await audit({ actorType: "ADMIN", adminId: a.id, action: `imports.${op}`, targetType: "ImportCandidate", targetId: id });
+  refresh();
+}

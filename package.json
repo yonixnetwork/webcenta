@@ -2,7 +2,7 @@
   "name": "webcenta",
   "version": "0.0.0",
   "private": true,
-  "description": "Webcenta \u2014 global web application discovery marketplace",
+  "description": "Webcenta — global web application discovery marketplace",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {
@@ -39,6 +39,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.63.0",
+    "@types/web-push": "^3.6.4",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.5",
     "vitest": "^5.1.0"
@@ -70,6 +71,7 @@
     "tailwindcss": "^4.3.4",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
+    "web-push": "^3.6.7",
     "zod": "^4.6.7"
   }
 }

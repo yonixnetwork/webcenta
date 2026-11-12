@@ -1,3 +1,4 @@
+import { getCategoryTree, treeForAge } from "@/server/catalog/categories";
 import { describe, expect, it } from "vitest";
 import { db } from "@/server/db";
 import { publicListingWhere, publicCategoryWhere } from "@/server/catalog/visibility";
@@ -49,7 +50,16 @@ describe("public visibility filter", () => {
   });
   it("does not list restricted categories publicly", async () => {
     const cats = (await db.category.findMany({ where: publicCategoryWhere(), select: { slug: true } })).map((c) => c.slug);
-    for (const s of ["betting-gambling", "adult-entertainment", "forex", "cryptocurrency-exchanges", "betting-gambling-casinos"]) expect(cats).not.toContain(s);
+    for (const s of ["betting-gambling", "betting-gambling-casinos", "cryptocurrency-token-launchpads"]) expect(cats).not.toContain(s);
     expect(cats).toContain("cryptocurrency-portfolio-tracking");
+  });
+  it("hides adults-only categories from visitors and minors, and shows them to adults", async () => {
+    const tree = await getCategoryTree();
+    const slugs = (t: typeof tree) => t.flatMap((n) => [n.slug, ...n.children.map((c) => c.slug)]);
+    for (const s of ["adult-entertainment", "forex", "cryptocurrency-exchanges", "dating"]) {
+      expect(slugs(treeForAge(tree, "AGE_16_PLUS")), s).not.toContain(s);
+      expect(slugs(treeForAge(tree, "AGE_18_PLUS")), s).toContain(s);
+    }
+    expect(slugs(treeForAge(tree, "AGE_13_PLUS"))).toContain("education");
   });
 });

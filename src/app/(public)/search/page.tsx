@@ -21,7 +21,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 export default async function SearchPage({ searchParams }: Props) {
   const filters = parseFilters(await searchParams);
   const ctx = await getViewerContext();
-  const [result, tree] = await Promise.all([searchListings(ctx, filters), getCategoryTree()]);
+  const [result, tree] = await Promise.all([searchListings(ctx, filters), getCategoryTree(ctx.maxAgeRating)]);
   if (filters.q && filters.page === 1) {
     const q = filters.q;
     after(() => recordSearchStat(q, result.total).catch(() => undefined));

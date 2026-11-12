@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: { params: Promise<{ section: 
 export default async function SettingsSectionPage({ params }: { params: Promise<{ section: string }> }) {
   const admin = await requireAdmin("settings.manage");
   const def = sectionById((await params).section);
-  if (!def) notFound();
+  if (!def || def.paid) notFound();
   const canEdit = can(admin.role, def.permission);
   const section = await getSection(def.id);
   const status = statusOf(section.r);

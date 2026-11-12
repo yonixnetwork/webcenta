@@ -85,17 +85,25 @@ describe("saving settings", () => {
   });
 
   it("records a test result that stops counting once the configuration changes", async () => {
-    await saveSection("plausible", { enabled: false, values: { domain: "webcenta.example" } }, { adminId });
-    await recordTest("plausible", true, "fine");
-    let s = (await allSections()).find((x) => x.section.r.def.id === "plausible")!;
+    const key = "k".repeat(40);
+    await saveSection("urlhaus", { enabled: false, values: {}, secrets: { authKey: key } }, { adminId });
+    await recordTest("urlhaus", true, "fine");
+    let s = (await allSections()).find((x) => x.section.r.def.id === "urlhaus")!;
     expect(s.status.status).toBe("disabled");
-    await saveSection("plausible", { enabled: true, values: {} }, { adminId });
-    await recordTest("plausible", true, "fine");
-    s = (await allSections()).find((x) => x.section.r.def.id === "plausible")!;
+    await saveSection("urlhaus", { enabled: true, values: {} }, { adminId });
+    await recordTest("urlhaus", true, "fine");
+    s = (await allSections()).find((x) => x.section.r.def.id === "urlhaus")!;
     expect(s.status.status).toBe("connected");
-    await saveSection("plausible", { values: { domain: "other.example" } }, { adminId });
-    s = (await allSections()).find((x) => x.section.r.def.id === "plausible")!;
+    await saveSection("urlhaus", { values: {}, secrets: { authKey: "z".repeat(40) } }, { adminId });
+    s = (await allSections()).find((x) => x.section.r.def.id === "urlhaus")!;
     expect(s.status.status).toBe("configured");
+  });
+  it("paid integrations are hidden and stay off even when saved as enabled", async () => {
+    await saveSection("plausible", { enabled: true, values: { domain: "other.example" } }, { adminId });
+    expect((await getSection("plausible")).ready).toBe(false);
+    expect((await analyticsConfig()).plausible).toBeNull();
+    const listed = (await allSections()).map((x) => x.section.r.def.id);
+    for (const id of ["plausible", "apple", "stripe", "paypal", "webrisk", "virustotal"]) expect(listed, id).not.toContain(id);
   });
 });
 
@@ -134,12 +142,12 @@ describe("integrations read the settings service", () => {
     expect(site).toMatchObject({ name: "Webcenta Staging", banner: "Staging", allowIndexing: false });
   });
   it("analytics scripts and their CSP sources appear only when enabled", async () => {
-    await saveSection("plausible", { enabled: false, values: {} }, { adminId });
-    expect((await analyticsConfig()).plausible).toBeNull();
+    await saveSection("ga4", { enabled: false, values: { measurementId: "G-TEST12345" } }, { adminId });
+    expect((await analyticsConfig()).ga4).toBeNull();
     expect((await cspExtras("/")).script).toEqual([]);
-    await saveSection("plausible", { enabled: true, values: {} }, { adminId });
-    expect((await analyticsConfig()).plausible?.domain).toBe("other.example");
-    expect((await cspExtras("/")).connect).toContain("https://plausible.io");
+    await saveSection("ga4", { enabled: true, values: {} }, { adminId });
+    expect((await analyticsConfig()).ga4?.measurementId).toBe("G-TEST12345");
+    expect((await cspExtras("/")).script.join(" ")).toContain("googletagmanager.com");
   });
   it("storage driver follows the saved configuration", async () => {
     await saveSection("storage", { values: { driver: "s3" } }, { adminId });

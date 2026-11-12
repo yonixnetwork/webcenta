@@ -28,7 +28,12 @@ export interface SafeResponse {
   tls: TlsInfo | null;
   error?: { code: string; message: string };
   durationMs: number;
+  /** The body as bytes (images, manifests). */
+  raw?: Buffer;
 }
+
+/** Extra content types to read (default: HTML and plain text only) and a size limit. */
+export interface FetchOptions { accept?: RegExp; maxBytes?: number }
 
 export class SafeFetchError extends Error {
   constructor(public code: string, message: string) { super(message); }
@@ -62,7 +67,7 @@ export async function validateUrl(raw: string): Promise<{ url: URL; addresses: s
   return { url, addresses };
 }
 
-function requestOnce(url: URL, ip: string, deadline: number): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: Buffer; truncated: boolean; tls: TlsInfo | null }> {
+function requestOnce(url: URL, ip: string, deadline: number, opts: FetchOptions = {}): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: Buffer; truncated: boolean; tls: TlsInfo | null }> {
   return new Promise((resolve, reject) => {
     const pinned: LookupFunction = (_host, opts, cb) => {
       const family = isIP(ip);
@@ -97,11 +102,11 @@ function requestOnce(url: URL, ip: string, deadline: number): Promise<{ status: 
       const chunks: Buffer[] = [];
       let size = 0, truncated = false;
       const ct = String(res.headers["content-type"] ?? "");
-      const readBody = res.statusCode && res.statusCode < 300 && /text\/html|application\/xhtml|text\/plain/.test(ct);
+      const readBody = res.statusCode && res.statusCode < 300 && (/text\/html|application\/xhtml|text\/plain/.test(ct) || Boolean(opts.accept?.test(ct)));
       if (!readBody) { res.resume(); res.on("end", () => { clearTimeout(timer); resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.alloc(0), truncated: false, tls }); }); return; }
       res.on("data", (c: Buffer) => {
         size += c.length;
-        if (size > LIMITS.maxBytes) { truncated = true; res.destroy(); return; }
+        if (size > (opts.maxBytes ?? LIMITS.maxBytes)) { truncated = true; res.destroy(); return; }
         chunks.push(c);
       });
       const done = () => { clearTimeout(timer); resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks), truncated, tls }); };
@@ -113,7 +118,7 @@ function requestOnce(url: URL, ip: string, deadline: number): Promise<{ status: 
   });
 }
 
-export async function safeFetch(raw: string): Promise<SafeResponse> {
+export async function safeFetch(raw: string, opts: FetchOptions = {}): Promise<SafeResponse> {
   const started = Date.now();
   const deadline = started + LIMITS.totalTimeoutMs;
   const chain: Hop[] = [];
@@ -132,7 +137,7 @@ export async function safeFetch(raw: string): Promise<SafeResponse> {
     const ip = addresses[0]!;
     addresses.forEach((a) => ips.add(a));
     try {
-      const res = await requestOnce(url, ip, deadline);
+      const res = await requestOnce(url, ip, deadline, opts);
       if (i === 0 || url.protocol === "https:") tls = res.tls ?? tls;
       const location = res.headers.location;
       chain.push({ url: url.toString(), status: res.status, ip, ...(location ? { location: String(location) } : {}) });
@@ -141,7 +146,7 @@ export async function safeFetch(raw: string): Promise<SafeResponse> {
         continue;
       }
       const headers = Object.fromEntries(Object.entries(res.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : String(v ?? "")]));
-      return { ok: res.status < 400, finalUrl: url.toString(), status: res.status, headers, body: res.body.toString("utf8"), bytes: res.body.length, truncated: res.truncated, chain, ips: [...ips], tls, durationMs: Date.now() - started };
+      return { ok: res.status < 400, finalUrl: url.toString(), status: res.status, headers, body: opts.accept ? "" : res.body.toString("utf8"), raw: res.body, bytes: res.body.length, truncated: res.truncated, chain, ips: [...ips], tls, durationMs: Date.now() - started };
     } catch (e) {
       const err = e as NodeJS.ErrnoException & { code?: string };
       chain.push({ url: url.toString(), status: 0, ip });

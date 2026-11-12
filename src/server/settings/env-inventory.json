@@ -342,6 +342,16 @@
       "apply": "immediate"
     },
     {
+      "name": "SUPPORT_INBOX_EMAIL",
+      "category": "Email and SMTP",
+      "purpose": "Fallback support inbox: addresses that receive every Contact & support message (reply-to the visitor).",
+      "required": "optional",
+      "secret": false,
+      "startup": false,
+      "dashboard": "notifications",
+      "apply": "immediate"
+    },
+    {
       "name": "STORAGE_DRIVER",
       "category": "File storage",
       "purpose": "Fallback storage driver (local | s3).",

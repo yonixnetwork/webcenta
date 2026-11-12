@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "./logo";
+import { CookieSettingsLink } from "./cookie-consent";
 
 const SOCIAL_LABEL: Record<string, string> = { x: "X", facebook: "Facebook", instagram: "Instagram", linkedin: "LinkedIn", youtube: "YouTube", tiktok: "TikTok", github: "GitHub" };
 
@@ -28,7 +29,10 @@ export function SiteFooter({ name = "Webcenta", contactEmail, socialLinks = [] }
             <li><Link href="/about" className="hover:text-text">About & how listings are checked</Link></li>
             <li><Link href="/developer" className="hover:text-text">Developer portal</Link></li>
             <li><Link href="/contact" className="hover:text-text">Contact & support</Link></li>
-            <li><Link href="/legal/terms" className="hover:text-text">Terms</Link> · <Link href="/legal/privacy" className="hover:text-text">Privacy</Link> · <Link href="/legal/content" className="hover:text-text">Content policy</Link></li>
+            <li><Link href="/legal/terms" className="hover:text-text">Terms of Service</Link></li>
+            <li><Link href="/legal/privacy" className="hover:text-text">Privacy Policy</Link></li>
+            <li><Link href="/legal/content" className="hover:text-text">Content Policy</Link></li>
+            <li><Link href="/legal/cookies" className="hover:text-text">Cookie Policy</Link> · <CookieSettingsLink /></li>
             {contactEmail && <li><a href={`mailto:${contactEmail}`} className="hover:text-text">{contactEmail}</a></li>}
           </ul>
           {socialLinks.length > 0 && (

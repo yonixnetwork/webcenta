@@ -1,5 +1,7 @@
 "use server";
 
+import { MIN_SIGNUP_AGE, ageOn, parseBirthDate, ratingForAge } from "@/lib/age";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -174,10 +176,26 @@ export async function setInterestsAction(_s: ActionState, form: FormData): Promi
   return { ok: true, message: "Interests saved." };
 }
 
+/** Sets the date of birth once (accounts created with Google or GitHub, or before it was asked). */
+export async function birthDateAction(_s: ActionState, form: FormData): Promise<ActionState> {
+  const u = await mustUser();
+  if (u.birthDate) return fail("Your date of birth is already set. Contact support to correct it.");
+  const birthDate = parseBirthDate(form.get("birthDate"));
+  if (!birthDate) return fail("Enter your date of birth.");
+  const age = ageOn(birthDate);
+  if (age < MIN_SIGNUP_AGE) return fail(`You must be at least ${MIN_SIGNUP_AGE} to use a Webcenta account.`);
+  const rating = ratingForAge(age, u.preferredCountry);
+  await db.user.update({ where: { id: u.id }, data: { birthDate, maxAgeRating: rating, adultConfirmedAt: rating === "AGE_18_PLUS" ? new Date() : null } });
+  await audit({ actorType: "USER", actorUserId: u.id, action: "user.birth-date.set" });
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Thanks, your account is set up for your age." };
+}
+
 export async function adultContentAction(_s: ActionState, form: FormData): Promise<ActionState> {
   const u = await mustUser();
   if (form.get("enable") === "1") {
-    if (form.get("confirm") !== "on") return fail("Please confirm that you are at least 18 years old.");
+    if (u.birthDate && ratingForAge(ageOn(u.birthDate), u.preferredCountry) !== "AGE_18_PLUS") return fail("Adult content is only available to adults.");
+    if (!u.birthDate && form.get("confirm") !== "on") return fail("Please confirm that you are at least 18 years old.");
     await db.user.update({ where: { id: u.id }, data: { maxAgeRating: "AGE_18_PLUS", adultConfirmedAt: new Date() } });
     await audit({ actorType: "USER", actorUserId: u.id, action: "user.adult-content.enable" });
   } else {

@@ -6,7 +6,7 @@ import { cn } from "@/components/ui/cn";
 
 const ITEMS = [
   ["/", "Overview"], ["/listings/new", "Submit an app"], ["/domains", "Domains"], ["/analytics", "Analytics"],
-  ["/reviews", "Reviews"], ["/claims", "Claim a listing"], ["/promote", "Plans & promotion"], ["/organization", "Organisation"], ["/account", "Account"],
+  ["/reviews", "Reviews"], ["/claims", "Claim a listing"], ["/organization", "Organisation"], ["/account", "Account"],
 ] as const;
 
 export function DevNav() {

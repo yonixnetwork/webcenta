@@ -19,7 +19,7 @@ export default function AboutPage() {
       <h2 className={`${h2} text-text`}>Rankings and sponsorship</h2>
       <p className="mt-2">Organic rankings are based on relevance and on-platform signals. Any paid placement will always be labelled <strong>“Sponsored”</strong> and never changes organic ranking or search order.</p>
       <h2 className={`${h2} text-text`}>Privacy</h2>
-      <p className="mt-2">You can browse without an account. We count visits and outbound clicks using short-lived anonymous identifiers, do not use third-party advertising trackers, and never show your browsing to developers.</p>
+      <p className="mt-2">You can browse without an account. We count visits and outbound clicks using short-lived anonymous identifiers, use analytics or advertising cookies only if you accept them, and never show your browsing to developers.</p>
     </article>
   );
 }

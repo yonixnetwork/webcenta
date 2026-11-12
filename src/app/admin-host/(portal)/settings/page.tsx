@@ -22,7 +22,7 @@ export default async function SettingsIndex() {
       </div>
       {process.env.SETUP_TOKEN && <p role="alert" className="rounded-xl bg-warning-soft px-3 py-2 text-sm text-warning">First-time setup is finished: remove <code>SETUP_TOKEN</code> from the hosting environment (the setup page is already closed because an owner account exists).</p>}
       {dbError && <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">Settings could not be read from the database ({dbError}). Environment values and defaults are in use.</p>}
-      {GROUPS.map((g) => (
+      {GROUPS.filter((g) => sections.some((s) => s.section.r.def.group === g)).map((g) => (
         <section key={g} aria-labelledby={`g-${g}`} className="space-y-3">
           <h2 id={`g-${g}`} className="text-lg font-bold">{g}</h2>
           <div className="grid gap-3 md:grid-cols-2">

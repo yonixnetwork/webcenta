@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import type { AgeRating } from "@/generated/prisma/enums";
 import { getSection } from "@/server/settings/store";
+import { ageOn, minRating, ratingForAge } from "@/lib/age";
 import { getCurrentUser } from "@/server/auth/session";
 
 export interface ViewerContext {
@@ -9,6 +10,18 @@ export interface ViewerContext {
   /** Highest age rating this viewer may see. Anonymous viewers never see 18+. */
   maxAgeRating: AgeRating;
   unknownCountryPolicy: "allow" | "deny";
+}
+
+/**
+ * Highest rating a viewer may see. Visitors who are not signed in: 16+. Signed-in users: their
+ * own preference, capped by the age their date of birth gives (age of majority by country for
+ * 18+). Without a date of birth, 18+ also needs the earlier self-confirmation. Self-declared
+ * data; this is not age verification.
+ */
+export function viewerMaxRating(user: { maxAgeRating: AgeRating; adultConfirmedAt: Date | null; birthDate?: Date | null } | null, country: string | null, now = new Date()): AgeRating {
+  if (!user) return "AGE_16_PLUS";
+  if (user.birthDate) return minRating(user.maxAgeRating, ratingForAge(ageOn(user.birthDate, now), country));
+  return user.maxAgeRating === "AGE_18_PLUS" && !user.adultConfirmedAt ? "AGE_16_PLUS" : user.maxAgeRating;
 }
 
 export function normalizeCountry(value: string | null | undefined): string | null {
@@ -33,14 +46,12 @@ export async function getViewerContext(): Promise<ViewerContext> {
   const h = await headers();
   const e = await networkSettings();
   const user = await getCurrentUser();
-  // 18+ content requires a signed-in user who chose it and self-confirmed their age.
-  // This is a self-declaration, not age verification.
-  const maxAgeRating: AgeRating = user ? (user.maxAgeRating === "AGE_18_PLUS" && !user.adultConfirmedAt ? "AGE_16_PLUS" : user.maxAgeRating) : "AGE_16_PLUS";
+  // The detected country takes precedence for legal restrictions; a user's stated
+  // country is only used when nothing is detected.
+  const country = normalizeCountry(h.get(e.geoCountryHeader)) ?? normalizeCountry(user?.preferredCountry);
   return {
-    // The detected country takes precedence for legal restrictions; a user's stated
-    // country is only used when nothing is detected.
-    country: normalizeCountry(h.get(e.geoCountryHeader)) ?? normalizeCountry(user?.preferredCountry),
-    maxAgeRating,
+    country,
+    maxAgeRating: viewerMaxRating(user, country),
     unknownCountryPolicy: e.geoUnknownPolicy,
   };
 }

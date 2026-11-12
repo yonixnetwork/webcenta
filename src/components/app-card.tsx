@@ -14,7 +14,7 @@ export function AppCard({ app, sponsored = false, compact = false }: { app: List
       className="group relative flex h-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-pop"
     >
       <div className="flex items-start gap-3">
-        <AppIcon name={app.name} storageKey={app.media[0]?.asset.storageKey} size={compact ? "sm" : "md"} />
+        <AppIcon name={app.name} storageKey={app.media.find((m) => m.kind === "LOGO")?.asset.storageKey} size={compact ? "sm" : "md"} />
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold text-text group-hover:text-brand">{app.name}</h3>
           <p className="flex items-center gap-1 truncate text-xs text-muted">

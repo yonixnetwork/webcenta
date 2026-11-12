@@ -71,7 +71,9 @@ authenticator app; social sign-in is never used for admins.
 | `GOOGLE_CLIENT_ID` | | Google Cloud Console → Credentials | For Google sign-in |
 | `GOOGLE_CLIENT_SECRET` | | Same OAuth client | For Google sign-in |
 
-## 6. Apple OAuth (Sign in with Apple) — Apple Developer Program, US$99/year
+## 6. Apple OAuth (Sign in with Apple) — switched off (paid: US$99/year)
+
+Apple sign-in is hidden and inactive while Webcenta uses free services only (see GROWTH.md §9). Skip this section.
 
 1. https://developer.apple.com/account/resources/identifiers/list/serviceId → create a **Services ID**
    (e.g. `com.webcenta.signin`), enable Sign in with Apple, add the domains `webcenta.com` and
@@ -114,6 +116,7 @@ Mailbox `noreply@webcenta.com`: hPanel → **Emails** → webcenta.com. Hostinge
 
 | KEY | VALUE | SOURCE | REQUIRED |
 | --- | --- | --- | --- |
+| `SUPPORT_INBOX_EMAIL` | | Your own inbox (e.g. a Gmail address) that receives every Contact & support message; also in Settings → Notifications | Recommended |
 | `SMTP_PASSWORD` | | The mailbox password (hPanel → Emails → the mailbox → change password if unknown) | **Yes, for any email** (verification, password reset, alerts) |
 | `EMAIL_TRANSPORT` | `smtp` (already set) | — | Yes for sending |
 | `SMTP_HOST` | `smtp.hostinger.com` (already set) | hPanel → Emails → Configuration | Yes for sending |
@@ -131,7 +134,7 @@ Stripe (https://dashboard.stripe.com/apikeys) and PayPal (https://developer.payp
 can be stored and verified in **Admin → Settings → Payments**. There are no environment variables for them, and no
 checkout exists yet, so nothing is charged.
 
-## 10. Security scanning (optional; without one, every submission needs manual approval)
+## 10. Security scanning (URLhaus is free; Web Risk and VirusTotal are switched off because they are paid)
 
 | KEY | VALUE | SOURCE | REQUIRED | COST |
 | --- | --- | --- | --- | --- |

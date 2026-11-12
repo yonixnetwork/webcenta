@@ -87,3 +87,43 @@ export async function externalProvidersConfigured(): Promise<string[]> {
   const [w, u, v] = await Promise.all([providerKey("webrisk", "apiKey"), providerKey("urlhaus", "authKey"), providerKey("virustotal", "apiKey")]);
   return [w && "google-web-risk", u && "urlhaus", v && "virustotal"].filter(Boolean) as string[];
 }
+
+/**
+ * Cloudflare's malware-blocking resolver (1.1.1.2, "1.1.1.1 for Families"), queried over DNS-over-HTTPS.
+ * Free, no key. It answers 0.0.0.0 for domains Cloudflare classifies as malware or phishing.
+ * https://developers.cloudflare.com/1.1.1.1/setup/#1111-for-families
+ */
+export async function cloudflareSecurityDns(domain: string): Promise<ProviderResult> {
+  if (reservedName(domain)) return { provider: "cloudflare-security-dns", verdict: "SKIPPED", summary: "Reserved test domain" };
+  try {
+    const res = await timed(`https://security.cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`, { headers: { accept: "application/dns-json" } });
+    if (!res.ok) return { provider: "cloudflare-security-dns", verdict: "SKIPPED", summary: `Resolver error ${res.status}` };
+    const data = (await res.json()) as { Status?: number; Answer?: Array<{ type: number; data: string }> };
+    const ips = (data.Answer ?? []).filter((a) => a.type === 1).map((a) => a.data);
+    if (ips.includes("0.0.0.0")) return { provider: "cloudflare-security-dns", verdict: "FAIL", summary: "Blocked by Cloudflare's malware and phishing filter (1.1.1.2)", evidence: { ips } };
+    if (data.Status === 0 && ips.length) return { provider: "cloudflare-security-dns", verdict: "PASS", summary: "Not blocked by Cloudflare's malware and phishing filter" };
+    return { provider: "cloudflare-security-dns", verdict: "SKIPPED", summary: "Cloudflare's filter returned no address to compare" };
+  } catch (e) {
+    return { provider: "cloudflare-security-dns", verdict: "SKIPPED", summary: `Lookup failed: ${String(e).slice(0, 120)}` };
+  }
+}
+
+/** Domain registration date from public RDAP (rdap.org redirects to the registry). Free, no key. */
+export async function domainRegistered(domain: string): Promise<Date | null> {
+  if (reservedName(domain)) return null;
+  try {
+    const res = await timed(`https://rdap.org/domain/${encodeURIComponent(registrableDomain(domain))}`, { headers: { accept: "application/rdap+json" }, redirect: "follow" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { events?: Array<{ eventAction?: string; eventDate?: string }> };
+    const ev = data.events?.find((e) => e.eventAction === "registration");
+    const d = ev?.eventDate ? new Date(ev.eventDate) : null;
+    return d && !Number.isNaN(d.getTime()) ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+/** RFC 2606/6761 names (tests and local fixtures) never go to public lookups. */
+function reservedName(domain: string): boolean {
+  return /(^|\.)(localhost|test|example|invalid|local)$/i.test(domain) || /(^|\.)example\.(com|net|org)$/i.test(domain);
+}

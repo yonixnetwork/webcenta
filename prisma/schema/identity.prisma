@@ -50,6 +50,8 @@ model User {
   emailNotifications     Boolean   @default(true)
   /// Self-declared 18+ confirmation time (NOT age verification).
   adultConfirmedAt       DateTime? @db.DateTime(3)
+  /// Self-declared date of birth (asked at sign-up). Caps maxAgeRating; set once.
+  birthDate              DateTime? @db.Date
 
   createdAt DateTime  @default(now()) @db.DateTime(3)
   updatedAt DateTime  @updatedAt @db.DateTime(3)
@@ -72,6 +74,7 @@ model User {
   appeals           Appeal[]
   supportCases      SupportCase[]
   listingClaims     ListingClaim[]
+  pushSubscriptions PushSubscription[]
   listingRevisions  ListingRevision[]
   uploadedMedia     MediaAsset[]
 
@@ -165,6 +168,8 @@ model AuthRateLimit {
 model EmailMessage {
   id        String    @id @default(uuid(7))
   to        String @db.VarChar(254)
+  /// Where replies go (e.g. the visitor who wrote to support).
+  replyTo   String? @db.VarChar(254)
   subject   String @db.Text
   text      String @db.MediumText
   html      String? @db.MediumText

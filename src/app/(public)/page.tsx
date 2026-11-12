@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ShieldCheck, Sparkles } from "lucide-react";
+import { ChartNoAxesColumn, LayoutGrid, ShieldCheck, Sparkles } from "lucide-react";
 import { CategoryIcon } from "@/components/category-icon";
 import { AppCard } from "@/components/app-card";
-import { Rail } from "@/components/rail";
+import { FeaturedCarousel, StoreListSection } from "@/components/store-sections";
 import { SearchBox } from "@/components/search-box";
 import { EmptyState } from "@/components/states";
 import { getCategoryTree } from "@/server/catalog/categories";
@@ -15,16 +15,32 @@ import { siteInfo } from "@/server/settings/site";
 export default async function HomePage() {
   const ctx = await getViewerContext();
   const user = await getCurrentUser();
-  const [{ rails, collections }, tree, personal] = await Promise.all([getHomepage(ctx), getCategoryTree(), user ? personalRails(user, ctx) : Promise.resolve([])]);
+  const [{ rails, collections }, tree, personal] = await Promise.all([getHomepage(ctx), getCategoryTree(ctx.maxAgeRating), user ? personalRails(user, ctx) : Promise.resolve([])]);
   const suggested = tree.slice(0, 6).map((c) => c.name);
   const site = await siteInfo();
   const origin = (process.env.PUBLIC_ORIGIN || "http://localhost:3000").replace(/\/$/, "");
   const orgLd = { "@context": "https://schema.org", "@type": "Organization", name: site.name, url: origin, logo: `${origin}/icons/icon-512.png`, ...(site.socialLinks.length ? { sameAs: site.socialLinks.map((l) => l.url) } : {}) };
 
+  // The first rail with items becomes the swipeable featured carousel at the top (as in the app stores).
+  const featured = rails.find((r) => r.key === "featured" && r.items.length) ?? rails.find((r) => r.key === "editors-picks" && r.items.length);
+  const ranked = new Set(["popular", "trending", "top-rated"]);
+  const chip = "inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold shadow-card transition hover:border-brand/40 hover:text-brand";
+
   return (
-    <div className="space-y-14">
+    <div className="space-y-7 sm:space-y-12">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgLd).replace(/</g, "\\u003c") }} />
-      <section className="hero-glow -mx-4 -mt-6 px-4 pb-10 pt-12 sm:mx-0 sm:mt-0 sm:rounded-[2rem] sm:border sm:border-border sm:px-8 sm:pb-14 sm:pt-16">
+
+      {/* Phones: categories first, like the App Store and Google Play. The search tab lives in the bottom bar. */}
+      <nav aria-label="Browse" className="scrollbar-none -mx-4 -mt-1 flex gap-2 overflow-x-auto px-4 py-1 sm:hidden">
+        <Link href="/search?sort=popular" className={chip}><ChartNoAxesColumn className="size-4 text-brand" aria-hidden />Top charts</Link>
+        <Link href="/categories" className={chip}><LayoutGrid className="size-4 text-brand" aria-hidden />Categories</Link>
+        {tree.slice(0, 14).map((c) => (
+          <Link key={c.id} href={`/c/${c.slug}`} className={chip}><CategoryIcon icon={c.icon} className="size-4 text-brand" />{c.name}</Link>
+        ))}
+      </nav>
+
+      {/* Larger screens: a compact introduction with search. */}
+      <section className="hero-glow hidden rounded-[2rem] border border-border px-8 pb-10 pt-12 sm:block">
         <div className="mx-auto max-w-3xl text-center">
           <p className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">
             <Sparkles className="size-3.5 text-brand" aria-hidden /> The discovery store for the open web
@@ -32,36 +48,20 @@ export default async function HomePage() {
           <h1 className="mt-5 text-balance text-4xl font-extrabold tracking-tight sm:text-5xl">
             Find the right web app for <span className="bg-gradient-to-r from-brand to-accent bg-clip-text text-transparent">anything</span>
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-pretty text-muted">
-            Browse and compare websites, AI tools, games and online services, and see alternatives before you visit.
-          </p>
           <div className="mx-auto mt-8 max-w-2xl text-left"><SearchBox size="lg" suggested={suggested} /></div>
           <p className="mt-4 text-balance text-xs text-subtle">
-            <ShieldCheck className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />Every listing credits its publisher, and you see a notice before leaving Webcenta.
+            <ShieldCheck className="mr-1 inline size-3.5 align-[-2px]" aria-hidden />Every listing is checked for security, and you see a notice before leaving Webcenta.
           </p>
         </div>
       </section>
+      <h1 className="sr-only sm:hidden">Webcenta — discover web apps</h1>
 
-      <section aria-labelledby="browse-categories" className="space-y-4">
-        <div className="flex items-end justify-between">
-          <h2 id="browse-categories" className="text-xl font-bold tracking-tight sm:text-2xl">Browse categories</h2>
-          <Link href="/categories" className="text-sm font-semibold text-brand hover:underline">All categories</Link>
-        </div>
-        <ul className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0">
-          {tree.slice(0, 16).map((c) => (
-            <li key={c.id} className="shrink-0">
-              <Link href={`/c/${c.slug}`} className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-sm font-medium shadow-card transition hover:border-brand/40 hover:text-brand">
-                <CategoryIcon icon={c.icon} className="size-4 text-brand" /> {c.name}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {featured && <FeaturedCarousel label={featured.key === "featured" ? "Featured" : "Editor’s pick"} items={featured.items} sponsoredIds={featured.sponsoredIds} />}
 
       {personal.length > 0 && (
-        <div className="space-y-14">
-          {personal.map((r) => <Rail key={r.key} title={r.title} items={r.items} />)}
-          <p className="-mt-8 text-xs text-subtle">Personalised from your activity on Webcenta. <Link href="/account/privacy" className="underline">Manage personalisation</Link></p>
+        <div className="space-y-8">
+          {personal.map((r) => <StoreListSection key={r.key} title={r.title} items={r.items} />)}
+          <p className="-mt-4 text-xs text-subtle">Personalised from your activity on Webcenta. <Link href="/account/privacy" className="underline">Manage personalisation</Link></p>
         </div>
       )}
 
@@ -70,8 +70,25 @@ export default async function HomePage() {
           Listings appear here once they have been reviewed and published. Check back soon.
         </EmptyState>
       ) : (
-        rails.map((r) => <Rail key={r.key} title={r.title} subtitle={r.subtitle} href={r.href} items={r.items} sponsoredIds={r.sponsoredIds} />)
+        rails.filter((r) => r !== featured).map((r) => <StoreListSection key={r.key} title={r.title} subtitle={r.subtitle} href={r.href} items={r.items} sponsoredIds={r.sponsoredIds} ranked={ranked.has(r.key)} />)
       )}
+
+      <section aria-labelledby="browse-categories" className="space-y-4">
+        <div className="flex items-end justify-between">
+          <h2 id="browse-categories" className="text-[1.35rem] font-bold tracking-tight sm:text-2xl">Browse categories</h2>
+          <Link href="/categories" className="text-sm font-semibold text-brand hover:underline">See all</Link>
+        </div>
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {tree.slice(0, 12).map((c) => (
+            <li key={c.id}>
+              <Link href={`/c/${c.slug}`} className="flex items-center gap-2.5 rounded-2xl border border-border bg-surface px-3 py-3 text-sm font-semibold shadow-card transition hover:border-brand/40 hover:text-brand">
+                <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand-soft"><CategoryIcon icon={c.icon} className="size-4 text-brand" /></span>
+                <span className="truncate">{c.name}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       {collections.length > 0 && (
         <section aria-labelledby="collections" className="space-y-5">

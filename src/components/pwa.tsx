@@ -1,6 +1,7 @@
 "use client";
 
-import { Download, Share, X } from "lucide-react";
+import { Bell, Download, RefreshCw, Share, X } from "lucide-react";
+import { enablePush, pushSupported } from "@/lib/push-client";
 import { useEffect, useState } from "react";
 import { buttonClass } from "./ui/button";
 
@@ -18,6 +19,11 @@ export function PwaManager() {
   const [showIos, setShowIos] = useState(false);
   const [iosEligible, setIosEligible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [deployed, setDeployed] = useState(false);
+  // The install suggestion waits until the cookie question has been answered.
+  const [consented, setConsented] = useState(true);
+  // Offer push notifications once (after the cookie question, and not together with the install banner).
+  const [pushAsk, setPushAsk] = useState(false);
 
   useEffect(() => {
     const ua = navigator.userAgent;
@@ -26,10 +32,16 @@ export function PwaManager() {
     queueMicrotask(() => {
       setIosEligible(/iphone|ipad|ipod/i.test(ua) && !standalone);
       try { setDismissed(localStorage.getItem("wc-install-dismissed") === "1"); } catch { /* storage unavailable */ }
+      setConsented(document.cookie.includes("wc-consent="));
+      try {
+        setPushAsk(pushSupported() && Notification.permission === "default" && localStorage.getItem("wc-push-asked") !== "1");
+      } catch { /* storage unavailable */ }
     });
     const onPrompt = (e: Event) => { e.preventDefault(); setInstallEvt(e as BeforeInstallPromptEvent); };
     window.addEventListener("beforeinstallprompt", onPrompt);
     window.addEventListener("appinstalled", () => setInstallEvt(null));
+    const onConsent = () => setConsented(true);
+    window.addEventListener("wc-consent", onConsent);
 
     if ("serviceWorker" in navigator && location.hostname !== "admin.localhost" && !location.hostname.startsWith("admin.")) {
       navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((reg) => {
@@ -44,28 +56,68 @@ export function PwaManager() {
       let reloaded = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
     }
-    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
+    // A new deployment: compare the build this page was made with against the running server.
+    const mine = process.env.NEXT_PUBLIC_BUILD_ID;
+    const check = async () => {
+      if (!mine || document.visibilityState !== "visible") return;
+      try {
+        const r = await fetch("/api/version", { cache: "no-store" });
+        const { build } = (await r.json()) as { build?: string };
+        if (build && build !== "dev" && build !== mine) setDeployed(true);
+      } catch { /* offline */ }
+    };
+    const timer = window.setInterval(check, 10 * 60_000);
+    document.addEventListener("visibilitychange", check);
+    window.setTimeout(check, 3000);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("wc-consent", onConsent);
+      window.clearInterval(timer);
+    };
   }, []);
+
+  /** Clears this site's caches and the service worker's copy, then loads the new version. */
+  const reloadFresh = async () => {
+    try {
+      if ("caches" in window) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+      const reg = await navigator.serviceWorker?.getRegistration();
+      await reg?.update();
+      if (reg?.waiting) { reg.waiting.postMessage("SKIP_WAITING"); return; } // controllerchange reloads
+    } catch { /* fall through to a plain reload */ }
+    location.reload();
+  };
+
+  const closePush = () => { setPushAsk(false); try { localStorage.setItem("wc-push-asked", "1"); } catch { /* ignore */ } };
+  const installShown = !dismissed && consented && (installEvt || iosEligible) && !waiting && !deployed;
 
   const dismiss = () => { setDismissed(true); try { localStorage.setItem("wc-install-dismissed", "1"); } catch { /* ignore */ } };
 
   return (
     <>
-      {waiting && (
-        <div role="status" className="fixed inset-x-4 bottom-20 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-3 shadow-pop sm:bottom-6">
-          <span className="text-sm">A new version of Webcenta is available.</span>
-          <button type="button" className={buttonClass("primary", "sm")} onClick={() => waiting.postMessage("SKIP_WAITING")}>Reload</button>
+      {(waiting || deployed) && (
+        <div role="status" data-testid="update-banner" className="fixed inset-x-4 bottom-28 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-surface p-3 shadow-pop sm:bottom-6">
+          <span className="flex items-start gap-2 text-sm"><RefreshCw className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden /><span><strong>Webcenta has been updated.</strong> Reload to get the latest improvements.</span></span>
+          <button type="button" className={buttonClass("primary", "sm")} onClick={() => (waiting ? waiting.postMessage("SKIP_WAITING") : void reloadFresh())}>Reload</button>
         </div>
       )}
-      {!dismissed && (installEvt || iosEligible) && !waiting && (
-        <div className="fixed inset-x-4 bottom-20 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-pop sm:bottom-6" data-testid="install-banner">
+      {!dismissed && consented && (installEvt || iosEligible) && !waiting && !deployed && (
+        <div className="fixed inset-x-4 bottom-28 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2 shadow-pop sm:bottom-6" data-testid="install-banner">
           <Download className="size-5 shrink-0 text-brand" aria-hidden />
-          <p className="flex-1 text-sm">Install Webcenta for quick access. It is a web app, not an app-store app.</p>
+          <p className="flex-1 text-sm font-medium">Add Webcenta to your home screen</p>
           <button type="button" className={buttonClass("primary", "sm")} onClick={async () => {
             if (installEvt) { await installEvt.prompt(); await installEvt.userChoice; setInstallEvt(null); }
             else setShowIos(true);
           }}>Install</button>
           <button type="button" aria-label="Dismiss" onClick={dismiss} className="text-subtle hover:text-text"><X className="size-4" aria-hidden /></button>
+        </div>
+      )}
+      {pushAsk && consented && !installShown && !waiting && !deployed && (
+        <div className="fixed inset-x-4 bottom-28 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2 shadow-pop sm:bottom-6" data-testid="push-banner">
+          <Bell className="size-5 shrink-0 text-brand" aria-hidden />
+          <p className="flex-1 text-sm font-medium">Get notified about new apps and updates</p>
+          <button type="button" className={buttonClass("primary", "sm")} onClick={async () => { await enablePush(); closePush(); }}>Turn on</button>
+          <button type="button" aria-label="Not now" onClick={closePush} className="text-subtle hover:text-text"><X className="size-4" aria-hidden /></button>
         </div>
       )}
       {showIos && (

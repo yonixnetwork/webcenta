@@ -10,7 +10,7 @@ export function SiteHeader({ theme, suggested, user }: { theme: "system" | "ligh
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2">
         Skip to content
       </a>
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:gap-6 sm:px-6">
+      <div className="mx-auto flex h-14 max-w-7xl sm:h-16 items-center gap-3 px-4 sm:gap-6 sm:px-6">
         <Link href="/" aria-label="Webcenta home" className="shrink-0"><Logo /></Link>
         <HeaderSearch suggested={suggested} className="hidden flex-1 md:block md:max-w-xl" />
         <nav aria-label="Main" className="ml-auto flex items-center gap-1">
@@ -33,7 +33,6 @@ export function SiteHeader({ theme, suggested, user }: { theme: "system" | "ligh
           )}
         </nav>
       </div>
-      <HeaderSearch suggested={suggested} className="px-4 pb-3 md:hidden" />
     </header>
   );
 }

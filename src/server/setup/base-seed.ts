@@ -4,7 +4,50 @@
  * and DRAFT legal templates. Used by `npm run db:seed` and by first-time setup.
  */
 import type { PrismaClient } from "@/generated/prisma/client";
-import { CATEGORY_EMOJI, flattenTaxonomy } from "@/server/catalog/taxonomy";
+import { CATEGORY_EMOJI, TOP_LEVEL_ORDER, flattenTaxonomy } from "@/server/catalog/taxonomy";
+import { LEGAL_TEXTS } from "./legal-texts";
+import { catalogueEntries } from "@/server/importer/catalogue";
+import { queueImports } from "@/server/importer/queue";
+
+/**
+ * Version of the base data. Raise it when the base data changes (for example new
+ * categories); every installation then re-runs the idempotent seed once at startup.
+ */
+export const BASE_SEED_VERSION = 2;
+const SEED_KEY = "seed.base.version";
+
+export async function baseSeedVersion(db: PrismaClient): Promise<number> {
+  const row = await db.systemSetting.findUnique({ where: { key: SEED_KEY }, select: { value: true } });
+  return Number((row?.value as { v?: number } | null)?.v ?? 0);
+}
+
+/**
+ * One-time changes to categories created by an earlier version of the base data. Each
+ * change applies only while the row still has the value the earlier version created,
+ * so an administrator's own edits are never overwritten.
+ */
+async function reviseTaxonomy(db: PrismaClient, from: number, log: (m: string) => void) {
+  if (from >= 2) return;
+  let changed = 0;
+  // Store-style order of the top-level categories.
+  for (const [i, slug] of TOP_LEVEL_ORDER.entries()) {
+    changed += (await db.category.updateMany({ where: { slug, parentId: null }, data: { sortOrder: i } })).count;
+  }
+  const renames: Array<[slug: string, from: string, to: string]> = [
+    ["photography", "Photography", "Photo & Video"],
+    ["art-design", "Art & Design", "Graphics & Design"],
+    ["children-family", "Children & Family", "Kids & Family"],
+    ["adult-entertainment", "Adult Entertainment", "Adult Content"],
+  ];
+  for (const [slug, old, name] of renames) changed += (await db.category.updateMany({ where: { slug, name: old }, data: { name } })).count;
+  await db.category.updateMany({ where: { slug: "adult-entertainment", description: { not: null } }, data: { description: "Legal adult services. Shown only to signed-in users who confirmed they are adults." } });
+  // Shown to adults (18+) instead of hidden: crypto exchanges and DeFi, forex, adult content.
+  // Every listing in them still needs a moderator, and licences where they apply.
+  const adultVisible = ["cryptocurrency-exchanges", "cryptocurrency-defi", "cryptocurrency-trading-bots", "forex", "adult-entertainment"];
+  const forexChildren = (await db.category.findMany({ where: { parent: { slug: "forex" } }, select: { slug: true } })).map((c) => c.slug);
+  changed += (await db.category.updateMany({ where: { slug: { in: [...adultVisible, ...forexChildren] }, isRestricted: true }, data: { isRestricted: false, defaultAgeRating: "AGE_18_PLUS" } })).count;
+  log(`taxonomy revision 2: ${changed} change(s)`);
+}
 
 export const RISK_ORDER = ["LOW", "MEDIUM", "HIGH", "PROHIBITED"] as const;
 
@@ -79,25 +122,33 @@ export async function seedPlatformDefaults(db: PrismaClient, log: (m: string) =>
   // until the owner approves pricing and a payment provider is integrated.
   await db.developerPlan.upsert({ where: { code: "free" }, create: { code: "free", name: "Free", entitlements: { listings: 10, analyticsHistoryDays: 90 }, isActive: true, priceCents: 0, currency: "USD" }, update: {} });
   await db.developerPlan.upsert({ where: { code: "pro" }, create: { code: "pro", name: "Pro (planned)", entitlements: { listings: 100, analyticsHistoryDays: 365, sponsoredRequests: true }, isActive: false }, update: {} });
-  // Legal policy templates are created as UNPUBLISHED drafts for review by a lawyer.
-  const drafts: Array<[string, string, string]> = [
-    ["TERMS_OF_SERVICE", "Terms of Service", "DRAFT — requires legal review before publication.\n\n## Using Webcenta\nWebcenta lists third-party websites. We do not operate them.\n\n## Accounts\nKeep your credentials secure. We may suspend accounts that break these terms."],
-    ["PRIVACY_POLICY", "Privacy Policy", "DRAFT — requires legal review before publication.\n\n## What we collect\n- Account details you provide\n- Anonymous, daily-rotating visit counters (no IP addresses stored in analytics)\n- Browsing history only if you are signed in and keep it enabled\n\n## Your rights\nYou can export or delete your data from Account → Privacy & data."],
-    ["CONTENT_POLICY", "Content Policy", "DRAFT — requires legal review before publication.\n\nProhibited: phishing, malware, fraud, impersonation, illegal marketplaces and content that exploits minors."],
-    ["DEVELOPER_AGREEMENT", "Developer Agreement", "DRAFT — requires legal review before publication.\n\nSubmissions are reviewed and monitored. Payment never bypasses moderation."],
-    ["REVIEW_GUIDELINES", "Review Guidelines", "DRAFT — requires legal review before publication.\n\nWrite honest reviews based on your own experience. Do not review apps you develop."],
-  ];
-  for (const [type, title, body] of drafts) {
-    if (!(await db.legalPolicy.findFirst({ where: { type: type as never } }))) {
-      await db.legalPolicy.create({ data: { type: type as never, version: 1, title, body, effectiveAt: new Date() } });
+  // Published starting versions of every policy (footer links must always work). An existing
+  // install's untouched seed drafts ("DRAFT — requires legal review…", never published) are
+  // replaced by these; anything an administrator wrote or published is left alone.
+  const now = new Date();
+  for (const [type, t] of Object.entries(LEGAL_TEXTS)) {
+    const versions = await db.legalPolicy.findMany({ where: { type: type as never }, orderBy: { version: "desc" } });
+    if (!versions.length) {
+      await db.legalPolicy.create({ data: { type: type as never, version: 1, title: t.title, body: t.body, effectiveAt: now, publishedAt: now } });
+    } else if (versions.every((v) => !v.publishedAt && v.body.startsWith("DRAFT — requires legal review"))) {
+      await db.legalPolicy.update({ where: { id: versions[0]!.id }, data: { title: t.title, body: t.body, effectiveAt: now, publishedAt: now } });
     }
   }
-  log("platform defaults: plans + draft legal templates");
+  log("platform defaults: plans + published policies");
 }
 
 export async function seedBase(db: PrismaClient, log: (m: string) => void = console.log) {
+  const from = await baseSeedVersion(db).catch(() => 0);
+  const fresh = (await db.category.count()) === 0;
   await seedTaxonomy(db, log);
+  if (!fresh) await reviseTaxonomy(db, from, log);
   await seedHomepageSections(db, log);
   await seedMonitoringPolicy(db, log);
   await seedPlatformDefaults(db, log);
+  if (from < 2) {
+    // The researched starter catalogue joins the import queue once (imported gradually by the scheduled job).
+    const added = await queueImports(catalogueEntries().map((e) => ({ ...e, source: "catalogue" })));
+    log(`import queue: ${added} web app(s) from the Webcenta catalogue`);
+  }
+  await db.systemSetting.upsert({ where: { key: SEED_KEY }, create: { key: SEED_KEY, value: { v: BASE_SEED_VERSION } }, update: { value: { v: BASE_SEED_VERSION } } });
 }

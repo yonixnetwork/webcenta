@@ -41,10 +41,15 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   reporter: [["list"], ["json", { outputFile: "test-results/e2e-results.json" }]],
-  use: { baseURL: `http://localhost:${PORT}`, trace: "off", ignoreHTTPSErrors: true },
+  use: {
+    baseURL: `http://localhost:${PORT}`, trace: "off", ignoreHTTPSErrors: true,
+    // The cookie question is answered ("necessary only") so its dialog does not cover the pages
+    // under test; tests/e2e/consent.spec.ts covers the dialog itself with an empty browser.
+    storageState: { cookies: ["localhost", "developers.localhost"].map((domain) => ({ name: "wc-consent", value: "v1.a0.d0", domain, path: "/", expires: -1, httpOnly: false, secure: false, sameSite: "Lax" as const })), origins: [] },
+  },
   projects: [
     { name: "journeys", testMatch: /journeys\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
-    { name: "desktop", testMatch: /(marketplace|responsive|security|pwa|reviews|settings|hosts)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
+    { name: "desktop", testMatch: /(marketplace|responsive|security|pwa|reviews|settings|hosts|consent|growth)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
     { name: "tablet", testMatch: /(marketplace|responsive)\.spec\.ts/, use: { ...devices["iPad (gen 7) landscape"], browserName: "chromium" } },
     { name: "mobile", testMatch: /(marketplace|responsive|pwa)\.spec\.ts/, use: { ...devices["Pixel 7"] } },
   ],

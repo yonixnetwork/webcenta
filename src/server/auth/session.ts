@@ -13,6 +13,7 @@ export interface CurrentUser {
   historyEnabled: boolean;
   maxAgeRating: "ALL_AGES" | "AGE_13_PLUS" | "AGE_16_PLUS" | "AGE_18_PLUS";
   adultConfirmedAt: Date | null;
+  birthDate: Date | null;
   preferredCountry: string | null;
   emailNotifications: boolean;
 }
@@ -29,7 +30,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const u = await db.user.findUnique({
     where: { id: session.user.id },
     select: { id: true, email: true, name: true, emailVerified: true, status: true, personalizationEnabled: true, historyEnabled: true,
-      maxAgeRating: true, adultConfirmedAt: true, preferredCountry: true, emailNotifications: true },
+      maxAgeRating: true, adultConfirmedAt: true, birthDate: true, preferredCountry: true, emailNotifications: true },
   });
   if (!u || u.status !== "ACTIVE") return null;
   const rest: Omit<typeof u, "status"> & { status?: unknown } = { ...u };

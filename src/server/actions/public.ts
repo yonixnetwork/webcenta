@@ -9,8 +9,25 @@ import { dailySalt, visitorHash } from "@/server/analytics/visitor";
 import { getCurrentUser } from "@/server/auth/session";
 import { notifyAdmins } from "@/server/scanner/monitor";
 import { audit } from "@/server/audit";
+import { getSection } from "@/server/settings/store";
+import { sendEmail } from "@/server/email/send";
+import { escapeHtml, layout } from "@/server/email/templates";
+import { adminOrigin } from "@/lib/hosts";
 
 export interface ActionState { ok: boolean; message: string }
+
+/** Emails a new support message to the support inbox (Admin → Settings → Notifications), reply-to the visitor. */
+async function forwardToSupportInbox(caseId: string, m: { from: string; name: string | null; subject: string; body: string }) {
+  const c = await getSection("notifications");
+  const valid = (x: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
+  const split = (v: string) => v.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(valid);
+  const to = [...new Set(split(c.str("supportEmails")).length ? split(c.str("supportEmails")) : split(c.str("adminAlertEmails")))];
+  if (!to.length) return;
+  const link = `${adminOrigin()}/support/${caseId}`;
+  const text = `New message from ${m.name ? `${m.name} <${m.from}>` : m.from}\n\nSubject: ${m.subject}\n\n${m.body}\n\nReply to this email to answer the visitor, or open the case: ${link}`;
+  const html = layout(`Support: ${escapeHtml(m.subject)}`, `<p><strong>From:</strong> ${escapeHtml(m.name ? `${m.name} <${m.from}>` : m.from)}</p><p><strong>Subject:</strong> ${escapeHtml(m.subject)}</p><p style="white-space:pre-wrap">${escapeHtml(m.body)}</p><p>Reply to this email to answer the visitor, or <a href="${link}">open the case in the admin portal</a>.</p>`);
+  for (const addr of to) await sendEmail({ to: addr, replyTo: m.from, subject: `[Webcenta support] ${m.subject}`, text, html, template: "support-forward" });
+}
 
 export async function contactAction(_s: ActionState, f: FormData): Promise<ActionState> {
   if (f.get("website")) return { ok: true, message: "Thanks, we will get back to you." }; // honeypot
@@ -21,7 +38,8 @@ export async function contactAction(_s: ActionState, f: FormData): Promise<Actio
   const h = await headers();
   const who = visitorHash(await dailySalt(), clientIp(h, (await networkSettings()).trustedProxyHops), h.get("user-agent"), "contact");
   if (!(await rateLimit(`contact:${who}`, 5, 3600))) return { ok: false, message: "Too many messages. Please try again later." };
-  await db.supportCase.create({ data: { userId: user?.id ?? null, contactEmail: parsed.data.email.toLowerCase(), subject: parsed.data.subject, messages: { create: { body: parsed.data.body } } } });
+  const sc = await db.supportCase.create({ data: { userId: user?.id ?? null, contactEmail: parsed.data.email.toLowerCase(), subject: parsed.data.subject, messages: { create: { body: parsed.data.body } } } });
+  await forwardToSupportInbox(sc.id, { from: parsed.data.email.toLowerCase(), name: user?.name ?? null, subject: parsed.data.subject, body: parsed.data.body }).catch(() => undefined);
   return { ok: true, message: "Thanks! Your message was received. We usually reply within a few working days." };
 }
 

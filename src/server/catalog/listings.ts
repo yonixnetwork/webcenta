@@ -21,10 +21,12 @@ export const cardSelect = {
   securityStatus: true,
   primaryCategory: { select: { slug: true, name: true } },
   developer: { select: { verificationLevel: true } },
+  // The logo first (enum order), then the first screenshot for featured cards.
   media: {
-    where: { kind: "LOGO", asset: { moderationStatus: "APPROVED" } },
-    take: 1,
-    select: { altText: true, asset: { select: { storageKey: true } } },
+    where: { kind: { in: ["LOGO", "SCREENSHOT"] }, asset: { moderationStatus: "APPROVED" } },
+    orderBy: [{ kind: "asc" }, { sortOrder: "asc" }],
+    take: 2,
+    select: { kind: true, altText: true, asset: { select: { storageKey: true } } },
   },
 } satisfies Prisma.ListingSelect;
 

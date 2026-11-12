@@ -1,5 +1,6 @@
 import Script from "next/script";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { CONSENT_COOKIE, parseConsent } from "@/lib/consent";
 import { analyticsConfig, isAdPage } from "@/server/settings/site";
 
 /**
@@ -14,10 +15,12 @@ export async function ThirdPartyScripts() {
   const pathname = h.get("x-pathname") ?? "/";
   const a = await analyticsConfig().catch(() => null);
   if (!a) return null;
+  // Google Analytics and AdSense set cookies: only after the visitor agreed (cookie banner).
+  const consent = parseConsent((await cookies()).get(CONSENT_COOKIE)?.value);
   return (
     <>
       {a.plausible && <Script src={a.plausible.scriptUrl} data-domain={a.plausible.domain} strategy="afterInteractive" nonce={nonce} />}
-      {a.ga4 && (
+      {a.ga4 && consent?.analytics && (
         <>
           <Script src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(a.ga4.measurementId)}`} strategy="afterInteractive" nonce={nonce} />
           <Script id="ga4-init" strategy="afterInteractive" nonce={nonce}>
@@ -25,7 +28,7 @@ export async function ThirdPartyScripts() {
           </Script>
         </>
       )}
-      {a.adsense?.autoAds && isAdPage(pathname) && (
+      {a.adsense?.autoAds && consent?.ads && isAdPage(pathname) && (
         <Script src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(a.adsense.client)}`} strategy="afterInteractive" crossOrigin="anonymous" nonce={nonce} />
       )}
     </>

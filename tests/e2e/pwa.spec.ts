@@ -73,7 +73,7 @@ test.describe("PWA", () => {
       const next = `wc-v${current + 1}`;
       writeFileSync(SERVED_SW, original.replace(`const VERSION = "wc-v${current}"`, `const VERSION = "${next}"`));
       await page.evaluate(async () => { const reg = await navigator.serviceWorker.getRegistration(); await reg?.update(); });
-      await expect(page.getByText("A new version of Webcenta is available.")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText("Webcenta has been updated.")).toBeVisible({ timeout: 15_000 });
       const reload = page.waitForEvent("load");
       await page.getByRole("button", { name: "Reload" }).click();
       await reload;

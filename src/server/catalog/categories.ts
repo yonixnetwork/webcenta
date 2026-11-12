@@ -1,6 +1,7 @@
 import { db } from "@/server/db";
 import type { ViewerContext } from "@/server/viewer";
-import { publicCategoryWhere, publicListingWhere } from "./visibility";
+import type { AgeRating } from "@/generated/prisma/enums";
+import { AGE_ORDER, publicCategoryWhere, publicListingWhere } from "./visibility";
 
 export interface CategoryNode {
   id: string;
@@ -9,7 +10,14 @@ export interface CategoryNode {
   icon: string | null;
   emoji: string | null;
   description: string | null;
+  defaultAgeRating: AgeRating;
   children: CategoryNode[];
+}
+
+/** Drops categories meant for an older audience than the viewer may see (e.g. 18+ for minors and visitors). */
+export function treeForAge(tree: CategoryNode[], max: AgeRating): CategoryNode[] {
+  const ok = (n: CategoryNode) => AGE_ORDER.indexOf(n.defaultAgeRating) <= AGE_ORDER.indexOf(max);
+  return tree.filter(ok).map((n) => ({ ...n, children: n.children.filter(ok) }));
 }
 
 // Small in-process TTL cache (no Redis on shared hosting). Category changes are
@@ -21,12 +29,18 @@ export function invalidateCategoryCache() {
   treeCache = null;
 }
 
-export async function getCategoryTree(): Promise<CategoryNode[]> {
+/** The public category tree; pass the viewer's age limit to leave out categories they may not see. */
+export async function getCategoryTree(maxAgeRating?: AgeRating): Promise<CategoryNode[]> {
+  const tree = await fullTree();
+  return maxAgeRating ? treeForAge(tree, maxAgeRating) : tree;
+}
+
+async function fullTree(): Promise<CategoryNode[]> {
   if (treeCache && Date.now() - treeCache.at < TREE_TTL_MS) return treeCache.value;
   const rows = await db.category.findMany({
     where: publicCategoryWhere(),
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    select: { id: true, slug: true, name: true, icon: true, emoji: true, description: true, parentId: true },
+    select: { id: true, slug: true, name: true, icon: true, emoji: true, description: true, parentId: true, defaultAgeRating: true },
   });
   const nodes = new Map<string, CategoryNode>(rows.map((r) => [r.id, { ...r, children: [] }]));
   const roots: CategoryNode[] = [];

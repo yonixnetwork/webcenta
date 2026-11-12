@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default async function CategoriesPage() {
   const ctx = await getViewerContext();
-  const [tree, counts] = await Promise.all([getCategoryTree(), categoryListingCounts(ctx)]);
+  const [tree, counts] = await Promise.all([getCategoryTree(ctx.maxAgeRating), categoryListingCounts(ctx)]);
   return (
     <div className="space-y-8">
       <header>
