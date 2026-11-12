@@ -147,7 +147,7 @@ export async function seedBase(db: PrismaClient, log: (m: string) => void = cons
   await seedPlatformDefaults(db, log);
   if (from < 2) {
     // The researched starter catalogue joins the import queue once (imported gradually by the scheduled job).
-    const added = await queueImports(catalogueEntries().map((e) => ({ ...e, source: "catalogue" })));
+    const added = await queueImports(db, catalogueEntries().map((e) => ({ ...e, source: "catalogue" })));
     log(`import queue: ${added} web app(s) from the Webcenta catalogue`);
   }
   await db.systemSetting.upsert({ where: { key: SEED_KEY }, create: { key: SEED_KEY, value: { v: BASE_SEED_VERSION } }, update: { value: { v: BASE_SEED_VERSION } } });

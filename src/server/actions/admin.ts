@@ -604,7 +604,7 @@ export async function queueImportsAction(_s: ActionState, f: FormData): Promise<
     const categorySlug = z.string().trim().min(1).max(191).parse(str(f, "category"));
     const name = urls.length === 1 ? str(f, "name").trim().slice(0, 120) || null : null;
     const { queueImports, importCandidate, urlHash } = await import("@/server/importer/importer");
-    const added = await queueImports(urls.map((url) => ({ url, categorySlug, name, source: "admin", priority: 10, adminId: a.id })));
+    const added = await queueImports(db, urls.map((url) => ({ url, categorySlug, name, source: "admin", priority: 10, adminId: a.id })));
     await audit({ actorType: "ADMIN", adminId: a.id, action: "imports.queue", metadata: { count: added, categorySlug } });
     if (f.get("now") === "1" && urls.length === 1) {
       const { normalizeWebsiteUrl } = await import("@/lib/url");
