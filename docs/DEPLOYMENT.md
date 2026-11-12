@@ -42,6 +42,41 @@ installed during the build (not required any more); memory available to `next bu
 minimum interval; that `admin.` and `developers.` subdomains can point to the same Node.js app; that
 a folder outside the app directory survives redeploys (for uploads).
 
+### One application, four hostnames
+
+All four hostnames point to the same Node.js application (the `admin` and `developers` subdomains
+use the main site's folder, `public_html`). The application decides what to render from the request's
+hostname (`src/proxy.ts`, `resolveSurface` in `src/lib/hosts.ts`):
+
+| Hostname | Serves | Session cookie |
+| --- | --- | --- |
+| `webcenta.com` | Public marketplace | `__Secure-wc.session_token` (host-only) |
+| `www.webcenta.com` | 308 redirect to `webcenta.com`, same path | — |
+| `admin.webcenta.com` | Admin portal only (`src/app/admin-host`), noindex, `no-store` | `__Host-wc_admin` (host-only, SameSite=Strict, password + mandatory TOTP) |
+| `developers.webcenta.com` | Developer portal only (`src/app/developer-host`): its own registration, sign-in, dashboard, submissions, analytics, reviews, organisation and account pages | `__Secure-wcdev.session_token` (host-only) |
+
+The marketplace and the developer portal share user accounts but not sessions: signing in or out on
+one never affects the other, and no cookie is shared between hostnames. The Host header decides;
+`X-Forwarded-Host` is used only when Host is not one of these names (a Host-rewriting proxy), so it can
+never move a request between two of them. No separate deployment per hostname is needed.
+
+### Hostinger runs several app processes (environment snapshot)
+
+Hostinger serves Node.js apps through LiteSpeed's Passenger-compatible runner (`public_html/.htaccess`
+points it at `hbuilds/current/nodejs/server.js`). The runtime log of the first deployment showed
+processes started on demand **without** the hPanel environment variables (`DATABASE_URL ... undefined`):
+such a process could not recognise any hostname and served every domain as the public site. The build
+does receive the variables, so `scripts/prepare-standalone.mjs` writes the application's own variables
+(names from `src/server/settings/env-inventory.json` only) to `.env.production` next to `server.js`,
+mode `600`, outside the web root. Next.js loads that file in every process; variables really present in
+the environment still win. Because of this, **after changing an environment variable in hPanel,
+redeploy** (Hostinger also requires this). Set `WEBCENTA_ENV_SNAPSHOT=false` to disable it on a host
+that passes the environment reliably (e.g. a VPS with systemd).
+
+Every process logs one line at start (`[webcenta] process start ... startup-variables=ok|MISSING ...`)
+and one line per hostname it routes (`[webcenta] routing host=... -> admin`), visible in hPanel →
+Node.js → Runtime logs; no values are logged.
+
 ## 2. Database setup on Hostinger (owner actions)
 
 1. hPanel → **Websites** → webcenta.com → **Databases** → **MySQL Databases** → create a database
@@ -121,7 +156,8 @@ variables, restart or redeploy the app.
    | Start / entry file | not needed for Next.js (Hostinger starts the standalone server) |
    Enter the variables from §3, then deploy.
 5. **Domains & SSL:** attach `webcenta.com`, `www.`, `admin.` and `developers.` to the app with HTTPS.
-   The app redirects `www` → apex and `developers.` → `/developer`, and serves the admin portal only
+   The app redirects `www` → apex, serves the developer portal only on `developers.` (old
+   `webcenta.com/developer/*` links redirect there), and serves the admin portal only
    on `admin.`. `api.webcenta.com` is optional: if attached, it serves `/api/*` only (public
    endpoints; no session cookies reach it) and redirects every other path to `webcenta.com`.
    Optionally upload `public/errors/*.html` as the host's or Cloudflare's custom error pages (§5a).

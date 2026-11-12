@@ -15,7 +15,7 @@ const ROLE_RANK: Record<DeveloperMemberRole, number> = { ANALYST: 0, EDITOR: 1, 
 export const canRole = (role: DeveloperMemberRole, min: DeveloperMemberRole) => ROLE_RANK[role] >= ROLE_RANK[min];
 
 /** Current developer organisation (cookie-selected) for the signed-in user, or null if they have none. */
-export async function getDevContext(next = "/developer"): Promise<DevContext | null> {
+export async function getDevContext(next = "/"): Promise<DevContext | null> {
   const user = await requireUser(next);
   const memberships = await db.developerMember.findMany({ where: { userId: user.id }, include: { org: true }, orderBy: { createdAt: "asc" } });
   if (!memberships.length) return null;
@@ -24,17 +24,17 @@ export async function getDevContext(next = "/developer"): Promise<DevContext | n
   return { user, org: m.org, role: m.role, orgs: memberships.map((x) => ({ id: x.org.id, displayName: x.org.displayName })) };
 }
 
-export async function requireDev(min: DeveloperMemberRole = "ANALYST", next = "/developer"): Promise<DevContext> {
+export async function requireDev(min: DeveloperMemberRole = "ANALYST", next = "/"): Promise<DevContext> {
   const ctx = await getDevContext(next);
-  if (!ctx) redirect("/developer");
+  if (!ctx) redirect("/");
   if (!canRole(ctx.role, min)) throw new Error("FORBIDDEN");
   return ctx;
 }
 
 /** For pages: like requireDev, but renders the 403 page when the role is insufficient. */
-export async function requireDevPage(min: DeveloperMemberRole = "ANALYST", next = "/developer"): Promise<DevContext> {
+export async function requireDevPage(min: DeveloperMemberRole = "ANALYST", next = "/"): Promise<DevContext> {
   const ctx = await getDevContext(next);
-  if (!ctx) redirect("/developer");
+  if (!ctx) redirect("/");
   if (!canRole(ctx.role, min)) forbidden();
   return ctx;
 }

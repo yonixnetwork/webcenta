@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { ADMIN_PREFIX, buildCsp, classifyHost, hostConfigFromEnv, isInternalSurfacePath } from "@/lib/hosts";
+import { ADMIN_PREFIX, buildCsp, developerRewritePath, hostConfigFromEnv, isInternalSurfacePath, originsFromEnv, resolveSurface } from "@/lib/hosts";
 import { STATIC_ERROR_CSP, staticErrorPage } from "@/lib/static-error-pages";
 import { getSectionWithin } from "@/server/settings/store";
 import { cspExtras } from "@/server/settings/site";
@@ -15,19 +15,21 @@ export async function proxy(request: NextRequest) {
     ADMIN_ORIGIN: process.env.ADMIN_ORIGIN,
     DEVELOPER_ORIGIN: process.env.DEVELOPER_ORIGIN,
   });
-  const surface = classifyHost(request.headers.get("host"), cfg);
+  const { surface, host } = resolveSurface(request.headers, cfg);
   const url = request.nextUrl;
+  const origins = originsFromEnv({ PUBLIC_ORIGIN: process.env.PUBLIC_ORIGIN, ADMIN_ORIGIN: process.env.ADMIN_ORIGIN, DEVELOPER_ORIGIN: process.env.DEVELOPER_ORIGIN });
+  logRouting(request, host, surface);
 
   if (surface === "www") {
-    const target = new URL(url.pathname + url.search, process.env.PUBLIC_ORIGIN || `https://${cfg.publicHost}`);
+    const target = new URL(url.pathname + url.search, origins.publicOrigin);
     // Built by hand so the Location header is always absolute (canonical host).
     return new NextResponse(null, { status: 308, headers: { location: target.toString() } });
   }
 
-  // The developer portal lives at /developer on the public host (shared, host-only
-  // session cookie); developers.webcenta.com redirects there.
-  if (surface === "developer") {
-    const target = new URL(`/developer${url.pathname === "/" ? "" : url.pathname}${url.search}`, process.env.PUBLIC_ORIGIN || `https://${cfg.publicHost}`);
+  // The developer portal is its own site on developers.<host>; old /developer links
+  // on the public site move there permanently.
+  if (surface === "public" && (url.pathname === "/developer" || url.pathname.startsWith("/developer/"))) {
+    const target = new URL((url.pathname.slice("/developer".length) || "/") + url.search, origins.developerOrigin);
     return new NextResponse(null, { status: 308, headers: { location: target.toString() } });
   }
 
@@ -72,8 +74,8 @@ export async function proxy(request: NextRequest) {
   }
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  // Analytics/advertising sources are added only on public pages (never the admin portal).
-  const extras = surface === "admin" ? { script: [], connect: [], img: [], frame: [] } : await cspExtras(url.pathname).catch(() => ({ script: [], connect: [], img: [], frame: [] }));
+  // Analytics/advertising sources are added only on the public site (never the admin or developer portals).
+  const extras = surface !== "public" ? { script: [], connect: [], img: [], frame: [] } : await cspExtras(url.pathname).catch(() => ({ script: [], connect: [], img: [], frame: [] }));
   const mediaOrigin = (extras as { mediaOrigin?: string }).mediaOrigin;
   const csp = buildCsp(nonce, process.env.NODE_ENV === "development", mediaOrigin, surface !== "admin" && /^\/go\/[a-z0-9-]+\/?$/.test(url.pathname), extras);
   const requestHeaders = new Headers(request.headers);
@@ -84,10 +86,13 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-pathname", url.pathname);
 
   let response: NextResponse;
+  const devPath = surface === "developer" ? developerRewritePath(url.pathname) : null;
   if (surface === "admin") {
     const prefix = ADMIN_PREFIX;
     const rewritten = new URL(prefix + (url.pathname === "/" ? "" : url.pathname) + url.search, request.url);
     response = NextResponse.rewrite(rewritten, { request: { headers: requestHeaders } });
+  } else if (devPath) {
+    response = NextResponse.rewrite(new URL(devPath + url.search, request.url), { request: { headers: requestHeaders } });
   } else {
     response = NextResponse.next({ request: { headers: requestHeaders } });
   }
@@ -95,10 +100,23 @@ export async function proxy(request: NextRequest) {
   response.headers.set("content-security-policy", csp);
   // The admin portal and unknown hosts (e.g. a temporary hosting domain) are never indexed.
   if (surface !== "public" || !(await getSectionWithin("seo", 1500)).bool("allowIndexing")) response.headers.set("x-robots-tag", "noindex, nofollow");
-  if (surface === "admin") response.headers.set("cache-control", "no-store");
+  if (surface === "admin" || surface === "developer") response.headers.set("cache-control", "no-store");
   // Pages rendered for a signed-in visitor are never stored by the service worker.
   if (request.cookies.getAll().some((c) => c.name.endsWith("session_token"))) response.headers.set("x-wc-personal", "1");
   return response;
+}
+
+/**
+ * One log line per distinct hostname / forwarded host / surface seen by this
+ * process, so the hosting runtime log shows how each domain is routed (no
+ * paths, cookies or query strings).
+ */
+const seenRoutes = ((globalThis as unknown as { __webcentaRoutes?: Set<string> }).__webcentaRoutes ??= new Set());
+function logRouting(request: NextRequest, host: string, surface: string) {
+  const key = `${request.headers.get("host")}|${request.headers.get("x-forwarded-host")}|${surface}`;
+  if (seenRoutes.has(key) || seenRoutes.size > 50) return;
+  seenRoutes.add(key);
+  console.log(`[webcenta] routing pid=${process.pid} host=${request.headers.get("host")} x-forwarded-host=${request.headers.get("x-forwarded-host") ?? "-"} -> ${surface} (${host})`);
 }
 
 export const config = {

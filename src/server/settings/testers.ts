@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { createSmtpTransport, smtpConfig } from "@/server/email/send";
 import { createDriver, storageConfig } from "@/server/storage";
-import { getSection, type Section } from "./store";
+import { getSection, missingFields, type Section } from "./store";
+import { appleClientSecret } from "@/server/auth/apple";
 import { sectionById } from "./registry";
 
 /**
@@ -61,10 +62,17 @@ const TESTERS: Record<string, Tester> = {
   },
 
   async github(c) {
-    const r = await oauthProbe("https://github.com/login/oauth/access_token", form({ client_id: c.str("clientId"), client_secret: c.str("clientSecret"), code: "webcenta-connection-test" }));
-    if (r.error === "bad_verification_code") return pass(`GitHub accepted the client ID and secret. Authorization callback URL must be ${callback("github")}.`);
-    if (r.error === "incorrect_client_credentials") return fail("GitHub rejected the client ID or secret.");
-    return fail(`Unexpected answer from GitHub: HTTP ${r.status} ${r.error} ${r.description}`.trim());
+    const probe = async (id: string, secret: string, label: string): Promise<TestResult> => {
+      const r = await oauthProbe("https://github.com/login/oauth/access_token", form({ client_id: id, client_secret: secret, code: "webcenta-connection-test" }));
+      if (r.error === "bad_verification_code") return pass(`GitHub accepted the ${label} client ID and secret.`);
+      if (r.error === "incorrect_client_credentials") return fail(`GitHub rejected the ${label} client ID or secret.`);
+      return fail(`Unexpected answer from GitHub for the ${label} app: HTTP ${r.status} ${r.error} ${r.description}`.trim());
+    };
+    const main = await probe(c.str("clientId"), c.str("clientSecret"), "marketplace");
+    if (!main.ok || !c.str("devClientId")) return main;
+    if (!c.str("devClientSecret")) return fail("The developer-portal client ID is set but its secret is missing.");
+    const dev = await probe(c.str("devClientId"), c.str("devClientSecret"), "developer-portal");
+    return dev.ok ? pass(`${main.message} ${dev.message}`) : dev;
   },
 
   async microsoft(c) {
@@ -79,8 +87,16 @@ const TESTERS: Record<string, Tester> = {
   },
 
   async apple(c) {
-    // 1) The client secret is a JWT: check its claims locally.
-    const parts = c.str("clientSecret").split(".");
+    // 1) The client secret: generated from the key (preferred) or the stored JWT; check its claims.
+    let secret = c.str("clientSecret");
+    if (c.str("privateKey") && c.str("teamId") && c.str("keyId")) {
+      try {
+        secret = appleClientSecret({ teamId: c.str("teamId"), keyId: c.str("keyId"), clientId: c.str("clientId"), privateKey: c.str("privateKey") }).jwt;
+      } catch (e) {
+        return fail(`The private key could not sign a client secret: ${oneLine(e)}`);
+      }
+    }
+    const parts = secret.split(".");
     if (parts.length !== 3) return fail("The client secret is not a JWT (it should have three dot-separated parts).");
     let claims: { iss?: string; sub?: string; aud?: string; exp?: number };
     try {
@@ -93,8 +109,8 @@ const TESTERS: Record<string, Tester> = {
     const days = claims.exp ? Math.floor((claims.exp * 1000 - Date.now()) / 86_400_000) : -1;
     if (days < 0) return fail("The client secret has expired. Generate a new one.");
     // 2) Ask Apple with an invalid code: invalid_grant means the client was accepted.
-    const r = await oauthProbe("https://appleid.apple.com/auth/token", form({ grant_type: "authorization_code", code: "webcenta-connection-test", redirect_uri: callback("apple"), client_id: c.str("clientId"), client_secret: c.str("clientSecret") }));
-    if (r.error === "invalid_grant") return pass(`Apple accepted the Services ID and client secret. The secret expires in ${days} day(s).`);
+    const r = await oauthProbe("https://appleid.apple.com/auth/token", form({ grant_type: "authorization_code", code: "webcenta-connection-test", redirect_uri: callback("apple"), client_id: c.str("clientId"), client_secret: secret }));
+    if (r.error === "invalid_grant") return pass(`Apple accepted the Services ID and client secret${c.str("privateKey") ? " (generated from your key and renewed automatically)" : `. The secret expires in ${days} day(s)`}.`);
     if (r.error === "invalid_client") return fail("Apple rejected the client (check the Team ID, Key ID, Services ID and signing key used for the JWT).");
     return fail(`Unexpected answer from Apple: HTTP ${r.status} ${r.error}`.trim());
   },
@@ -194,8 +210,8 @@ export async function runTest(id: string, ctx: { adminEmail: string }): Promise<
   if (!t || !sectionById(id)?.testable) return fail("This section has no connection test.");
   const c = await getSection(id);
   if (c.r.unreadable.length) return fail("A saved secret can no longer be decrypted (the encryption key changed). Enter it again and save.");
-  const missing = c.r.def.fields.filter((f) => f.required && (!f.when || c.r.values[f.when.key] === f.when.equals) && !c.str(f.key));
-  if (missing.length) return fail(`Save these first: ${missing.map((f) => f.label).join(", ")}.`);
+  const missing = missingFields(c.r);
+  if (missing.length) return fail(`Save these first: ${missing.map((k) => c.r.def.fields.find((f) => f.key === k)?.label ?? k).join(", ")}.`);
   let r: TestResult;
   try {
     r = await t(c, ctx);

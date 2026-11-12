@@ -2,7 +2,7 @@
   "name": "webcenta",
   "version": "0.0.0",
   "private": true,
-  "description": "Webcenta — global web application discovery marketplace",
+  "description": "Webcenta \u2014 global web application discovery marketplace",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {
@@ -32,7 +32,8 @@
     "admin:provision": "tsx scripts/admin-provision.ts",
     "test:e2e:prepare": "bash tests/e2e/prepare.sh",
     "postbuild": "node scripts/prepare-standalone.mjs",
-    "start:next": "next start"
+    "start:next": "next start",
+    "config:docs": "tsx scripts/generate-config-doc.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

@@ -2,7 +2,7 @@ import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/server/db";
-import { auth } from "./user-auth";
+import { auth, currentAuthSurface, sessionCookieNames } from "./user-auth";
 
 export interface CurrentUser {
   id: string;
@@ -20,8 +20,11 @@ export interface CurrentUser {
 /** The signed-in, ACTIVE user for this request (deduplicated per request), or null. */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const h = await headers();
-  if (!h.get("cookie")?.includes("wc.session_token") && !h.get("cookie")?.includes("__Secure-wc.session_token")) return null;
-  const session = await (await auth()).api.getSession({ headers: h }).catch(() => null);
+  // Each site reads only its own session cookie (wc on webcenta.com, wcdev on developers.).
+  const surface = await currentAuthSurface();
+  const names = new Set((h.get("cookie") ?? "").split(";").map((c) => c.split("=")[0]!.trim()));
+  if (!sessionCookieNames(surface).some((n) => names.has(n))) return null;
+  const session = await (await auth(surface)).api.getSession({ headers: h }).catch(() => null);
   if (!session) return null;
   const u = await db.user.findUnique({
     where: { id: session.user.id },

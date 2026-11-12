@@ -44,7 +44,7 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${PORT}`, trace: "off", ignoreHTTPSErrors: true },
   projects: [
     { name: "journeys", testMatch: /journeys\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
-    { name: "desktop", testMatch: /(marketplace|responsive|security|pwa|reviews|settings)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
+    { name: "desktop", testMatch: /(marketplace|responsive|security|pwa|reviews|settings|hosts)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
     { name: "tablet", testMatch: /(marketplace|responsive)\.spec\.ts/, use: { ...devices["iPad (gen 7) landscape"], browserName: "chromium" } },
     { name: "mobile", testMatch: /(marketplace|responsive|pwa)\.spec\.ts/, use: { ...devices["Pixel 7"] } },
   ],

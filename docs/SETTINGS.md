@@ -54,6 +54,35 @@ behaviour without code edits and, for every section, without a restart or redepl
 
 Nothing in the dashboard needs a restart. Only the startup variables below need a restart or redeploy.
 
+## 2a. Sign-in providers (Google, Apple, GitHub)
+
+Settings → **Google OAuth**, **Apple OAuth**, **GitHub OAuth** (Super Administrators). Each page shows the
+exact callback URLs to register, for the marketplace and for the developer portal:
+
+| Provider | Register | Fields |
+| --- | --- | --- |
+| Google | OAuth client (Web): redirect URIs `https://webcenta.com/api/auth/callback/google` and `https://developers.webcenta.com/api/auth/callback/google` | Client ID, Client secret |
+| Apple | Services ID: domains `webcenta.com`, `developers.webcenta.com`; return URLs `…/api/auth/callback/apple` on both; a Sign in with Apple key | Services ID, Team ID, Key ID, private key (.p8). Webcenta signs the client secret (ES256) itself and renews it daily, so it never expires. A pre-generated JWT is accepted as a legacy alternative. |
+| GitHub | OAuth App with callback `https://webcenta.com/api/auth/callback/github`; a GitHub OAuth App has only one callback URL, so a **second** OAuth App with `https://developers.webcenta.com/api/auth/callback/github` enables GitHub on the developer portal | Client ID, Client secret; optional developer-portal Client ID and secret |
+
+A provider's button appears only when it is **enabled and complete**. "Test connection" sends the provider
+a deliberately invalid authorisation code: the provider answers `invalid_grant` only for a valid client and
+`invalid_client` otherwise, so the test checks the credentials without signing anyone in. It cannot prove
+that the callback URL is registered: do one real sign-in per provider after configuring it.
+
+Security of the flows (Better Auth): `state` and PKCE on every authorisation request (CSRF); Google and Apple
+ID tokens verified against the providers' published keys; server-side code exchange; callback URLs fixed to each site's
+own origin, trusted origins limited to that site (cross-site sign-in requests are refused), host-only
+`HttpOnly`/`Secure`/`SameSite=Lax` session cookies, sessions revoked on sign-out.
+
+**Account linking.** A social sign-in joins an existing account only when the provider reports the email
+as verified **and** the existing Webcenta account's email has been verified. No provider is trusted
+blindly, so an unverified address can never be used to take over or pre-register someone else's account.
+Otherwise the sign-in is refused with an explanation; the user can sign in with their password and link
+the provider from Account → Sign-in methods. Emails are unique, so duplicate accounts cannot be created.
+
+Administrators never use social sign-in: the admin portal keeps password + mandatory TOTP.
+
 ## 3. Connection tests
 
 | Section | Test |
@@ -67,6 +96,17 @@ Nothing in the dashboard needs a restart. Only the startup variables below need 
 | PayPal | OAuth client-credentials token (no payment) |
 | Search engines & IndexNow | The site serves the key file |
 | GA4, AdSense | No API test is possible without additional OAuth access; status is Configured |
+
+## 3a. Categories and the configuration inventory
+
+Settings are organised in 18 categories: application and website, database, authentication and sessions,
+Google OAuth, Apple OAuth, GitHub OAuth, email and SMTP, payments, advertising, analytics, file storage,
+security scanning, notifications, external APIs, developer services, background jobs, PWA, system and
+deployment. **Settings → Configuration inventory** lists every environment variable the application reads,
+with purpose, required or optional, secret or not, startup or dashboard-managed, what a change needs,
+and whether it is set (never its value). The same list is in [CONFIGURATION.md](CONFIGURATION.md),
+generated from `src/server/settings/env-inventory.json`; a test fails if code reads a variable that is not
+in the inventory.
 
 ## 4. Hosting environment (startup values)
 

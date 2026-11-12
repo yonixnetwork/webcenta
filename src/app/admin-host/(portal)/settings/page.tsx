@@ -17,7 +17,7 @@ export default async function SettingsIndex() {
   return (
     <>
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Settings</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight">System configuration</h1>
         <p className="mt-1 text-sm text-muted">Configure integrations and site behaviour without editing code. Changes take effect within seconds unless a section says otherwise. Credentials are encrypted in the database and never shown again after saving.</p>
       </div>
       {process.env.SETUP_TOKEN && <p role="alert" className="rounded-xl bg-warning-soft px-3 py-2 text-sm text-warning">First-time setup is finished: remove <code>SETUP_TOKEN</code> from the hosting environment (the setup page is already closed because an owner account exists).</p>}
@@ -43,6 +43,13 @@ export default async function SettingsIndex() {
           </div>
         </section>
       ))}
+      <section className="space-y-3">
+        <h2 className="text-lg font-bold">System and deployment</h2>
+        <Link href="/settings/system" className="block rounded-2xl border border-border bg-surface p-4 shadow-card transition hover:border-brand">
+          <h3 className="font-semibold">Configuration inventory</h3>
+          <p className="mt-1 text-sm text-muted">Every environment variable: purpose, required or optional, secret, startup or dashboard-managed, restart or redeploy, and whether it is set here.</p>
+        </Link>
+      </section>
       <section className="space-y-3">
         <h2 className="text-lg font-bold">Content</h2>
         <Link href="/settings/content" className="block rounded-2xl border border-border bg-surface p-4 shadow-card transition hover:border-brand">

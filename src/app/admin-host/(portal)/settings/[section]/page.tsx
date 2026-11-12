@@ -11,6 +11,7 @@ import { applyMigrationsAction, saveSettingsAction, testSettingsAction } from "@
 import { migrationStatus } from "@/server/setup/migrate";
 import { databaseStatus } from "@/server/settings/database";
 import { sectionById } from "@/server/settings/registry";
+import { originsFromEnv } from "@/lib/hosts";
 import { getSection, publicView, statusOf } from "@/server/settings/store";
 
 const APPLY = {
@@ -36,7 +37,7 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
     return {
       key: f.key, label: f.label, help: f.help, type: f.type, required: f.required, env: f.env,
       defaultValue: f.default === undefined ? undefined : String(f.default), options: f.options, min: f.min, max: f.max,
-      placeholder: f.placeholder, when: f.when, saved: p.saved, effective: p.effective, secretSet: p.secretSet, source: p.source,
+      placeholder: f.placeholder, when: f.when, multiline: f.multiline, saved: p.saved, effective: p.effective, secretSet: p.secretSet, source: p.source,
     };
   });
 
@@ -61,6 +62,8 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
         {!canEdit && <p className="text-subtle">View only: changing this section requires the Super Administrator role.</p>}
       </Card>
 
+      {def.callbackPath && <CallbackUrls def={def} />}
+
       {def.id === "database" && <DatabaseStatus canMigrate={can(admin.role, "integrations.manage")} />}
       {def.id === "jobs" && <QueueHealth />}
 
@@ -78,6 +81,31 @@ export default async function SettingsSectionPage({ params }: { params: Promise<
         </Card>
       )}
     </>
+  );
+}
+
+/** The exact URLs to register with an OAuth provider, for both sites that offer sign-in. */
+function CallbackUrls({ def }: { def: { id: string; callbackPath?: string } }) {
+  const o = originsFromEnv();
+  const urls = [
+    { site: "Marketplace (webcenta.com)", origin: o.publicOrigin },
+    { site: "Developer portal (developers.)", origin: o.developerOrigin },
+  ];
+  return (
+    <Card className="space-y-2 text-sm">
+      <h2 className="font-semibold">Authorised callback URLs</h2>
+      <p className="text-muted">Register these exact URLs with the provider{def.id === "apple" ? " (Services ID → Return URLs), and add both domains under Domains and Subdomains" : ""}.</p>
+      <ul className="space-y-1">
+        {urls.map((u) => (
+          <li key={u.site} className="flex flex-wrap items-baseline gap-x-3">
+            <span className="w-56 shrink-0 text-subtle">{u.site}</span>
+            <code className="select-all break-all rounded-md bg-surface-2 px-2 py-0.5 font-mono text-xs">{u.origin}{def.callbackPath}</code>
+          </li>
+        ))}
+      </ul>
+      {def.id === "apple" && <p className="text-subtle">Domains: <code className="select-all">{new URL(o.publicOrigin).host}</code>, <code className="select-all">{new URL(o.developerOrigin).host}</code></p>}
+      {def.id === "google" && <p className="text-subtle">Authorised JavaScript origins: <code className="select-all">{o.publicOrigin}</code>, <code className="select-all">{o.developerOrigin}</code></p>}
+    </Card>
   );
 }
 

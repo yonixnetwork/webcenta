@@ -1,0 +1,68 @@
+{
+  "_comment": "Every environment variable the application reads. Checked by tests/unit/env-inventory.test.ts. required: always | production | optional | never (must stay unset in production). dashboard: the Admin -> Settings section that manages it at runtime (null = hosting environment only). apply: what a change needs.",
+  "variables": [
+    { "name": "NODE_ENV", "category": "System and deployment", "purpose": "\"production\" on the live server; enables production security checks.", "required": "production", "secret": false, "startup": true, "dashboard": null, "apply": "restart" },
+    { "name": "PUBLIC_ORIGIN", "category": "Application and website", "purpose": "Public address (https://webcenta.com). Admin and developer addresses default to its admin. and developers. subdomains. Needed to recognise each hostname before any setting can be read.", "required": "production", "secret": false, "startup": true, "dashboard": null, "apply": "restart" },
+    { "name": "ADMIN_ORIGIN", "category": "Application and website", "purpose": "Only if the admin portal is not at admin.<public host>.", "required": "optional", "secret": false, "startup": true, "dashboard": null, "apply": "restart" },
+    { "name": "DEVELOPER_ORIGIN", "category": "Application and website", "purpose": "Only if the developer portal is not at developers.<public host>.", "required": "optional", "secret": false, "startup": true, "dashboard": null, "apply": "restart" },
+    { "name": "SITE_BANNER", "category": "Application and website", "purpose": "Fallback for the public banner text.", "required": "optional", "secret": false, "startup": false, "dashboard": "general", "apply": "immediate" },
+
+    { "name": "DATABASE_URL", "category": "Database", "purpose": "MySQL / MariaDB connection. The application needs it before it can read any setting, so it cannot live in the database.", "required": "always", "secret": true, "startup": true, "dashboard": null, "apply": "restart" },
+    { "name": "DIRECT_URL", "category": "Database", "purpose": "Alternative URL for the Prisma CLI (e.g. Remote MySQL from a computer).", "required": "optional", "secret": true, "startup": false, "dashboard": null, "apply": "restart" },
+    { "name": "DATABASE_SSL", "category": "Database", "purpose": "TLS mode for a remote database (disable | require | verify-full).", "required": "optional", "secret": false, "startup": true, "dashboard": null, "apply": "restart" },
+    { "name": "DATABASE_SSL_CA", "category": "Database", "purpose": "CA certificate of a remote database.", "required": "optional", "secret": false, "startup": true, "dashboard": null, "apply": "restart" },
+    { "name": "DATABASE_POOL_MAX", "category": "Database", "purpose": "Database connections per process (default 5).", "required": "optional", "secret": false, "startup": true, "dashboard": null, "apply": "restart" },
+
+    { "name": "FIELD_ENCRYPTION_KEY", "category": "Authentication and sessions", "purpose": "Root key: encrypts saved credentials and admin two-factor secrets and derives the session secret. Must exist before the database can be read; never stored in it.", "required": "production", "secret": true, "startup": true, "dashboard": null, "apply": "restart" },
+    { "name": "USER_AUTH_SECRET", "category": "Authentication and sessions", "purpose": "User session signing secret. Derived from FIELD_ENCRYPTION_KEY when unset.", "required": "optional", "secret": true, "startup": true, "dashboard": null, "apply": "restart" },
+    { "name": "SETUP_TOKEN", "category": "Authentication and sessions", "purpose": "Opens first-time setup while no Super Administrator exists. Remove after setup.", "required": "optional", "secret": true, "startup": false, "dashboard": null, "apply": "restart" },
+    { "name": "ADMIN_IP_ALLOWLIST", "category": "Authentication and sessions", "purpose": "Fallback admin-portal IP allow-list.", "required": "optional", "secret": false, "startup": false, "dashboard": "security", "apply": "immediate" },
+    { "name": "TRUSTED_PROXY_HOPS", "category": "Authentication and sessions", "purpose": "Fallback number of trusted proxies for client IPs.", "required": "optional", "secret": false, "startup": false, "dashboard": "security", "apply": "immediate" },
+    { "name": "GEO_COUNTRY_HEADER", "category": "Authentication and sessions", "purpose": "Fallback country header name.", "required": "optional", "secret": false, "startup": false, "dashboard": "security", "apply": "immediate" },
+    { "name": "GEO_UNKNOWN_POLICY", "category": "Authentication and sessions", "purpose": "Fallback policy for unknown countries.", "required": "optional", "secret": false, "startup": false, "dashboard": "security", "apply": "immediate" },
+
+    { "name": "GOOGLE_CLIENT_ID", "category": "Google OAuth", "purpose": "Fallback Google OAuth client ID.", "required": "optional", "secret": false, "startup": false, "dashboard": "google", "apply": "immediate" },
+    { "name": "GOOGLE_CLIENT_SECRET", "category": "Google OAuth", "purpose": "Fallback Google OAuth client secret.", "required": "optional", "secret": true, "startup": false, "dashboard": "google", "apply": "immediate" },
+    { "name": "APPLE_CLIENT_ID", "category": "Apple OAuth", "purpose": "Fallback Apple Services ID.", "required": "optional", "secret": false, "startup": false, "dashboard": "apple", "apply": "immediate" },
+    { "name": "APPLE_TEAM_ID", "category": "Apple OAuth", "purpose": "Fallback Apple Team ID.", "required": "optional", "secret": false, "startup": false, "dashboard": "apple", "apply": "immediate" },
+    { "name": "APPLE_KEY_ID", "category": "Apple OAuth", "purpose": "Fallback Apple Sign in key ID.", "required": "optional", "secret": false, "startup": false, "dashboard": "apple", "apply": "immediate" },
+    { "name": "APPLE_PRIVATE_KEY", "category": "Apple OAuth", "purpose": "Fallback Apple Sign in private key (.p8 contents).", "required": "optional", "secret": true, "startup": false, "dashboard": "apple", "apply": "immediate" },
+    { "name": "APPLE_CLIENT_SECRET", "category": "Apple OAuth", "purpose": "Legacy: a pre-generated client-secret JWT (used only when no private key is configured).", "required": "optional", "secret": true, "startup": false, "dashboard": "apple", "apply": "immediate" },
+    { "name": "APPLE_APP_BUNDLE_IDENTIFIER", "category": "Apple OAuth", "purpose": "Fallback iOS bundle ID.", "required": "optional", "secret": false, "startup": false, "dashboard": "apple", "apply": "immediate" },
+    { "name": "GITHUB_CLIENT_ID", "category": "GitHub OAuth", "purpose": "Fallback GitHub OAuth client ID.", "required": "optional", "secret": false, "startup": false, "dashboard": "github", "apply": "immediate" },
+    { "name": "GITHUB_CLIENT_SECRET", "category": "GitHub OAuth", "purpose": "Fallback GitHub OAuth client secret.", "required": "optional", "secret": true, "startup": false, "dashboard": "github", "apply": "immediate" },
+
+    { "name": "EMAIL_TRANSPORT", "category": "Email and SMTP", "purpose": "Fallback switch: \"smtp\" enables sending when nothing is saved in the dashboard.", "required": "optional", "secret": false, "startup": false, "dashboard": "email", "apply": "immediate" },
+    { "name": "SMTP_HOST", "category": "Email and SMTP", "purpose": "Fallback SMTP server.", "required": "optional", "secret": false, "startup": false, "dashboard": "email", "apply": "immediate" },
+    { "name": "SMTP_PORT", "category": "Email and SMTP", "purpose": "Fallback SMTP port.", "required": "optional", "secret": false, "startup": false, "dashboard": "email", "apply": "immediate" },
+    { "name": "SMTP_SECURE", "category": "Email and SMTP", "purpose": "Fallback SMTP TLS mode.", "required": "optional", "secret": false, "startup": false, "dashboard": "email", "apply": "immediate" },
+    { "name": "SMTP_USER", "category": "Email and SMTP", "purpose": "Fallback SMTP username.", "required": "optional", "secret": false, "startup": false, "dashboard": "email", "apply": "immediate" },
+    { "name": "SMTP_PASSWORD", "category": "Email and SMTP", "purpose": "Fallback SMTP password.", "required": "optional", "secret": true, "startup": false, "dashboard": "email", "apply": "immediate" },
+    { "name": "EMAIL_FROM", "category": "Email and SMTP", "purpose": "Fallback sender address.", "required": "optional", "secret": false, "startup": false, "dashboard": "email", "apply": "immediate" },
+
+    { "name": "STORAGE_DRIVER", "category": "File storage", "purpose": "Fallback storage driver (local | s3).", "required": "optional", "secret": false, "startup": false, "dashboard": "storage", "apply": "immediate" },
+    { "name": "STORAGE_LOCAL_DIR", "category": "File storage", "purpose": "Fallback upload folder (absolute, outside the app in production).", "required": "optional", "secret": false, "startup": false, "dashboard": "storage", "apply": "immediate" },
+    { "name": "S3_ENDPOINT", "category": "File storage", "purpose": "Fallback S3 endpoint.", "required": "optional", "secret": false, "startup": false, "dashboard": "storage", "apply": "immediate" },
+    { "name": "S3_REGION", "category": "File storage", "purpose": "Fallback S3 region.", "required": "optional", "secret": false, "startup": false, "dashboard": "storage", "apply": "immediate" },
+    { "name": "S3_BUCKET", "category": "File storage", "purpose": "Fallback S3 bucket.", "required": "optional", "secret": false, "startup": false, "dashboard": "storage", "apply": "immediate" },
+    { "name": "S3_ACCESS_KEY_ID", "category": "File storage", "purpose": "Fallback S3 access key ID.", "required": "optional", "secret": false, "startup": false, "dashboard": "storage", "apply": "immediate" },
+    { "name": "S3_SECRET_ACCESS_KEY", "category": "File storage", "purpose": "Fallback S3 secret key.", "required": "optional", "secret": true, "startup": false, "dashboard": "storage", "apply": "immediate" },
+    { "name": "MEDIA_PUBLIC_BASE_URL", "category": "File storage", "purpose": "Fallback public media URL for a CDN-backed bucket.", "required": "optional", "secret": false, "startup": false, "dashboard": "storage", "apply": "immediate" },
+
+    { "name": "GOOGLE_WEB_RISK_API_KEY", "category": "Security scanning", "purpose": "Fallback Google Web Risk key.", "required": "optional", "secret": true, "startup": false, "dashboard": "webrisk", "apply": "immediate" },
+    { "name": "URLHAUS_AUTH_KEY", "category": "Security scanning", "purpose": "Fallback URLhaus Auth-Key.", "required": "optional", "secret": true, "startup": false, "dashboard": "urlhaus", "apply": "immediate" },
+    { "name": "VIRUSTOTAL_API_KEY", "category": "Security scanning", "purpose": "Fallback VirusTotal key.", "required": "optional", "secret": true, "startup": false, "dashboard": "virustotal", "apply": "immediate" },
+
+    { "name": "CRON_SECRET", "category": "Background jobs", "purpose": "Fallback cron secret.", "required": "optional", "secret": true, "startup": false, "dashboard": "jobs", "apply": "immediate" },
+    { "name": "JOBS_TICK_BUDGET_MS", "category": "Background jobs", "purpose": "Fallback time budget per cron run.", "required": "optional", "secret": false, "startup": false, "dashboard": "jobs", "apply": "immediate" },
+
+    { "name": "MAINTENANCE_MODE", "category": "System and deployment", "purpose": "\"true\" serves a maintenance page without touching the database (works even when the database is down, which is why it is not a dashboard setting).", "required": "optional", "secret": false, "startup": true, "dashboard": null, "apply": "restart" },
+    { "name": "MAINTENANCE_RETRY_AFTER", "category": "System and deployment", "purpose": "Retry-After seconds during maintenance.", "required": "optional", "secret": false, "startup": true, "dashboard": null, "apply": "restart" },
+    { "name": "NEXT_BUILD_CPUS", "category": "System and deployment", "purpose": "Build workers (default 2; Hostinger limits threads).", "required": "optional", "secret": false, "startup": false, "dashboard": null, "apply": "redeploy" },
+    { "name": "WEBCENTA_ENV_SNAPSHOT", "category": "System and deployment", "purpose": "\"false\" stops the build from copying these variables into the deployed app (see docs/DEPLOYMENT.md).", "required": "optional", "secret": false, "startup": false, "dashboard": null, "apply": "redeploy" },
+
+    { "name": "ALLOW_DEV_FIXTURES", "category": "System and deployment", "purpose": "Development only: allows fictional sample listings in the seed.", "required": "never", "secret": false, "startup": false, "dashboard": null, "apply": "restart" },
+    { "name": "SCANNER_ALLOW_PRIVATE_FOR_TESTS", "category": "System and deployment", "purpose": "Tests only: lets the scanner reach local fixture sites.", "required": "never", "secret": false, "startup": false, "dashboard": null, "apply": "restart" },
+    { "name": "ENABLE_TEST_ERROR_ROUTES", "category": "System and deployment", "purpose": "Tests only: routes that throw deliberately.", "required": "never", "secret": false, "startup": false, "dashboard": null, "apply": "restart" }
+  ]
+}

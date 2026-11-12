@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { ADMIN, BASE, closeDb, freshTotp, markTotpUsed, emailLink, provisionAdmin, registerUser, setSite, sql, totp } from "./helpers";
+import { ADMIN, BASE, DEVHOST, devSignIn, closeDb, freshTotp, markTotpUsed, emailLink, provisionAdmin, registerUser, setSite, sql, totp } from "./helpers";
 
 /** Security tests against the running application (desktop project). */
 test.describe.configure({ mode: "serial" });
@@ -91,11 +91,11 @@ test("open redirects: sign-in `next` and /go ignore attacker-controlled destinat
 });
 
 test("SSRF: domain verification cannot reach private networks or cloud metadata", async () => {
-  await alice.goto(`${BASE}/developer`);
+  await devSignIn(alice, A.email, A.password);
   await alice.getByLabel("Organisation or developer name").fill(`Alice Org ${RUN}`);
   await alice.getByRole("button", { name: "Create organisation" }).click();
   await expect(alice.getByRole("heading", { name: "Overview" })).toBeVisible();
-  await alice.goto(`${BASE}/developer/domains`);
+  await alice.goto(`${DEVHOST}/domains`);
   for (const bad of ["169.254.169.254", "127.0.0.1", "localhost", "metadata.google.internal", "10.0.0.5"]) {
     await alice.getByLabel("Domain").fill(bad);
     await alice.getByRole("button", { name: "Get verification code" }).click();
@@ -112,7 +112,7 @@ test("SSRF: domain verification cannot reach private networks or cloud metadata"
 });
 
 test("malicious uploads and unsafe website URLs are rejected", async () => {
-  await alice.goto(`${BASE}/developer/listings/new`);
+  await alice.goto(`${DEVHOST}/listings/new`);
   const upload = alice.getByTestId("upload-logoAssetId");
   await upload.setInputFiles({ name: "logo.svg", mimeType: "image/svg+xml", buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect width="100" height="100"/></svg>`) });
   await expect(alice.getByText("Only JPEG, PNG, WebP or AVIF images are accepted.")).toBeVisible();
@@ -129,8 +129,13 @@ test("malicious uploads and unsafe website URLs are rejected", async () => {
 
 test("broken access control: users cannot reach others' data or portals", async ({ request }) => {
   // Anonymous
-  for (const p of ["/account", "/account/favorites", "/developer", "/developer/analytics"]) {
+  for (const p of ["/account", "/account/favorites"]) {
     expect((await request.get(`${BASE}${p}`, { maxRedirects: 0 })).status(), p).toBe(307);
+  }
+  for (const p of ["/", "/analytics", "/listings/new", "/account"]) {
+    const res = await request.get(`${BASE}${p}`, { headers: { host: "developers.localhost:3100" }, maxRedirects: 0 });
+    expect(res.status(), `developer ${p}`).toBe(307);
+    expect(res.headers()["location"]).toContain("/signin");
   }
   // Bob creates a private collection; Alice cannot open or edit it.
   await bob.goto(`${BASE}/account/collections`);
@@ -146,7 +151,7 @@ test("broken access control: users cannot reach others' data or portals", async 
   // Bob (no developer org) cannot open another org's listing in the developer portal.
   const foreign = (await sql<{ id: string }>(`select id from "Listing" where "developerId" is not null limit 1`))[0];
   if (foreign) {
-    const res = await bob.request.get(`${BASE}/developer/listings/${foreign.id}`, { maxRedirects: 0 });
+    const res = await bob.request.get(`${BASE}/listings/${foreign.id}`, { headers: { host: "developers.localhost:3100" }, maxRedirects: 0 });
     expect([307, 404]).toContain(res.status());
   }
   // A public user session grants nothing on the admin host; admin pages are not reachable via the public host.

@@ -3,6 +3,26 @@
 Date: 2026-11-07 · Branch: `claude/youthful-cerf-4xclco` · Status: **ready for staging, then production
 deployment after owner approval**. Nothing has been deployed. No paid service has been activated.
 
+## 0a. Update 2026-11-08 (2): hostname routing, developer portal, OAuth, configuration inventory
+
+* **Root cause of "every subdomain shows the main site"** (from Hostinger's runtime logs): Hostinger
+  runs the app through LiteSpeed/Passenger, which started extra processes without the hPanel
+  environment variables. Without `PUBLIC_ORIGIN` such a process cannot recognise any hostname and
+  served all of them as the public site (and failed with `DATABASE_URL undefined`). Fix: the build
+  writes the app's variables to `.next/standalone/.env.production` (mode 600), loaded by every
+  process; per-process and per-hostname diagnostics in the runtime log; `X-Forwarded-Host` fallback.
+* **Developer portal is now its own site** on `developers.webcenta.com` (own layout, registration,
+  sign-in, password reset, dashboard, submissions, analytics, reviews, organisation, plans, account)
+  with its own session cookie; `webcenta.com/developer/*` redirects there (308).
+* **Sign in with Apple** from Team ID + Key ID + .p8 key (client secret signed and renewed by the app),
+  **GitHub** (with an optional second OAuth App for the developer portal), exact callback URLs shown
+  in each settings page, connection tests, and account linking only when both the provider and the
+  local account have a verified email.
+* **18 configuration categories** and a **configuration inventory** of every environment variable
+  (Settings → Configuration inventory, docs/CONFIGURATION.md), enforced by a test.
+* Tests: 290 unit/DB tests on MariaDB 10.11 and MySQL 8.0; 121 E2E tests including the four
+  hostnames, session isolation, cookie scoping, forged OAuth callbacks and the Apple key flow.
+
 ## 0. Update 2026-11-08: admin configuration system
 
 Admin → Settings now configures every integration at runtime (details: [SETTINGS.md](SETTINGS.md)).

@@ -9,7 +9,7 @@ const SECRET = `smtp-pass-${RUN}-DoNotLeak`;
 let page: Page;
 
 test.afterAll(async () => {
-  await sql(`delete from "SystemSetting" where "key" in ('config.general', 'config.email')`);
+  await sql(`delete from "SystemSetting" where "key" in ('config.general', 'config.email', 'config.apple')`);
   await sql(`update "SystemSetting" set value = $1 where "key" = 'config.__version'`, [JSON.stringify({ v: `e2e-reset-${RUN}` })]);
   await closeDb();
 });
@@ -39,8 +39,8 @@ test("owner signs in and sees every settings group with a status", async ({ brow
   await page.waitForURL(`${ADMIN}/`);
 
   await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
-  for (const g of ["Website", "Platform", "Email & notifications", "Security & sign-in", "Files", "URL scanning & security intelligence", "Analytics & advertising", "Payments"]) {
+  await expect(page.getByRole("heading", { level: 1, name: "System configuration" })).toBeVisible();
+  for (const g of ["Application and website", "Database", "Authentication and sessions", "Google OAuth", "Apple OAuth", "GitHub OAuth", "Email and SMTP", "Payments", "Advertising", "Analytics", "File storage", "Security scanning", "Notifications", "External APIs", "Developer services", "Background jobs", "PWA", "System and deployment"]) {
     await expect(page.getByRole("heading", { level: 2, name: g })).toBeVisible();
   }
   await expect(page.getByRole("link", { name: /Google sign-in/ }).getByText("Disabled")).toBeVisible();
@@ -76,6 +76,31 @@ test("a saved secret is encrypted, masked, and never sent back to the browser", 
   expect(logs.length).toBeGreaterThan(0);
   expect(JSON.stringify(logs)).not.toContain(SECRET);
   expect(JSON.stringify(logs)).not.toContain("smtp.example.test");
+});
+
+test("OAuth sections show the exact callback URLs for both sites; Apple accepts a signing key", async () => {
+  await page.goto(`${ADMIN}/settings/google`);
+  await expect(page.getByText("http://localhost:3100/api/auth/callback/google", { exact: true })).toBeVisible();
+  await expect(page.getByText("http://developers.localhost:3100/api/auth/callback/google", { exact: true })).toBeVisible();
+  await page.goto(`${ADMIN}/settings/apple`);
+  await expect(page.getByText("http://developers.localhost:3100/api/auth/callback/apple", { exact: true })).toBeVisible();
+  const { generateKeyPairSync } = await import("node:crypto");
+  const pem = generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  await page.getByLabel("Services ID").fill("com.webcenta.e2e");
+  await page.getByLabel("Team ID").fill("ABCDE12345");
+  await page.getByLabel("Key ID").fill("KEY1234567");
+  await page.getByLabel(/^Private key/).fill(pem);
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText(/Saved \(/)).toBeVisible();
+  await page.reload();
+  expect(await page.content()).not.toContain(pem.split("\n")[1]!);
+  // Saved but disabled: no Apple button anywhere until it is enabled and verified.
+  await page.goto(`${BASE}/signin`);
+  await expect(page.getByRole("button", { name: /Apple/ })).toHaveCount(0);
+  await page.goto(`${ADMIN}/settings/system`);
+  await expect(page.getByRole("heading", { level: 1, name: "Configuration inventory" })).toBeVisible();
+  await expect(page.getByText("FIELD_ENCRYPTION_KEY", { exact: true })).toBeVisible();
+  expect(await page.content()).not.toContain(process.env.APP_FIELD_ENCRYPTION_KEY!);
 });
 
 test("enabling a section with missing values is refused with an explanation", async () => {

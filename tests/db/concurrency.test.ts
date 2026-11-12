@@ -37,6 +37,22 @@ describe("concurrent upserts (MySQL is not atomic)", () => {
     expect(before).toBeCloseTo((after - before) * N);
   });
 
+  it("updates interest inside a transaction while another request creates the row", async () => {
+    // Saving a favourite records interest inside its transaction; the page-view beacon
+    // records interest for the same category at the same moment on another connection.
+    const u = await db.user.create({ data: { email: `tx-${email}`, name: "Tx race", emailVerified: true } });
+    const cat = await db.category.findFirstOrThrow({ select: { id: true } });
+    await db.$transaction(async (tx) => {
+      await tx.userInterest.findMany({ where: { userId: u.id } }); // the transaction's snapshot starts here
+      await recordInteraction(u.id, { type: "CATEGORY_VIEW", categoryId: cat.id }); // other connection, commits
+      await recordInteraction(u.id, { type: "FAVORITE", categoryId: cat.id }, tx);
+    });
+    const rows = await db.userInterest.findMany({ where: { userId: u.id, categoryId: cat.id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.weight).toBeCloseTo(0.5 + 4);
+    await db.user.delete({ where: { id: u.id } });
+  });
+
   it("creates one daily salt that every concurrent caller agrees on", async () => {
     const salts = await Promise.all(Array.from({ length: N }, () => dailySalt(day)));
     expect(new Set(salts).size).toBe(1);

@@ -19,6 +19,7 @@ export interface SettingsFieldView {
   max?: number;
   placeholder?: string;
   when?: { key: string; equals: string | boolean };
+  multiline?: boolean;
   saved: string;
   effective: string;
   secretSet: boolean;
@@ -93,7 +94,9 @@ export function SettingsForm({ action, fields, toggle, enabled, readOnly, sectio
                     : <span className="rounded-md bg-warning-soft px-2 py-0.5 text-warning">Not set</span>}
                   {f.secretSet && <span className="ml-2 text-subtle">{SOURCE_LABEL[f.source]}. The value is never shown again; type a new one to replace it.</span>}
                 </p>
-                <input id={id} name={`s:${f.key}`} type="password" autoComplete="new-password" spellCheck={false} placeholder={f.secretSet ? "Leave empty to keep the current value" : f.placeholder ?? "Enter the value"} className={inputClass} />
+                {f.multiline
+                  ? <textarea id={id} name={`s:${f.key}`} rows={5} autoComplete="off" spellCheck={false} placeholder={f.secretSet ? "Leave empty to keep the current value" : "Paste the whole contents of the .p8 key file"} className={cn(inputClass, "font-mono text-xs")} />
+                  : <input id={id} name={`s:${f.key}`} type="password" autoComplete="new-password" spellCheck={false} placeholder={f.secretSet ? "Leave empty to keep the current value" : f.placeholder ?? "Enter the value"} className={inputClass} />}
                 {f.secretSet && f.source === "saved" && (
                   <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" name={`clear:${f.key}`} className="size-4" />Remove the saved value{f.env ? ` (falls back to ${f.env} if set)` : ""}</label>
                 )}
