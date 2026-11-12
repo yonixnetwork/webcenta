@@ -183,3 +183,47 @@ describe("first-time setup support", () => {
     expect(await db.category.count()).toBe(before);
   });
 });
+
+describe("first-time setup lock", () => {
+  it("closes setup permanently once an owner exists, even with SETUP_TOKEN still set", async () => {
+    const { lockSetup, setupLocked, setupOpen, SETUP_LOCK_KEY } = await import("@/server/setup/setup");
+    process.env.SETUP_TOKEN = "s".repeat(40);
+    try {
+      await db.systemSetting.deleteMany({ where: { key: SETUP_LOCK_KEY } });
+      expect(await setupLocked()).toBe(false);
+      // A Super Administrator exists (created in beforeAll): asking closes and locks setup.
+      expect(await setupOpen()).toBe(false);
+      expect(await setupLocked()).toBe(true);
+      // Even with no active Super Administrator left, the lock keeps it closed.
+      await db.adminUser.update({ where: { id: adminId }, data: { status: "SUSPENDED" } });
+      expect(await setupOpen()).toBe(false);
+      await db.adminUser.update({ where: { id: adminId }, data: { status: "ACTIVE" } });
+      await lockSetup(); // idempotent
+      expect(await db.systemSetting.count({ where: { key: SETUP_LOCK_KEY } })).toBe(1);
+    } finally {
+      delete process.env.SETUP_TOKEN;
+    }
+  });
+  it("accepting the first owner invitation writes the lock", async () => {
+    const { SETUP_LOCK_KEY } = await import("@/server/setup/setup");
+    const { createInvitation, acceptInvitation, findValidInvitation } = await import("@/server/admin/invitations");
+    const { totpCode, currentStep } = await import("@/server/admin/crypto");
+    await db.systemSetting.deleteMany({ where: { key: SETUP_LOCK_KEY } });
+    const email = `owner-lock-${Date.now()}@example.test`;
+    const token = await createInvitation(email, "SUPER_ADMIN", null);
+    // Visiting the invitation generates the pending TOTP secret.
+    const { invitationTotpSecret } = await import("@/server/admin/invitations");
+    const inv = await findValidInvitation(token);
+    const secret = await invitationTotpSecret(inv!.id);
+    const admin = await acceptInvitation(token, { name: "Owner", password: "owner-passphrase-0123", totp: totpCode(secret, currentStep()) });
+    expect(await db.systemSetting.findUnique({ where: { key: SETUP_LOCK_KEY } })).toBeTruthy();
+    await db.auditLog.deleteMany({ where: { adminId: admin.id } });
+    await db.adminUser.delete({ where: { id: admin.id } });
+  });
+  it("startup migration is a no-op on an up-to-date database", async () => {
+    const { startupTasks } = await import("@/instrumentation-node");
+    const before = await db.category.count();
+    await startupTasks();
+    expect(await db.category.count()).toBe(before);
+  });
+});

@@ -171,6 +171,7 @@ Dashboard: **PWA & app** (immediate).
 | `MAINTENANCE_RETRY_AFTER` | Retry-After seconds during maintenance. | Optional | No | Yes | No | Restart |
 | `NEXT_BUILD_CPUS` | Build workers (default 2; Hostinger limits threads). | Optional | No | No | No | Redeploy |
 | `WEBCENTA_ENV_SNAPSHOT` | "false" stops the build from copying these variables into the deployed app (see docs/DEPLOYMENT.md). | Optional | No | No | No | Redeploy |
+| `WEBCENTA_AUTO_MIGRATE` | "false" stops the app from applying pending database migrations and base data automatically at startup. | Optional | No | Yes | No | Restart |
 | `ALLOW_DEV_FIXTURES` | Development only: allows fictional sample listings in the seed. | Must be unset in production | No | No | No | Restart |
 | `SCANNER_ALLOW_PRIVATE_FOR_TESTS` | Tests only: lets the scanner reach local fixture sites. | Must be unset in production | No | No | No | Restart |
 | `ENABLE_TEST_ERROR_ROUTES` | Tests only: routes that throw deliberately. | Must be unset in production | No | No | No | Restart |

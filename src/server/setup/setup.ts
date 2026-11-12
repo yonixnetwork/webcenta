@@ -32,9 +32,37 @@ export async function superAdminCount(): Promise<number | null> {
   }
 }
 
+/** Written when the first Super Administrator exists; from then on /setup never opens again. */
+export const SETUP_LOCK_KEY = "setup.completed";
+
+type Tx = Pick<typeof db, "systemSetting">;
+export async function lockSetup(tx: Tx = db, reason = "owner account created"): Promise<void> {
+  const value = { at: new Date().toISOString(), reason };
+  await tx.systemSetting.upsert({ where: { key: SETUP_LOCK_KEY }, create: { key: SETUP_LOCK_KEY, value, description: "First-time setup is complete and permanently disabled" }, update: {} });
+}
+
+export async function setupLocked(): Promise<boolean> {
+  try {
+    return Boolean(await db.systemSetting.findUnique({ where: { key: SETUP_LOCK_KEY }, select: { key: true } }));
+  } catch {
+    return false; // no tables yet
+  }
+}
+
+/**
+ * Open only while SETUP_TOKEN is set, the setup lock has never been written and no
+ * active Super Administrator exists. A Super Administrator found without the lock
+ * (e.g. created with npm run admin:provision) writes it, so the page closes for good.
+ */
 export async function setupOpen(): Promise<boolean> {
   if (!setupTokenConfigured()) return false;
-  return ((await superAdminCount()) ?? 0) === 0;
+  if (await setupLocked()) return false;
+  const supers = (await superAdminCount()) ?? 0;
+  if (supers > 0) {
+    await lockSetup(db, "Super Administrator found").catch(() => undefined);
+    return false;
+  }
+  return true;
 }
 
 export interface SetupState {

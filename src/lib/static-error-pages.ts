@@ -1,3 +1,4 @@
+import { BRAND_MARK_DATA_URI } from "./brand-mark-data";
 /**
  * Self-contained HTML error pages (inline CSS, inline SVG, no scripts, no
  * external requests). One source for:
@@ -94,7 +95,7 @@ footer{margin-top:3rem;text-align:center;font-size:.75rem;color:var(--muted)}
 </head>
 <body>
 <div class="wrap">
-<header><a class="logo" href="/" aria-label="Webcenta home"><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#g)"/><path d="M8 11l3 10 3-7 2 0 3 7 3-10" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Web<b>centa</b></span></a></header>
+<header><a class="logo" href="/" aria-label="Webcenta home"><img src="${BRAND_MARK_DATA_URI}" width="32" height="32" alt="" style="border-radius:9px"><span>Web<b>centa</b></span></a></header>
 <main>
 <div class="icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[code]}</svg></div>
 <p class="code">Error ${code}</p>
