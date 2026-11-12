@@ -7,7 +7,7 @@
  *   or any page rendered for a signed-in visitor (marked x-wc-personal by the proxy).
  * Bump VERSION to roll out a new cache; clients are prompted to reload.
  */
-const VERSION = "wc-v2";
+const VERSION = "wc-v3";
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = "/offline";

@@ -122,7 +122,7 @@ function logRouting(request: NextRequest, host: string, surface: string) {
 export const config = {
   matcher: [
     {
-      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|icons/|errors/|sw.js|manifest.webmanifest).*)",
+      source: "/((?!_next/static|_next/image|favicon.ico|icons/|brand/|errors/|sw.js|manifest.webmanifest).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

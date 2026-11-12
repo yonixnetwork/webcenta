@@ -128,16 +128,19 @@ Optional: `ADMIN_ORIGIN`/`DEVELOPER_ORIGIN` (default `admin.`/`developers.` subd
 
 ## 5. First-time setup
 
-1. Set the startup variables plus `SETUP_TOKEN` (≥ 32 chars) and deploy.
-2. Open `https://admin.webcenta.com/setup`. The page exists only while `SETUP_TOKEN` is set **and**
-   no active Super Administrator exists; otherwise it answers 404. Every action needs the token
-   (constant-time comparison, rate-limited, rejected attempts audited).
-3. **Create tables and base data**: applies pending migrations (compatible with
-   `prisma migrate deploy`: same `_prisma_migrations` table and checksums, serialised with a
-   database lock) and the idempotent base seed.
-4. **Create owner invitation**: a single-use link (72 h) to set a password and enrol TOTP.
+1. Set the startup variables plus `SETUP_TOKEN` (≥ 32 chars) and deploy. On every start the server applies
+   pending migrations and the idempotent base seed automatically (`WEBCENTA_AUTO_MIGRATE=false` disables this).
+2. Open `https://admin.webcenta.com/setup`. The page exists only while `SETUP_TOKEN` is set, no Super
+   Administrator exists **and** the permanent lock (`setup.completed` in `SystemSetting`) has not been written;
+   otherwise it answers 404. Every action needs the token (constant-time comparison, rate-limited, rejected
+   attempts audited).
+3. **Create tables and base data** (only needed if automatic migration is disabled or failed).
+4. **Create owner invitation**: a single-use link (72 h) to set a password and enrol TOTP. Accepting it writes
+   the permanent lock, so `/setup` stays closed even if `SETUP_TOKEN` remains set or the owner is later suspended.
 5. Sign in → Settings → configure and test Email first, then the other integrations.
 6. Remove `SETUP_TOKEN` (the Settings page reminds you while it is still set).
+
+The full Hostinger checklist is [HOSTINGER-ENV.md](HOSTINGER-ENV.md).
 
 ## 6. External credentials you must obtain
 

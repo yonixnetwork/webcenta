@@ -68,13 +68,16 @@ test.describe("PWA", () => {
     // Publish a new service-worker version (as a deployment would), then restore it.
     const original = readFileSync(SERVED_SW, "utf8");
     try {
-      writeFileSync(SERVED_SW, original.replace('const VERSION = "wc-v2"', 'const VERSION = "wc-v3"'));
+      // Simulate a deploy: the next cache version, whatever the current one is.
+      const current = Number(/const VERSION = "wc-v(\d+)"/.exec(original)![1]);
+      const next = `wc-v${current + 1}`;
+      writeFileSync(SERVED_SW, original.replace(`const VERSION = "wc-v${current}"`, `const VERSION = "${next}"`));
       await page.evaluate(async () => { const reg = await navigator.serviceWorker.getRegistration(); await reg?.update(); });
       await expect(page.getByText("A new version of Webcenta is available.")).toBeVisible({ timeout: 15_000 });
       const reload = page.waitForEvent("load");
       await page.getByRole("button", { name: "Reload" }).click();
       await reload;
-      await expect.poll(() => page.evaluate(async () => (await caches.keys()).some((k) => k.startsWith("wc-v3")))).toBe(true);
+      await expect.poll(() => page.evaluate(async (v: string) => (await caches.keys()).some((k) => k.startsWith(v)), next)).toBe(true);
     } finally {
       writeFileSync(SERVED_SW, original);
     }

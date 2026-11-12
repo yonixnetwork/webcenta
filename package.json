@@ -33,7 +33,8 @@
     "test:e2e:prepare": "bash tests/e2e/prepare.sh",
     "postbuild": "node scripts/prepare-standalone.mjs",
     "start:next": "next start",
-    "config:docs": "tsx scripts/generate-config-doc.ts"
+    "config:docs": "tsx scripts/generate-config-doc.ts",
+    "brand:icons": "node scripts/generate-icons.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

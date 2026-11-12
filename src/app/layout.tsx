@@ -14,10 +14,14 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: s.defaultTitle, template: `%s · ${s.name}` },
     description: s.description || undefined,
     applicationName: s.name,
-    openGraph: { siteName: s.name, type: "website", ...(s.ogImageUrl ? { images: [{ url: s.ogImageUrl, width: 1200, height: 630 }] } : {}) },
-    twitter: { card: "summary_large_image", ...(s.twitterHandle ? { site: `@${s.twitterHandle}` } : {}), ...(s.ogImageUrl ? { images: [s.ogImageUrl] } : {}) },
+    // Default social preview: the official logo (public/brand/og-default.png) unless one is set in Settings.
+    openGraph: { siteName: s.name, type: "website", images: [{ url: s.ogImageUrl || "/brand/og-default.png", width: 1200, height: 630, alt: s.name }] },
+    twitter: { card: "summary_large_image", ...(s.twitterHandle ? { site: `@${s.twitterHandle}` } : {}), images: [s.ogImageUrl || "/brand/og-default.png"] },
     appleWebApp: { capable: true, title: s.name, statusBarStyle: "default" },
-    icons: { icon: "/icon.svg", apple: "/icons/apple-touch-icon.png" },
+    icons: {
+      icon: [16, 32, 48].map((n) => ({ url: `/icons/favicon-${n}.png`, sizes: `${n}x${n}`, type: "image/png" })),
+      apple: "/icons/apple-touch-icon.png",
+    },
     ...(s.allowIndexing ? {} : { robots: { index: false, follow: false } }),
     verification: {
       ...(s.verification.google ? { google: s.verification.google } : {}),

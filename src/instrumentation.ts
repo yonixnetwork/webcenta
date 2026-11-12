@@ -16,4 +16,7 @@ export async function register() {
       `admin=${process.env.ADMIN_ORIGIN ?? "(derived)"} developers=${process.env.DEVELOPER_ORIGIN ?? "(derived)"} ` +
       `startup-variables=${missing.length ? `MISSING ${missing.join(",")}` : "ok"} env-snapshot=${snapshot ? "present" : "absent"}`,
   );
+  // Migrations + base data in the background (never blocks startup).
+  const { startupTasks } = await import("./instrumentation-node");
+  void startupTasks();
 }

@@ -3,6 +3,7 @@ import { db } from "@/server/db";
 import { audit } from "@/server/audit";
 import { sendEmail } from "@/server/email/send";
 import { actionEmail } from "@/server/email/templates";
+import { lockSetup } from "@/server/setup/setup";
 import { encrypt, decrypt, hashPassword, newToken, newTotpSecret, sha256, verifyTotp } from "./crypto";
 import { adminOrigin } from "@/lib/hosts";
 
@@ -55,6 +56,8 @@ export async function acceptInvitation(token: string, input: { name: string; pas
       data: { email: inv.email, name: input.name.trim().slice(0, 80), role: inv.role, passwordHash: await hashPassword(input.password), totpSecretEnc: inv.pendingTotpEnc, totpEnabledAt: new Date(), totpLastStep: step, invitedById: inv.invitedById, passwordChangedAt: new Date() },
     });
     await tx.adminInvitation.update({ where: { id: inv.id }, data: { acceptedAt: new Date(), pendingTotpEnc: null } });
+    // The first owner account permanently closes first-time setup.
+    if (inv.role === "SUPER_ADMIN") await lockSetup(tx);
     return a;
   });
   await audit({ actorType: "ADMIN", adminId: admin.id, action: "admin.invite.accept", metadata: { role: admin.role } });

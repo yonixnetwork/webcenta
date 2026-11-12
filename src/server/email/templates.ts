@@ -3,9 +3,12 @@ export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
+/** Public origin for absolute image URLs in emails. */
+const brandOrigin = () => (process.env.PUBLIC_ORIGIN || "http://localhost:3000").replace(/\/$/, "");
+
 export function layout(title: string, bodyHtml: string): string {
   return `<!doctype html><html><body style="margin:0;background:#f7f7fb;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#12131a">
-<div style="max-width:560px;margin:0 auto;padding:32px 20px"><div style="font-weight:800;font-size:20px;margin-bottom:20px">Web<span style="color:#4f46e5">centa</span></div>
+<div style="max-width:560px;margin:0 auto;padding:32px 20px"><div style="font-weight:800;font-size:20px;margin-bottom:20px"><img src="${escapeHtml(brandOrigin())}/brand/logo-mark-128.png" width="36" height="36" alt="Webcenta" style="vertical-align:middle;border-radius:10px;margin-right:8px">Web<span style="color:#4f46e5">centa</span></div>
 <div style="background:#fff;border:1px solid #e3e5ee;border-radius:16px;padding:24px"><h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(title)}</h1>${bodyHtml}</div>
 <p style="font-size:12px;color:#676c80;margin-top:16px">You received this email because of activity on your Webcenta account.</p></div></body></html>`;
 }
