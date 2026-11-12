@@ -24,11 +24,13 @@ export async function recordInteraction(
   if (!categoryId && e.listingId) categoryId = (await tx.listing.findUnique({ where: { id: e.listingId }, select: { primaryCategoryId: true } }))?.primaryCategoryId ?? undefined;
   if (!categoryId) return;
   const w = WEIGHTS[e.type] ?? 1;
-  await tx.userInterest.upsert({
-    where: { userId_categoryId_source: { userId, categoryId, source: "INFERRED" } },
-    create: { userId, categoryId, source: "INFERRED", weight: w },
-    update: { weight: { increment: w } },
-  });
+  // One atomic statement. Prisma's upsert reads then inserts, and inside a transaction
+  // (saving a favourite) that read uses the transaction's snapshot, so it misses a row
+  // another request (the page-view beacon) has just created and the insert fails.
+  await tx.$executeRaw`
+    INSERT INTO UserInterest (userId, categoryId, source, weight, updatedAt)
+    VALUES (${userId}, ${categoryId}, 'INFERRED', ${w}, UTC_TIMESTAMP(3))
+    ON DUPLICATE KEY UPDATE weight = weight + ${w}, updatedAt = UTC_TIMESTAMP(3)`;
 }
 
 export async function clearHistory(userId: string) {

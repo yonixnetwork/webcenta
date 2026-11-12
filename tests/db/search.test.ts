@@ -46,7 +46,10 @@ describe("search", () => {
   it("paginates", async () => {
     const r = await searchListings(anon(), parseFilters({ page: "99" }));
     expect(r.items).toEqual([]);
-    expect(r.pageCount).toBe(1);
+    // Page count follows the total and the configured page size (default 24).
+    const first = await searchListings(anon(), parseFilters({}));
+    expect(r.pageCount).toBe(Math.max(1, Math.ceil(first.total / 24)));
+    expect(first.items.length).toBe(Math.min(first.total, 24));
   });
   it("suggests apps and categories", async () => {
     const s = await suggest(anon(), "lum");
