@@ -14,6 +14,8 @@ describe("buildPoolConfig (MySQL / MariaDB)", () => {
     const { pool } = buildPoolConfig({ DATABASE_URL: HOSTINGER });
     expect(pool.timezone).toBe("+00:00");
     expect(pool.charset).toBe("utf8mb4");
+    expect(pool.collation).toBe("UTF8MB4_UNICODE_CI");
+    expect(pool.initSql).toBe("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
     expect(pool.connectionLimit).toBe(5);
     expect(buildPoolConfig({ DATABASE_URL: HOSTINGER, DATABASE_POOL_MAX: 3 }).pool.connectionLimit).toBe(3);
   });

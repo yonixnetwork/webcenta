@@ -62,6 +62,12 @@ export function buildPoolConfig(e: DbEnv): { pool: PoolConfig; sslMode: "disable
     // only allowed for local connections, where there is no network to intercept.
     allowPublicKeyRetrieval: local && mode === "disable",
     charset: "utf8mb4",
+    // Pin the session collation to the tables' (utf8mb4_unicode_ci). Otherwise a server whose default
+    // utf8mb4 collation differs (newer MariaDB/MySQL on shared hosting) gives bound parameters and
+    // string literals different collations, and Prisma's `LIKE CONCAT(?, '%')` fails with
+    // "Illegal mix of collations (…, utf8mb4_bin, NONE)".
+    collation: "UTF8MB4_UNICODE_CI",
+    initSql: "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
   };
   return { pool, sslMode: mode };
 }

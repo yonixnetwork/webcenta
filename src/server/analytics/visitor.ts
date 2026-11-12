@@ -37,7 +37,7 @@ export function visitorHash(salt: string, ip: string | null, userAgent: string |
 
 export async function purgeOldSalts(keepDays = 2, now = new Date()): Promise<number> {
   const keep = new Set(Array.from({ length: keepDays }, (_, i) => `${SALT_PREFIX}${utcDay(new Date(now.getTime() - i * 86_400_000))}`));
-  const rows = await db.systemSetting.findMany({ where: { key: { startsWith: SALT_PREFIX } }, select: { key: true } });
+  const rows = (await db.systemSetting.findMany({ select: { key: true } })).filter((r) => r.key.startsWith(SALT_PREFIX));
   const stale = rows.map((r) => r.key).filter((k) => !keep.has(k));
   if (stale.length) await db.systemSetting.deleteMany({ where: { key: { in: stale } } });
   memo.clear();

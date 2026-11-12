@@ -62,7 +62,8 @@ async function refresh(c: Cache, gen: number): Promise<void> {
     const v = await db.systemSetting.findUnique({ where: { key: VERSION_KEY }, select: { value: true } });
     const version = v ? String((v.value as { v?: string } | null)?.v ?? "") : "";
     if (version !== c.version || c.dbError) {
-      const rows = await db.systemSetting.findMany({ where: { key: { startsWith: PREFIX } }, select: { key: true, value: true } });
+      // Prefix match in JS: the table is small, and LIKE depends on the connection collation.
+      const rows = (await db.systemSetting.findMany({ select: { key: true, value: true } })).filter((r) => r.key.startsWith(PREFIX));
       if (gen !== c.gen) return; // invalidated meanwhile: a newer load wins
       c.rows = new Map(rows.filter((r) => r.key !== VERSION_KEY).map((r) => [r.key.slice(PREFIX.length), asStored(r.value)]));
       c.version = version;
