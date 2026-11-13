@@ -16,7 +16,7 @@ export default async function CategoriesPage() {
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-3xl font-extrabold tracking-tight">All categories</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">All categories</h1>
         <p className="mt-2 text-muted">{tree.length} categories. Some regulated categories are only shown once legal review is complete.</p>
       </header>
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

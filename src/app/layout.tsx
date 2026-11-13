@@ -34,6 +34,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Lets the layout use the whole screen on iPhones (including installed web apps); the header and
+  // the tab bar add env(safe-area-inset-*) padding so nothing sits under the notch or home indicator.
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f7f7fb" },
     { media: "(prefers-color-scheme: dark)", color: "#0b0c11" },

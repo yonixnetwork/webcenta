@@ -3,7 +3,7 @@ import { purgeOldSalts } from "@/server/analytics/visitor";
 import { deliverPending } from "@/server/email/send";
 import { enqueueDueScans, monitorListing } from "@/server/scanner/monitor";
 import { processSubmission } from "@/server/listings/workflow";
-import { rollupDay } from "@/server/analytics/stats";
+import { refreshVisitCounts, rollupDay } from "@/server/analytics/stats";
 import { recomputeScores } from "@/server/analytics/ranking";
 import { reconcileSearchDocuments } from "@/server/search/document";
 import { pingIndexNow } from "@/server/settings/site";
@@ -43,6 +43,7 @@ Object.assign(handlers, {
   "stats.rollup": async () => {
     await rollupDay(new Date());
     await rollupDay(new Date(Date.now() - 86_400_000));
+    await refreshVisitCounts();
   },
   "ranking.recompute": async () => { await recomputeScores(); },
   "submission.check": async (payload: unknown) => { await processSubmission((payload as { revisionId: string }).revisionId); },
@@ -73,6 +74,19 @@ Object.assign(handlers, {
     const { runImports } = await import("@/server/importer/importer");
     await runImports();
   },
+  /** Notifications for a newly published app / an updated saved app, and inactivity reminders. */
+  "notify.new-app": async (payload: unknown) => {
+    const { notifyNewApp } = await import("@/server/community/notifications");
+    await notifyNewApp((payload as { listingId: string }).listingId);
+  },
+  "notify.app-updated": async (payload: unknown) => {
+    const { notifySavedAppUpdated } = await import("@/server/community/notifications");
+    await notifySavedAppUpdated((payload as { listingId: string }).listingId);
+  },
+  "notify.reminders": async () => {
+    const { sendInactivityReminders } = await import("@/server/community/notifications");
+    await sendInactivityReminders();
+  },
   "users.purge-deleted": async () => {
     const cutoff = new Date(Date.now() - 30 * 86_400_000);
     await db.user.deleteMany({ where: { status: "PENDING_DELETION", deletedAt: { lt: cutoff } } });
@@ -90,6 +104,7 @@ export const recurringJobs: Array<{ type: keyof typeof handlers & string; everyM
   { type: "email.deliver", everyMinutes: 5 },
   { type: "push.campaigns", everyMinutes: 5 },
   { type: "imports.run", everyMinutes: 10 },
+  { type: "notify.reminders", everyMinutes: 6 * 60 },
   { type: "stats.rollup", everyMinutes: 15 },
   { type: "ranking.recompute", everyMinutes: 60 },
   { type: "monitor.enqueue", everyMinutes: 15 },

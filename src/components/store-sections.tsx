@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { BadgeCheck, ChevronRight } from "lucide-react";
+import { BadgeCheck, ChevronRight, Star } from "lucide-react";
+import { PRICING_LABEL } from "@/lib/labels";
+import { visitMilestone } from "@/lib/visits";
 import type { ListingCard } from "@/server/catalog/listings";
 import { mediaUrl } from "@/server/storage";
 import { AppIcon } from "./app-icon";
@@ -18,6 +20,25 @@ function SectionHeader({ id, title, subtitle, href }: { id: string; title: strin
   );
 }
 
+/**
+ * One line of real facts about an app: category, verified developer, rating, pricing and visit
+ * milestone. Each part appears only when the data exists (nothing is estimated).
+ */
+export function AppMeta({ app, sponsored, verified, className }: { app: ListingCard; sponsored?: boolean; verified: boolean; className?: string }) {
+  const visits = visitMilestone(app.visitCount);
+  const parts: React.ReactNode[] = [];
+  if (sponsored) parts.push(<span key="s" className="font-semibold text-warning">Sponsored</span>);
+  if (app.primaryCategory) parts.push(<span key="c" className="truncate">{app.primaryCategory.name}</span>);
+  if (app.ratingCount > 0) parts.push(<span key="r" className="inline-flex shrink-0 items-center gap-0.5"><Star className="size-3 fill-current text-amber-500" aria-hidden /><span className="sr-only">Rated </span>{app.ratingAverage.toFixed(1)}</span>);
+  if (app.pricingModel !== "UNKNOWN") parts.push(<span key="p" className="shrink-0">{PRICING_LABEL[app.pricingModel]}</span>);
+  if (visits) parts.push(<span key="v" className="shrink-0">{visits}</span>);
+  return (
+    <p className={cn("flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap", className)}>
+      {parts.map((p, i) => <span key={i} className="flex min-w-0 items-center gap-1">{i > 0 && <span aria-hidden>·</span>}{p}{i === 0 && verified && <BadgeCheck className="size-3.5 shrink-0 text-brand" aria-label="Verified developer" />}</span>)}
+    </p>
+  );
+}
+
 /** One App Store-style row: icon, name, one line of text, and a pill button. */
 export function AppRow({ app, rank, sponsored }: { app: ListingCard; rank?: number; sponsored?: boolean }) {
   const verified = app.developer && app.developer.verificationLevel !== "UNVERIFIED";
@@ -28,12 +49,7 @@ export function AppRow({ app, rank, sponsored }: { app: ListingCard; rank?: numb
       <div className="min-w-0 flex-1 border-b border-border/70 pb-2.5 group-last:border-0">
         <Link href={`/app/${app.slug}`} className="block truncate font-semibold hover:text-brand">{app.name}</Link>
         <p className="truncate text-[13px] text-muted">{app.tagline ?? app.primaryCategory?.name ?? app.publisherName}</p>
-        <p className="flex items-center gap-1 truncate text-xs text-subtle">
-          {sponsored && <span className="font-semibold text-warning">Sponsored ·</span>}
-          {app.primaryCategory?.name}
-          {verified && <BadgeCheck className="size-3.5 shrink-0 text-brand" aria-label="Verified developer" />}
-          {app.ratingCount > 0 && <span>· ★ {app.ratingAverage.toFixed(1)}</span>}
-        </p>
+        <AppMeta app={app} sponsored={sponsored} verified={Boolean(verified)} className="text-xs text-subtle" />
       </div>
       <Link href={`/app/${app.slug}`} aria-label={`View ${app.name}`} className="shrink-0 rounded-full bg-surface-2 px-4 py-1.5 text-sm font-bold text-brand hover:bg-brand-soft">View</Link>
     </div>
@@ -85,7 +101,7 @@ export function FeaturedCarousel({ label, items, sponsoredIds = [] }: { label: s
                   <AppIcon name={app.name} storageKey={logoOf(app)} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{app.name}</p>
-                    <p className="truncate text-xs text-white/80">{app.primaryCategory?.name ?? app.publisherName}</p>
+                    <AppMeta app={app} verified={Boolean(app.developer && app.developer.verificationLevel !== "UNVERIFIED")} className="text-xs text-white/85 [&_svg]:text-white" />
                   </div>
                   <span className="rounded-full bg-white/25 px-4 py-1.5 text-sm font-bold backdrop-blur">View</span>
                 </div>

@@ -13,8 +13,15 @@ import { listingInputSchema, type ListingInput } from "./input";
 import { developerPolicy } from "@/server/developer/policy";
 import { queueIndexNow } from "@/server/settings/site";
 import { getSection } from "@/server/settings/store";
+import { importDecision, slugList } from "@/server/importer/policy";
 
 export class WorkflowError extends Error {}
+
+/** Queues the user notifications for a published/updated app (one job per app per hour). */
+async function queueAppNotification(listingId: string, type: "notify.new-app" | "notify.app-updated") {
+  const hour = new Date().toISOString().slice(0, 13);
+  await db.job.create({ data: { type, payload: { listingId }, dedupeKey: `${type}:${listingId}:${hour}` } }).catch(() => undefined);
+}
 export interface Actor { type: ActorType; userId?: string; adminId?: string }
 
 const RISK: RiskTier[] = ["LOW", "MEDIUM", "HIGH", "PROHIBITED"];
@@ -128,13 +135,25 @@ export async function processSubmission(revisionId: string) {
   const intelFail = outcomes.some((o) => o.check.startsWith("THREAT_INTEL") && o.verdict === "FAIL");
   const policy = await db.monitoringPolicy.findUnique({ where: { riskTier: refs.riskTier } });
   const org = rev.listing.developerId ? await db.developerOrg.findUnique({ where: { id: rev.listing.developerId } }) : null;
-  // Developers: an organisation older than a week. Editorial listings: only automatic imports, and
-  // only while "Publish automatically" is on (Settings → Automatic web app imports).
-  const established = org
-    ? Date.now() - org.createdAt.getTime() > 7 * 86_400_000
-    : Boolean(await db.importCandidate.findFirst({ where: { listingId: rev.listingId }, select: { id: true } })) && (await getSection("imports")).bool("autoPublish");
   const openReports = await db.report.count({ where: { listingId: rev.listingId, status: { in: ["OPEN", "IN_REVIEW"] } } });
-  const auto = !intelFail && qualifiesForAutoApproval(outcomes) && Boolean(policy?.allowAutoApproval) && !refs.manualReview && !refs.complianceRequired && established && openReports === 0;
+  // Automatic imports follow the risk-based publishing policy (Settings → Automatic web app imports);
+  // developers' submissions the established rules (organisation older than a week, every check passed).
+  const candidate = org ? null : await db.importCandidate.findFirst({ where: { listingId: rev.listingId }, select: { id: true, reviewRequired: true } });
+  let auto: boolean;
+  if (candidate) {
+    const s = await getSection("imports");
+    const cats = await db.category.findMany({ where: { id: { in: refs.categoryIds } }, select: { slug: true, parent: { select: { slug: true } } } });
+    const d = importDecision(
+      { autoPublish: s.bool("autoPublish"), maxRiskScore: s.num("maxRiskScore"), eligibleCategories: slugList(s.str("eligibleCategories")), reviewCategories: slugList(s.str("reviewCategories")) },
+      { outcomes, categorySlugs: cats.flatMap((c) => [c.slug, c.parent?.slug].filter((x): x is string => Boolean(x))), manualReview: refs.manualReview, complianceRequired: refs.complianceRequired,
+        tierAllowsAuto: Boolean(policy?.allowAutoApproval), reviewRequired: candidate.reviewRequired, openReports, hasLogo: Boolean(input.logoAssetId), descriptionLength: input.description.length },
+    );
+    auto = d.publish && !intelFail;
+    await audit({ actorType: "SYSTEM", action: auto ? "imports.auto-publish" : "imports.review-required", targetType: "Listing", targetId: rev.listingId, metadata: { riskScore: d.score, reasons: d.reasons, scanId: scan.id } });
+  } else {
+    const established = org ? Date.now() - org.createdAt.getTime() > 7 * 86_400_000 : false;
+    auto = !intelFail && qualifiesForAutoApproval(outcomes) && Boolean(policy?.allowAutoApproval) && !refs.manualReview && !refs.complianceRequired && established && openReports === 0;
+  }
   await db.listing.update({ where: { id: rev.listingId }, data: { riskTier: refs.riskTier } });
 
   if (intelFail) {
@@ -217,6 +236,7 @@ export async function approveRevision(revisionId: string, actor: Actor, opts: { 
   });
   invalidateCategoryCache();
   if (newStatus === "PUBLISHED") await queueIndexNow([rev.listing.slug]).catch(() => undefined);
+  if (newStatus === "PUBLISHED") await queueAppNotification(rev.listingId, wasPublished ? "notify.app-updated" : "notify.new-app");
   if (rev.listing.developerId) {
     await notifyOrg(rev.listing.developerId, {
       type: "LISTING_STATUS",
@@ -237,6 +257,7 @@ export async function publishListing(listingId: string, actor: Actor) {
     await audit({ actorType: actor.type, adminId: actor.adminId, action: "listing.publish", targetType: "Listing", targetId: listingId }, tx);
   });
   await queueIndexNow([l.slug]).catch(() => undefined);
+  await queueAppNotification(listingId, "notify.new-app");
   if (l.developerId) await notifyOrg(l.developerId, { type: "LISTING_STATUS", title: `${l.name} is now published`, linkPath: `/developer/listings/${listingId}` });
 }
 

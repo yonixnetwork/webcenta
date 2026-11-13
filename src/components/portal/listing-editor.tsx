@@ -2,7 +2,7 @@ import { ActionForm, type FormState } from "@/components/ui/action-form";
 import { Field, inputClass } from "@/components/ui/form";
 import { MediaUploader } from "./media-uploader";
 import { AGE_LABEL, PLATFORM_LABEL, PRICING_LABEL } from "@/lib/labels";
-import { PLATFORMS, PRICING } from "@/lib/search-params";
+import { LISTING_PRICING, PLATFORMS } from "@/lib/search-params";
 import type { CategoryNode } from "@/server/catalog/categories";
 import type { ListingInput } from "@/server/listings/input";
 
@@ -67,7 +67,7 @@ export function ListingEditor({ action, upload, tree, initial, media, submitLabe
       <fieldset className="grid gap-4 sm:grid-cols-2">
         <legend className="mb-2 text-lg font-bold">Pricing & platforms</legend>
         <Field label="Pricing model">
-          <select name="pricingModel" defaultValue={i.pricingModel ?? "FREE"} className={inputClass}>{PRICING.map((p) => <option key={p} value={p}>{PRICING_LABEL[p]}</option>)}</select>
+          <select name="pricingModel" defaultValue={i.pricingModel ?? "FREE"} className={inputClass}>{LISTING_PRICING.map((p) => <option key={p} value={p}>{p === "UNKNOWN" ? "Not stated" : PRICING_LABEL[p]}</option>)}</select>
         </Field>
         <Field label="Pricing details (optional)"><input name="pricingDetails" maxLength={200} defaultValue={i.pricingDetails} placeholder="e.g. Free plan; Pro from $8/month" className={inputClass} /></Field>
         <div className="space-y-2 sm:col-span-2">

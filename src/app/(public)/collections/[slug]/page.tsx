@@ -25,7 +25,7 @@ export default async function CollectionPage({ params }: Props) {
     <div className="space-y-6">
       <header className="rounded-3xl border border-border bg-gradient-to-br from-brand-soft to-surface p-6 sm:p-8">
         <p className="text-xs font-semibold uppercase tracking-wide text-brand">{c.isEditorial ? "Curated collection" : `Collection by ${c.owner?.name ?? "a Webcenta user"}`}</p>
-        <h1 className="mt-2 text-3xl font-extrabold tracking-tight">{c.title}</h1>
+        <h1 className="mt-2 text-2xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">{c.title}</h1>
         {c.description && <p className="mt-2 max-w-2xl text-muted">{c.description}</p>}
       </header>
       {c.cards.length ? <CardGrid items={c.cards} /> : <EmptyState title="This collection is empty" />}

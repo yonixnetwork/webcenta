@@ -8,6 +8,7 @@ import { MIN_SIGNUP_AGE, ageOn, parseBirthDate } from "@/lib/age";
 import { PROVIDER_LABEL, type SocialProvider } from "@/lib/social-providers";
 import { buttonClass } from "@/components/ui/button";
 import { Field, FormMessage, inputClass } from "@/components/ui/form";
+import { PasswordInput } from "@/components/ui/password-input";
 
 function SocialButtons({ providers, next }: { providers: SocialProvider[]; next: string }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export function SignInForm({ providers, next, initialError }: { providers: Socia
         {error && <FormMessage>{error}</FormMessage>}
         {unverified && <FormMessage tone="info">Please confirm your email first. We have sent a new confirmation link to {unverified}.</FormMessage>}
         <Field label="Email"><input name="email" type="email" required autoComplete="email" className={inputClass} /></Field>
-        <Field label="Password"><input name="password" type="password" required autoComplete="current-password" className={inputClass} /></Field>
+        <Field label="Password"><PasswordInput name="password" required autoComplete="current-password" /></Field>
         <div className="flex justify-end"><Link href="/forgot-password" className="text-sm font-medium text-brand hover:underline">Forgot password?</Link></div>
         <button type="submit" disabled={pending} className={buttonClass("primary", "lg", "w-full")}>{pending ? "Signing in…" : "Sign in"}</button>
       </form>
@@ -102,8 +103,8 @@ export function SignUpForm({ providers, next }: { providers: SocialProvider[]; n
         <Field label="Name"><input name="name" required maxLength={80} autoComplete="name" className={inputClass} /></Field>
         <Field label="Email"><input name="email" type="email" required autoComplete="email" className={inputClass} /></Field>
         <Field label="Date of birth" hint="Used to show content suitable for your age. It is never shown to anyone."><input name="birthDate" type="date" required autoComplete="bday" max={new Date().toISOString().slice(0, 10)} min="1900-01-01" className={inputClass} /></Field>
-        <Field label="Password" hint="At least 10 characters."><input name="password" type="password" required minLength={10} maxLength={128} autoComplete="new-password" className={inputClass} /></Field>
-        <Field label="Confirm password"><input name="confirm" type="password" required minLength={10} autoComplete="new-password" className={inputClass} /></Field>
+        <Field label="Password" hint="At least 10 characters."><PasswordInput name="password" required minLength={10} maxLength={128} autoComplete="new-password" /></Field>
+        <Field label="Confirm password"><PasswordInput name="confirm" required minLength={10} autoComplete="new-password" /></Field>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="terms" value="1" className="mt-0.5 size-4 accent-[var(--brand)]" />
           <span>I agree to the <Link href="/legal/terms" className="text-brand underline">Terms</Link> and have read the <Link href="/legal/privacy" className="text-brand underline">Privacy Policy</Link>.</span>
@@ -150,8 +151,8 @@ export function ResetPasswordForm({ token }: { token: string }) {
       setDone(true);
     }}>
       {error && <FormMessage>{error}</FormMessage>}
-      <Field label="New password" hint="At least 10 characters."><input name="password" type="password" required minLength={10} maxLength={128} autoComplete="new-password" className={inputClass} /></Field>
-      <Field label="Confirm new password"><input name="confirm" type="password" required minLength={10} autoComplete="new-password" className={inputClass} /></Field>
+      <Field label="New password" hint="At least 10 characters."><PasswordInput name="password" required minLength={10} maxLength={128} autoComplete="new-password" /></Field>
+      <Field label="Confirm new password"><PasswordInput name="confirm" required minLength={10} autoComplete="new-password" /></Field>
       <button type="submit" disabled={pending} className={buttonClass("primary", "lg", "w-full")}>{pending ? "Saving…" : "Set new password"}</button>
     </form>
   );

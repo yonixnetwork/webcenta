@@ -183,3 +183,81 @@ You can remove your listings at any time. We may end this agreement if you break
 We may hide reviews that break these guidelines. If your review was removed, you can appeal from your account.`,
   },
 };
+
+/**
+ * Public policies that are not versioned in the database (they describe how the marketplace works,
+ * without internal procedures, thresholds or tooling).
+ */
+export const PUBLIC_POLICIES: Record<"acceptable-use" | "submissions" | "verification" | "reporting" | "advertising", { title: string; summary: string; body: string }> = {
+  "acceptable-use": {
+    title: "Acceptable Use Policy",
+    summary: "What you may and may not do on Webcenta.",
+    body: `Webcenta is for discovering and discussing web applications. When you use it, you agree not to:
+
+- break the law or encourage others to do so;
+- post content that is false, misleading, hateful, harassing, violent or sexually exploits anyone, especially minors;
+- impersonate a person, company or brand;
+- submit or promote phishing, malware, scams or other harmful websites;
+- write fake reviews, manipulate ratings or rankings, or offer rewards for reviews;
+- collect other users' personal information;
+- disrupt the service: no scraping, automated sign-ups, overloading, or attempts to get around security or rate limits.
+
+If you find a security weakness, report it through [Contact & support](/contact) instead of testing it on other people's accounts.
+
+We may remove content, limit features or suspend accounts that break this policy. See also the [Content Policy](/legal/content) and [Terms of Service](/legal/terms).`,
+  },
+  submissions: {
+    title: "App Submission Guidelines",
+    summary: "What a listing needs before it can be published.",
+    body: `Developers submit apps through the Webcenta developer portal. To be published, a listing must:
+
+- be a working website or web app that you own or are authorised to represent;
+- have an accurate name, description, category, screenshots and pricing information;
+- link to a privacy policy that covers the website, and terms of use where you offer accounts or payments;
+- not imitate another product or brand;
+- follow the [Content Policy](/legal/content).
+
+**Regulated services.** Finance, trading, cryptocurrency, forex, gambling, medical and adult services are reviewed by a person, may need proof of the licences their markets require, and may be shown only to adults or only in some countries.
+
+**Review.** Every submission and every update is checked before it is published, and published listings are checked again from time to time. A listing that stops meeting these guidelines can be suspended or removed. You can always appeal a decision.
+
+Listing on Webcenta is free. Read the full [Developer Agreement](/legal/developers).`,
+  },
+  verification: {
+    title: "Listing Verification",
+    summary: "What the badges and checks on a listing mean.",
+    body: `**Verified developer.** A "Verified" badge means the developer proved to Webcenta that they control the listed website's domain (and, for higher verification levels, their business). It is not an endorsement of the product.
+
+**Editorial listings.** Some apps are added by Webcenta editors. They always credit the original publisher, and the publisher can claim the listing after proving ownership.
+
+**Security checks.** Listings are checked for common signs of malware, phishing and impersonation before publication and periodically afterwards. Results are summarised on each listing page. Checks reduce risk but **cannot guarantee** that a website is safe or suitable for you. Always check the address before entering a password or payment details.
+
+**Visit counts.** "Visits" are unique visits to the official website made through Webcenta. Repeated clicks, automated traffic and the developer's own visits are not counted. A visit means someone left Webcenta for the website; it does not prove the website loaded or what happened there.
+
+**Ratings.** Ratings and reviews come only from signed-in Webcenta users. See the [Review Guidelines](/legal/reviews).`,
+  },
+  reporting: {
+    title: "Reporting and Appeals",
+    summary: "How to report a problem and how to appeal a decision.",
+    body: `**Report a listing or review.** Use the **Report** button on the app page or next to a review. Tell us what is wrong (for example a scam, malware, impersonation, wrong information or an abusive review). Reports are confidential: the developer is not told who reported them.
+
+**Report a security problem with Webcenta itself.** Use [Contact & support](/contact).
+
+**What happens next.** A moderator reviews the report. Serious risks can be restricted immediately while we investigate. You can follow your reports in your account.
+
+**Appeals.** If your listing or review was rejected, suspended or removed, you can appeal from your account or the developer portal. Explain why you think the decision was wrong; a different moderator reviews it, and you are told the outcome.
+
+**Copyright and trademarks.** Rights holders can contact us through [Contact & support](/contact) with the details of their claim.`,
+  },
+  advertising: {
+    title: "Advertising and Sponsored Placements",
+    summary: "How ads and sponsored placements appear on Webcenta.",
+    body: `**Sponsored placements.** If a developer pays for a placement, it is always labelled **"Sponsored"**. Paying never changes organic rankings or search order, and never skips moderation or security checks. Sponsored placements are not offered at the moment.
+
+**Ads.** Webcenta may show ads from Google AdSense on browsing pages, never on app detail pages, sign-in pages or your account. Advertising cookies are used only if you accept them in **Cookie settings** (see the [Cookie Policy](/legal/cookies)).
+
+**Rankings.** Rankings and recommendations are based on relevance and activity on Webcenta (views, visits, ratings and, when you allow it, your own interests). You can turn personalisation off in your account.
+
+**Affiliate links.** Webcenta does not currently use affiliate links. If that changes, affected links will be disclosed.`,
+  },
+};

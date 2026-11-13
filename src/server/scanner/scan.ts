@@ -169,7 +169,7 @@ function analyzeLinks(html: string, base: string): { privacy: string | null; ter
 
 export interface PreviousScan { finalUrl: string | null; pageTitle: string | null; contentHash: string | null; nameservers: string[]; tlsFingerprint: string | null; tlsIssuer: string | null }
 
-function riskScore(checks: CheckOutcome[]): number {
+export function riskScore(checks: CheckOutcome[]): number {
   const w: Record<string, number> = { CRITICAL: 60, HIGH: 35, MEDIUM: 15, LOW: 5 };
   let s = 0;
   for (const c of checks) if (c.verdict === "FAIL" || c.verdict === "WARN") s += (w[c.severity ?? "LOW"] ?? 5) * (c.verdict === "FAIL" ? 1 : 0.6);

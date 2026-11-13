@@ -50,7 +50,7 @@ export async function getHomepage(ctx: ViewerContext): Promise<{ rails: HomeRail
           items: await listCards(ctx, { where: { isEditorsPick: true }, orderBy: [{ publishedAt: "desc" }], take }) });
         break;
       case "NEW":
-        rails.push({ key: s.key, title: s.title, href: "/search?sort=newest", sponsoredIds: [],
+        rails.push({ key: s.key, title: s.title, subtitle: "Newly added to the marketplace", href: "/search?sort=newest", sponsoredIds: [],
           items: await listCards(ctx, { orderBy: [{ publishedAt: "desc" }], take }) });
         break;
       case "RECENTLY_UPDATED": {
@@ -59,16 +59,16 @@ export async function getHomepage(ctx: ViewerContext): Promise<{ rails: HomeRail
           SELECT id FROM Listing WHERE status = 'PUBLISHED' AND deletedAt IS NULL
             AND contentUpdatedAt > publishedAt + INTERVAL 1 DAY
           ORDER BY contentUpdatedAt DESC LIMIT ${take * 2}`;
-        rails.push({ key: s.key, title: s.title, href: "/search?sort=updated", sponsoredIds: [],
+        rails.push({ key: s.key, title: s.title, subtitle: "Listings with new details", href: "/search?sort=updated", sponsoredIds: [],
           items: (await cardsByIds(ctx, rows.map((r) => r.id))).slice(0, take) });
         break;
       }
       case "TRENDING":
-        rails.push({ key: s.key, title: s.title, sponsoredIds: [],
+        rails.push({ key: s.key, title: s.title, subtitle: "Gaining the most attention on Webcenta this week", sponsoredIds: [],
           items: await listCards(ctx, { where: { trendingScore: { gt: 0 } }, orderBy: [{ trendingScore: "desc" }], take }) });
         break;
       case "POPULAR":
-        rails.push({ key: s.key, title: s.title, sponsoredIds: [],
+        rails.push({ key: s.key, title: s.title, subtitle: "Most viewed and visited on Webcenta (not personalised)", sponsoredIds: [],
           items: await listCards(ctx, { where: { popularityScore: { gt: 0 } }, orderBy: [{ popularityScore: "desc" }], take }) });
         break;
       case "TOP_RATED": {

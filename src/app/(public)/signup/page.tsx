@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Create account", robots: { index: fa
 
 export default async function SignUpPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const sp = await searchParams;
-  const next = sp.next && isSafeRelativePath(sp.next) ? sp.next : "/account";
+  const next = sp.next && isSafeRelativePath(sp.next) ? sp.next : "/";
   if (await getCurrentUser()) redirect(next);
   return (
     <AuthShell title="Create your account" subtitle="Browsing is free without an account. An account lets you save apps, build collections and review."

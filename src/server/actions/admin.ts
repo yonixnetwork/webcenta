@@ -1,5 +1,7 @@
 "use server";
 
+import { getSection } from "@/server/settings/store";
+
 import { revalidatePath } from "next/cache";
 import { z, ZodError } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
@@ -578,11 +580,12 @@ export async function retryJobAction(jobId: string) {
 export async function sendPushAction(_s: ActionState, f: FormData): Promise<ActionState> {
   try {
     const a = await assertAdmin("push.send");
+    if (!(await getSection("engagement")).bool("campaigns")) return fail("Announcements are turned off in Settings → Push notifications & reminders.");
     const title = z.string().trim().min(3).max(120).parse(f.get("title"));
     const body = z.string().trim().min(3).max(400).parse(f.get("body"));
     // Only pages on Webcenta: a notification can never send people to another website.
     const url = z.string().trim().max(500).regex(/^\/(?!\/)[^\s]*$/, "Use a Webcenta path, for example /c/ai or /app/notion").parse(str(f, "url") || "/");
-    const subscribers = await db.pushSubscription.count({ where: { failureCount: { lt: 5 } } });
+    const subscribers = await db.pushSubscription.count({ where: { failureCount: { lt: 5 }, OR: [{ userId: null }, { user: { status: "ACTIVE", notifyAnnouncements: true, pushNotifications: true } }] } });
     if (!subscribers) return fail("No browser has turned on notifications yet.");
     const c = await db.pushCampaign.create({ data: { title, body, url, createdByAdminId: a.id } });
     await audit({ actorType: "ADMIN", adminId: a.id, action: "push.send", targetType: "PushCampaign", targetId: c.id, metadata: { title, url, subscribers } });
@@ -630,4 +633,23 @@ export async function importActionFor(id: string, op: "now" | "retry" | "skip") 
   }
   await audit({ actorType: "ADMIN", adminId: a.id, action: `imports.${op}`, targetType: "ImportCandidate", targetId: id });
   refresh();
+}
+
+/** Bulk actions on Admin → Import web apps (selected rows, or every eligible pending import). */
+export async function bulkImportsAction(_s: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const a = await assertAdmin("imports.manage");
+    const op = z.enum(["publish", "publish-all", "reject", "archive", "category", "import", "exclude", "review"]).parse(f.get("op"));
+    const ids = f.getAll("ids").map(String).filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 500);
+    if (op !== "publish-all" && !ids.length) return fail("Select at least one row.");
+    const bulk = await import("@/server/importer/bulk");
+    const r = op === "publish" ? await bulk.bulkPublish(a.id, ids)
+      : op === "publish-all" ? await bulk.bulkPublish(a.id, "all")
+      : op === "reject" || op === "archive" ? await bulk.bulkReject(a.id, ids, op)
+      : op === "category" ? await bulk.bulkCategory(a.id, ids, z.string().min(1).parse(f.get("categoryId")))
+      : await bulk.bulkQueue(a.id, ids, op);
+    refresh();
+    const skipped = r.skipped.length ? ` Skipped ${r.skipped.length}: ${r.skipped.slice(0, 5).map((s) => `${s.name} (${s.reason})`).join("; ")}${r.skipped.length > 5 ? "…" : ""}` : "";
+    return r.done || !r.skipped.length ? ok(`Done: ${r.done}.${skipped}`) : fail(`Nothing changed.${skipped}`);
+  } catch (e) { return err(e); }
 }

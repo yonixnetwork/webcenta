@@ -2,22 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Gamepad2, House, LayoutGrid, Search, UserRound } from "lucide-react";
+import { Bookmark, Gamepad2, House, LayoutGrid, Search } from "lucide-react";
 import { cn } from "./ui/cn";
 
+// Categories are reached from the chips at the top of every browsing page, so they have no tab.
 const TABS = [
   { href: "/", label: "Today", icon: House, match: (p: string) => p === "/" },
-  { href: "/categories", label: "Categories", icon: LayoutGrid, match: (p: string) => p.startsWith("/categories") || (p.startsWith("/c/") && !p.startsWith("/c/games")) },
   { href: "/c/games", label: "Games", icon: Gamepad2, match: (p: string) => p.startsWith("/c/games") },
+  { href: "/apps", label: "Apps", icon: LayoutGrid, match: (p: string) => p.startsWith("/apps") || p.startsWith("/categories") || (p.startsWith("/c/") && !p.startsWith("/c/games")) },
+  { href: "/account/favorites", label: "Saved", icon: Bookmark, match: (p: string) => p.startsWith("/account/favorites") || p.startsWith("/account/collections") },
   { href: "/search", label: "Search", icon: Search, match: (p: string) => p.startsWith("/search") },
-  { href: "/account", label: "You", icon: UserRound, match: (p: string) => p.startsWith("/account") || p === "/signin" || p === "/signup" },
 ];
 
 /** Floating, rounded tab bar on phones, in the style of the iOS App Store and Google Play. */
 export function MobileNav() {
   const path = usePathname() ?? "/";
   return (
-    <nav aria-label="Mobile" className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 sm:hidden">
+    // position: fixed on the viewport (outside the scrolling content, no transformed ancestor), above
+    // the home indicator. translateZ keeps iOS from repainting it with the page during scroll.
+    <nav aria-label="Mobile" className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 [transform:translateZ(0)] sm:hidden">
       <div className="mx-auto flex max-w-md items-stretch gap-1 rounded-full border border-border/70 bg-surface/90 p-1.5 shadow-pop backdrop-blur-xl supports-[backdrop-filter]:bg-surface/80">
         {TABS.map(({ href, label, icon: Icon, match }) => {
           const active = match(path);

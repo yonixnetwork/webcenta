@@ -42,6 +42,17 @@ export async function recordListingEvent(listingId: string, type: "VIEW" | "OUTB
   return n > 0;
 }
 
+/**
+ * True when the signed-in user is a member of the organisation that publishes the listing: their
+ * own views and clicks (previews, checks) are not counted as visitors.
+ */
+export async function isListingTeam(listingId: string, userId: string | null | undefined): Promise<boolean> {
+  if (!userId) return false;
+  const l = await db.listing.findUnique({ where: { id: listingId }, select: { developerId: true } });
+  if (!l?.developerId) return false;
+  return Boolean(await db.developerMember.findUnique({ where: { orgId_userId: { orgId: l.developerId, userId } }, select: { userId: true } }));
+}
+
 /** One search impression per listing per visitor per day. */
 export async function recordSearchImpressions(listingIds: string[], h: Headers): Promise<number> {
   if (listingIds.length === 0) return 0;

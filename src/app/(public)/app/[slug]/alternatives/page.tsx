@@ -31,7 +31,7 @@ export default async function AlternativesPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <Link href={`/app/${listing.slug}`} className="text-sm text-muted hover:text-text">← Back to {listing.name}</Link>
-      <h1 className="text-3xl font-extrabold tracking-tight">Alternatives to {listing.name}</h1>
+      <h1 className="text-2xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">Alternatives to {listing.name}</h1>
       <p className="text-muted">Ranked by shared categories, tags and editorial comparisons. Not influenced by payment.</p>
       {items.length ? <CardGrid items={items} /> : <EmptyState title="No alternatives listed yet" />}
     </div>

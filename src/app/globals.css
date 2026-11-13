@@ -111,7 +111,10 @@
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
 
-html { background: var(--bg); }
+html { background: var(--bg); scrollbar-gutter: stable; }
+/* Nothing may widen the page beyond the screen (which would push fixed bars sideways). "clip" keeps
+   position: sticky working, unlike overflow: hidden. */
+html, body { overflow-x: clip; }
 body { background: var(--bg); color: var(--text); font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiased; }
 
 :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }

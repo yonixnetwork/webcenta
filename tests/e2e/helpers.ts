@@ -126,7 +126,8 @@ export async function registerUser(page: Page, email: string, name: string, pass
   await page.getByRole("button", { name: "Create account" }).click();
   await page.getByText("Account created").waitFor();
   await page.goto(await emailLink(email, "verify-email"));
-  await page.waitForURL(/\/account/);
+  // The confirmation link signs the user in and returns to the marketplace homepage.
+  await page.waitForURL(/\/\?welcome=1$/);
   return password;
 }
 

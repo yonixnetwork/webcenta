@@ -5,17 +5,20 @@ import { AppCard } from "@/components/app-card";
 import { FeaturedCarousel, StoreListSection } from "@/components/store-sections";
 import { SearchBox } from "@/components/search-box";
 import { EmptyState } from "@/components/states";
-import { getCategoryTree } from "@/server/catalog/categories";
+import { categoryListingCounts, getCategoryTree } from "@/server/catalog/categories";
 import { getHomepage } from "@/server/catalog/homepage";
 import { getViewerContext } from "@/server/viewer";
 import { getCurrentUser } from "@/server/auth/session";
 import { personalRails } from "@/server/personalization/recommend";
 import { siteInfo } from "@/server/settings/site";
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
+  const { welcome } = await searchParams;
   const ctx = await getViewerContext();
   const user = await getCurrentUser();
-  const [{ rails, collections }, tree, personal] = await Promise.all([getHomepage(ctx), getCategoryTree(ctx.maxAgeRating), user ? personalRails(user, ctx) : Promise.resolve([])]);
+  const [{ rails, collections }, tree, personal, counts] = await Promise.all([getHomepage(ctx), getCategoryTree(ctx.maxAgeRating), user ? personalRails(user, ctx) : Promise.resolve([]), categoryListingCounts(ctx)]);
+  // Popular categories: the ones with the most published apps (real counts), then the store order.
+  const popularCats = [...tree].sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0)).slice(0, 12);
   const suggested = tree.slice(0, 6).map((c) => c.name);
   const site = await siteInfo();
   const origin = (process.env.PUBLIC_ORIGIN || "http://localhost:3000").replace(/\/$/, "");
@@ -24,14 +27,15 @@ export default async function HomePage() {
   // The first rail with items becomes the swipeable featured carousel at the top (as in the app stores).
   const featured = rails.find((r) => r.key === "featured" && r.items.length) ?? rails.find((r) => r.key === "editors-picks" && r.items.length);
   const ranked = new Set(["popular", "trending", "top-rated"]);
-  const chip = "inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold shadow-card transition hover:border-brand/40 hover:text-brand";
+  const chip = "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold shadow-card transition hover:border-brand/40 hover:text-brand";
 
   return (
     <div className="space-y-7 sm:space-y-12">
+      {welcome && <p role="status" className="rounded-2xl bg-success-soft px-4 py-3 text-sm font-medium text-success">Your email is confirmed. Welcome to Webcenta!</p>}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgLd).replace(/</g, "\\u003c") }} />
 
       {/* Phones: a large title and categories first, like the App Store and Google Play. The search tab lives in the bottom bar. */}
-      <h1 className="-mb-4 text-[2rem] font-extrabold leading-tight tracking-tight sm:hidden">Discover</h1>
+      <h1 className="text-[1.75rem] font-extrabold leading-tight tracking-tight sm:hidden">Discover</h1>
       <nav aria-label="Browse" className="scrollbar-none -mx-4 -mt-1 flex gap-2 overflow-x-auto px-4 py-1 sm:hidden">
         <Link href="/search?sort=popular" className={chip}><ChartNoAxesColumn className="size-4 text-brand" aria-hidden />Top charts</Link>
         <Link href="/categories" className={chip}><LayoutGrid className="size-4 text-brand" aria-hidden />Categories</Link>
@@ -75,15 +79,16 @@ export default async function HomePage() {
 
       <section aria-labelledby="browse-categories" className="space-y-4">
         <div className="flex items-end justify-between">
-          <h2 id="browse-categories" className="text-[1.35rem] font-bold tracking-tight sm:text-2xl">Browse categories</h2>
+          <h2 id="browse-categories" className="text-[1.35rem] font-bold tracking-tight sm:text-2xl">Popular categories</h2>
           <Link href="/categories" className="text-sm font-semibold text-brand hover:underline">See all</Link>
         </div>
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-          {tree.slice(0, 12).map((c) => (
+          {popularCats.map((c) => (
             <li key={c.id}>
               <Link href={`/c/${c.slug}`} className="flex items-center gap-2.5 rounded-2xl border border-border bg-surface px-3 py-3 text-sm font-semibold shadow-card transition hover:border-brand/40 hover:text-brand">
                 <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand-soft"><CategoryIcon icon={c.icon} className="size-4 text-brand" /></span>
-                <span className="truncate">{c.name}</span>
+                <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                {(counts.get(c.id) ?? 0) > 0 && <span className="shrink-0 text-xs font-medium text-subtle">{counts.get(c.id)}<span className="sr-only"> apps</span></span>}
               </Link>
             </li>
           ))}

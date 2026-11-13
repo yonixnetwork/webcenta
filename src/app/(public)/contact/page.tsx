@@ -10,7 +10,7 @@ export default async function ContactPage() {
   const user = await getCurrentUser();
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <h1 className="text-3xl font-extrabold tracking-tight">Contact & support</h1>
+      <h1 className="text-2xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">Contact & support</h1>
       <p className="text-muted">Questions, copyright complaints or account problems. To report a specific app or review, use the Report button on its page.</p>
       <Card>
         <ActionForm action={contactAction} submitLabel="Send message" hideOnSuccess>

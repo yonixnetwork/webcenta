@@ -69,19 +69,32 @@ export async function personalRails(user: CurrentUser, ctx: ViewerContext): Prom
     if (l) {
       const ids = (await relatedCandidateIds(l.id, 20)).map((c) => c.id).filter((id) => !seenIds.has(id));
       const items = (await cardsByIds(ctx, ids)).slice(0, 12);
-      if (items.length) rails.push({ key: "because-viewed", title: `Because you viewed ${l.name}`, items });
+      if (items.length) rails.push({ key: "because-viewed", title: "You might like these", items });
     }
   }
   if (favs.length) {
     const scores = new Map<string, number>();
     for (const f of favs.slice(0, 5)) for (const c of await relatedCandidateIds(f.listingId, 20)) if (!seenIds.has(c.id)) scores.set(c.id, (scores.get(c.id) ?? 0) + c.score);
     const items = (await cardsByIds(ctx, [...scores.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id))).slice(0, 12);
-    if (items.length) rails.push({ key: "similar-favorites", title: "Similar to your favourites", items });
+    if (items.length) rails.push({ key: "similar-favorites", title: "Based on your saved apps", items });
   }
   const recentIds = [...new Set(recent.map((r) => r.listingId!))].slice(0, 12);
   const recentCards = await cardsByIds(ctx, recentIds);
   if (recentCards.length) rails.push({ key: "recently-explored", title: "Recently explored", items: recentCards });
   const discover = await listCards(ctx, { where: { id: { notIn: [...seenIds] }, ...(topCats.length ? { NOT: { categories: { some: { OR: [{ categoryId: { in: topCats } }, { category: { parentId: { in: topCats } } }] } } } } : {}) }, orderBy: [{ publishedAt: "desc" }], take: 12 });
-  if (discover.length) rails.push({ key: "discover", title: "Discover something new", items: discover });
-  return rails;
+  if (discover.length) rails.push({ key: "discover", title: "Discover more apps", items: discover });
+  return dedupeRails(rails);
+}
+
+/** An app appears in at most one personal rail; rails left with fewer than 3 apps are dropped. */
+export function dedupeRails(rails: PersonalRail[]): PersonalRail[] {
+  const shown = new Set<string>();
+  const out: PersonalRail[] = [];
+  for (const r of rails) {
+    const items = r.items.filter((i) => !shown.has(i.id));
+    if (items.length < 3) continue;
+    items.forEach((i) => shown.add(i.id));
+    out.push({ ...r, items });
+  }
+  return out;
 }

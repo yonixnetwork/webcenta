@@ -60,7 +60,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       <header className="flex items-start gap-4">
         <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand"><CategoryIcon icon={cat.icon} emoji={cat.emoji} preferEmoji className="grid size-7 place-items-center text-3xl" /></span>
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">{cat.name}</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">{cat.name}</h1>
           {cat.description && <p className="mt-1 max-w-2xl text-muted">{cat.description}</p>}
         </div>
       </header>
@@ -68,7 +68,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         <ul className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" aria-label="Subcategories">
           {cat.children.map((c) => (
             <li key={c.id} className="shrink-0">
-              <Link href={`/c/${c.slug}`} className="inline-block rounded-full border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:border-brand/40 hover:text-brand">{c.name}</Link>
+              <Link href={`/c/${c.slug}`} className="inline-block whitespace-nowrap rounded-full border border-border bg-surface px-3.5 py-2 text-sm font-medium leading-none hover:border-brand/40 hover:text-brand">{c.name}</Link>
             </li>
           ))}
         </ul>

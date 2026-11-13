@@ -6,6 +6,7 @@ import { parseSurface, recordOutboundClick } from "@/server/analytics/outbound";
 import { getViewerContext } from "@/server/viewer";
 import { getCurrentUser } from "@/server/auth/session";
 import { recordInteraction } from "@/server/personalization/signals";
+import { isListingTeam } from "@/server/analytics/events";
 
 /**
  * Tracked outbound redirect. The destination is ALWAYS the listing's stored
@@ -23,8 +24,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const form = await request.formData().catch(() => null);
   try {
-    const counted = await recordOutboundClick(listing.id, request.headers, parseSurface(form?.get("surface")));
     const user = await getCurrentUser();
+    // The listing's own developers are not counted as visitors.
+    const counted = !(await isListingTeam(listing.id, user?.id)) && await recordOutboundClick(listing.id, request.headers, parseSurface(form?.get("surface")));
     if (user && counted) await recordInteraction(user.id, { type: "OUTBOUND_CLICK", listingId: listing.id });
   } catch (err) {
     // Never block the user's navigation because analytics failed.

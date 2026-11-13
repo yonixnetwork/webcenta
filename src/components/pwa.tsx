@@ -13,13 +13,14 @@ interface BeforeInstallPromptEvent extends Event { prompt(): Promise<void>; user
  * (Chromium on Android/Windows/macOS/Linux), or Add-to-Home-Screen instructions
  * on iOS/iPadOS Safari (which has no install prompt API).
  */
-export function PwaManager() {
+export function PwaManager({ build }: { build: string }) {
   const [installEvt, setInstallEvt] = useState<BeforeInstallPromptEvent | null>(null);
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
   const [showIos, setShowIos] = useState(false);
   const [iosEligible, setIosEligible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-  const [deployed, setDeployed] = useState(false);
+  /** The newer build id that is running on the server, when this page is older. */
+  const [deployed, setDeployed] = useState<string | null>(null);
   // The install suggestion waits until the cookie question has been answered.
   const [consented, setConsented] = useState(true);
   // Offer push notifications once (after the cookie question, and not together with the install banner).
@@ -34,7 +35,13 @@ export function PwaManager() {
       try { setDismissed(localStorage.getItem("wc-install-dismissed") === "1"); } catch { /* storage unavailable */ }
       setConsented(document.cookie.includes("wc-consent="));
       try {
-        setPushAsk(pushSupported() && Notification.permission === "default" && localStorage.getItem("wc-push-asked") !== "1");
+        // Not on the first pages of a first visit: only after a few page views, never while the
+        // browser has already decided (granted/denied), and back off after "Not now".
+        const views = Number(localStorage.getItem("wc-pv") ?? "0") + 1;
+        localStorage.setItem("wc-pv", String(views));
+        const snoozedUntil = Number(localStorage.getItem("wc-push-snooze") ?? "0");
+        const declines = Number(localStorage.getItem("wc-push-declines") ?? "0");
+        setPushAsk(pushSupported() && Notification.permission === "default" && views >= 3 && declines < 2 && Date.now() > snoozedUntil);
       } catch { /* storage unavailable */ }
     });
     const onPrompt = (e: Event) => { e.preventDefault(); setInstallEvt(e as BeforeInstallPromptEvent); };
@@ -57,28 +64,34 @@ export function PwaManager() {
       navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
     }
     // A new deployment: compare the build this page was made with against the running server.
-    const mine = process.env.NEXT_PUBLIC_BUILD_ID;
+    // `build` is the id the server rendered this page with; /api/version reports the running one.
     const check = async () => {
-      if (!mine || document.visibilityState !== "visible") return;
+      if (build === "dev" || document.visibilityState !== "visible") return;
       try {
         const r = await fetch("/api/version", { cache: "no-store" });
-        const { build } = (await r.json()) as { build?: string };
-        if (build && build !== "dev" && build !== mine) setDeployed(true);
+        const { build: latest } = (await r.json()) as { build?: string };
+        if (!latest || latest === "dev" || latest === build) return;
+        // Loop guard: if this tab already reloaded for that build and still has an older page (a
+        // stale copy from a cache), do not ask again in this session.
+        let applied: string | null = null;
+        try { applied = sessionStorage.getItem("wc-update-applied"); } catch { /* storage unavailable */ }
+        if (applied !== latest) setDeployed(latest);
       } catch { /* offline */ }
     };
     const timer = window.setInterval(check, 10 * 60_000);
     document.addEventListener("visibilitychange", check);
     window.setTimeout(check, 3000);
     return () => {
+      window.clearInterval(timer);
       window.removeEventListener("beforeinstallprompt", onPrompt);
       document.removeEventListener("visibilitychange", check);
       window.removeEventListener("wc-consent", onConsent);
-      window.clearInterval(timer);
     };
-  }, []);
+  }, [build]);
 
   /** Clears this site's caches and the service worker's copy, then loads the new version. */
   const reloadFresh = async () => {
+    try { if (deployed) sessionStorage.setItem("wc-update-applied", deployed); } catch { /* storage unavailable */ }
     try {
       if ("caches" in window) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
       const reg = await navigator.serviceWorker?.getRegistration();
@@ -88,7 +101,14 @@ export function PwaManager() {
     location.reload();
   };
 
-  const closePush = () => { setPushAsk(false); try { localStorage.setItem("wc-push-asked", "1"); } catch { /* ignore */ } };
+  /** "Not now": ask again in two weeks at most once more, then never (the native prompt is only shown on "Enable"). */
+  const closePush = (declined: boolean) => {
+    setPushAsk(false);
+    try {
+      if (declined) localStorage.setItem("wc-push-declines", String(Number(localStorage.getItem("wc-push-declines") ?? "0") + 1));
+      localStorage.setItem("wc-push-snooze", String(Date.now() + (declined ? 14 : 3650) * 86_400_000));
+    } catch { /* ignore */ }
+  };
   const installShown = !dismissed && consented && (installEvt || iosEligible) && !waiting && !deployed;
 
   const dismiss = () => { setDismissed(true); try { localStorage.setItem("wc-install-dismissed", "1"); } catch { /* ignore */ } };
@@ -115,9 +135,11 @@ export function PwaManager() {
       {pushAsk && consented && !installShown && !waiting && !deployed && (
         <div className="fixed inset-x-4 bottom-28 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2 shadow-pop sm:bottom-6" data-testid="push-banner">
           <Bell className="size-5 shrink-0 text-brand" aria-hidden />
-          <p className="flex-1 text-sm font-medium">Get notified about new apps and updates</p>
-          <button type="button" className={buttonClass("primary", "sm")} onClick={async () => { await enablePush(); closePush(); }}>Turn on</button>
-          <button type="button" aria-label="Not now" onClick={closePush} className="text-subtle hover:text-text"><X className="size-4" aria-hidden /></button>
+          <p className="flex-1 text-sm">Stay updated with new applications, trending tools and discoveries on Webcenta.</p>
+          <span className="flex shrink-0 flex-col gap-1">
+            <button type="button" className={buttonClass("primary", "sm")} onClick={async () => { await enablePush(); closePush(false); }}>Enable notifications</button>
+            <button type="button" onClick={() => closePush(true)} className="text-xs font-medium text-muted hover:text-text">Not now</button>
+          </span>
         </div>
       )}
       {showIos && (

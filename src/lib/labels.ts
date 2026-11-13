@@ -1,7 +1,7 @@
 import type { AgeRating, DeveloperVerificationLevel, Platform, PricingModel, SecurityStatus } from "@/generated/prisma/enums";
 
 export const PRICING_LABEL: Record<PricingModel, string> = {
-  FREE: "Free", FREEMIUM: "Freemium", PAID: "Paid", SUBSCRIPTION: "Subscription",
+  FREE: "Free", FREEMIUM: "Freemium", PAID: "Paid", SUBSCRIPTION: "Subscription", UNKNOWN: "See website",
 };
 
 export const PLATFORM_LABEL: Record<Platform, string> = {

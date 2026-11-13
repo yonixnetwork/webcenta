@@ -83,6 +83,27 @@ test.describe("PWA", () => {
     }
   });
 
+  test("a new deployment shows the update banner once; Reload loads it and the banner does not loop", async ({ page }) => {
+    await page.goto("/");
+    const current = (await (await page.request.get("/api/version")).json()) as { build: string };
+    expect(current.build).not.toBe("dev");
+    // Same build: no banner.
+    await page.waitForTimeout(3500);
+    await expect(page.getByTestId("update-banner")).toHaveCount(0);
+    // The server now reports a newer build (a deployment happened while the page was open).
+    await page.route("**/api/version", (r) => r.fulfill({ json: { build: `${current.build}-next` } }));
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    const banner = page.getByTestId("update-banner");
+    await expect(banner).toBeVisible();
+    await banner.getByRole("button", { name: "Reload" }).click();
+    await page.waitForLoadState("load");
+    // Still "newer" because this test keeps faking it: the loop guard keeps the banner away.
+    await page.waitForTimeout(3500);
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await page.waitForTimeout(500);
+    await expect(page.getByTestId("update-banner")).toHaveCount(0);
+  });
+
   test("Android/desktop: the install prompt is offered and triggered from the banner", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => navigator.serviceWorker.ready); // the app's PWA handler is mounted

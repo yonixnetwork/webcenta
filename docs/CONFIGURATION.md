@@ -140,7 +140,7 @@ Dashboard: **Google Web Risk** (immediate, connection test), **abuse.ch URLhaus*
 
 ## Notifications
 
-Dashboard: **Notifications** (immediate).
+Dashboard: **Notifications** (immediate), **Push notifications & reminders** (immediate).
 
 ## External APIs
 

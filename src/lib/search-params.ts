@@ -2,6 +2,8 @@ import { z } from "zod";
 
 /** Search/browse filters parsed leniently from URL query parameters. */
 export const PRICING = ["FREE", "FREEMIUM", "PAID", "SUBSCRIPTION"] as const;
+/** Values a listing may have: the filters above, plus "not stated" (never guessed). */
+export const LISTING_PRICING = [...PRICING, "UNKNOWN"] as const;
 export const PLATFORMS = ["WEB", "ANDROID", "IOS", "WINDOWS", "MACOS", "LINUX", "BROWSER_EXTENSION"] as const;
 export const SORTS = ["relevance", "newest", "updated", "rating", "name"] as const;
 export type SortKey = (typeof SORTS)[number];
