@@ -105,7 +105,7 @@ test("an administrator imports a web app with its details, logo and screenshot",
   await page.getByRole("combobox", { name: "Category", exact: true }).selectOption("productivity");
   await page.getByLabel(/Import a single address immediately/).check();
   await page.getByRole("button", { name: "Add to queue" }).click();
-  await expect(page.getByText(/Imported\./)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/Imported \(job #[0-9a-f]{8}\)/)).toBeVisible({ timeout: 30_000 });
   const [rev] = await sql<{ data: string | Record<string, unknown> }>(`select r.data from "Listing" l join "ListingRevision" r on r."listingId" = l.id where l.domain = 'importme.localhost'`);
   const data = (typeof rev!.data === "string" ? JSON.parse(rev!.data) : rev!.data) as { name: string; description: string; privacyPolicyUrl?: string; logoAssetId?: string; screenshotAssetIds?: string[] };
   expect(data.name).toBe("importme App");

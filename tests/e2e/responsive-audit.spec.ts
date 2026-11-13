@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { test, type Page } from "@playwright/test";
-import { BASE, registerUser } from "./helpers";
+import { BASE, registerUser, sql } from "./helpers";
 
 /**
  * Production-repair responsive audit (opt-in: RESPONSIVE_AUDIT=1). Every listed page at the ten
@@ -44,6 +44,7 @@ test("every page at every viewport", async ({ browser }) => {
   await registerUser(p0, `audit-${Date.now()}@example.test`, "Audit Person");
   const session = await reg.storageState();
   await reg.close();
+  await sql(`delete from "AuthRateLimit" where "key" like '%sign-up%'`);
   for (const vp of VIEWPORTS) {
     const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h }, isMobile: vp.m, hasTouch: vp.m, deviceScaleFactor: 1, storageState: session });
     const page = await ctx.newPage();

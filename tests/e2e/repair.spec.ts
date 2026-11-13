@@ -25,7 +25,9 @@ let admin: Page;
 let userSession: Awaited<ReturnType<import("@playwright/test").BrowserContext["storageState"]>>;
 
 test.afterAll(async () => {
-  await sql(`delete from "SystemSetting" where "key" in ('config.adsterra', 'config.ads', 'config.google', 'jobs.lock')`);
+  await sql(`delete from "SystemSetting" where "key" in ('config.adsterra', 'config.ads', 'config.google', 'config.imports', 'jobs.lock')`);
+  // This file signs up extra accounts; give later suites their own sign-up allowance.
+  await sql(`delete from "AuthRateLimit" where "key" like '%sign-up%'`);
   await sql(`update "SystemSetting" set value = $1 where "key" = 'config.__version'`, [JSON.stringify({ v: `repair-reset-${RUN}` })]);
   await sql(`delete from "PushSubscription"`);
   await closeDb();
@@ -315,7 +317,9 @@ test("filters: a bottom sheet on phones and a compact panel on desktop", async (
   const desk = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const d = await desk.newPage();
   await d.goto(`${BASE}/search?q=code`);
-  const bar = await d.locator("form[action='/search']").last().boundingBox();
+  const form = d.locator("form", { has: d.locator("summary", { hasText: "Filters" }) });
+  await expect(form).toBeVisible();
+  const bar = await form.boundingBox();
   expect(bar!.height).toBeLessThan(60); // one slim row when closed
   await d.locator("summary", { hasText: "Filters" }).click();
   expect((await d.getByRole("group", { name: "Filters" }).boundingBox())!.width).toBeLessThanOrEqual(600);
@@ -345,7 +349,11 @@ test("Google sign-in shows Google's G mark and keeps working markup", async ({ b
     }
     await shot(page, `google-signup-${vp.width}`);
     await ctx.close();
-  }
+  }  // Leave Google sign-in as it was (off) for the following suites.
+  await admin.goto(`${ADMIN}/settings/google`);
+  await admin.getByLabel("Enable Google sign-in").uncheck();
+  await admin.getByRole("button", { name: "Save" }).click();
+  await expect(admin.getByText(/Saved \(/).first()).toBeVisible();
 });
 
 test("HTML-file domain verification: exact file, address and server-side check", async ({ browser }) => {
