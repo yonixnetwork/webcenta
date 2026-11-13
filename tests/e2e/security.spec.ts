@@ -85,7 +85,7 @@ test("open redirects: sign-in `next` and /go ignore attacker-controlled destinat
   await page.getByLabel("Email").fill(B.email);
   await page.getByLabel("Password").fill(B.password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(`${BASE}/account`);
+  await page.waitForURL(`${BASE}/`); // the unsafe `next` is ignored: the homepage
   const go = await request.post(`${BASE}/go/sample-lumen-notes/continue?to=https://evil.example`, { form: { url: "https://evil.example" }, maxRedirects: 0 });
   expect(go.headers()["location"]).toBe("https://lumen-notes.example/");
 });

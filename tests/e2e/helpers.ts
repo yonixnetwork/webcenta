@@ -160,3 +160,10 @@ export async function settle(page: Page) {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(300);
 }
+
+/** Signs out from the marketplace account menu and waits until the header shows "Sign in". */
+export async function signOut(page: Page) {
+  await page.getByRole("button", { name: /Open account menu/ }).click();
+  await page.getByTestId("account-menu").getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("banner").getByRole("link", { name: "Sign in" }).waitFor();
+}

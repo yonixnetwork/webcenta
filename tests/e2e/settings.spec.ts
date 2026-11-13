@@ -102,7 +102,7 @@ test("an administrator imports a web app with its details, logo and screenshot",
   await expect(page.getByText(/Saved/)).toBeVisible();
   await page.goto(`${ADMIN}/imports`);
   await page.getByLabel("Website addresses").fill("https://importme.localhost");
-  await page.getByLabel("Category").selectOption("productivity");
+  await page.getByRole("combobox", { name: "Category", exact: true }).selectOption("productivity");
   await page.getByLabel(/Import a single address immediately/).check();
   await page.getByRole("button", { name: "Add to queue" }).click();
   await expect(page.getByText(/Imported\./)).toBeVisible({ timeout: 30_000 });

@@ -128,6 +128,7 @@ describe("taxonomy and catalogue", () => {
 import { visitMilestone } from "@/lib/visits";
 import { importDecision } from "@/server/importer/policy";
 import { dedupeRails } from "@/server/personalization/recommend";
+import type { CheckOutcome } from "@/server/scanner/scan";
 
 describe("visit milestones", () => {
   it("shows nothing below 500 and only milestones that were reached", () => {
@@ -146,13 +147,13 @@ describe("visit milestones", () => {
 });
 
 describe("risk-based publishing of imports", () => {
-  const pass = (check: string, provider = "internal") => ({ check: check as never, provider, verdict: "PASS" as const, summary: "" });
-  const base = {
+  const pass = (check: string, provider = "internal"): CheckOutcome => ({ check: check as never, provider, verdict: "PASS", summary: "" });
+  const base: Parameters<typeof importDecision>[1] = {
     outcomes: [pass("DNS_RESOLUTION"), pass("TLS_CERTIFICATE"), pass("THREAT_INTEL_DOMAIN", "cloudflare-security-dns")],
     categorySlugs: ["productivity", "productivity-notes"], manualReview: false, complianceRequired: false, tierAllowsAuto: true,
     reviewRequired: false, openReports: 0, hasLogo: true, descriptionLength: 200,
   };
-  const policy = { autoPublish: true, maxRiskScore: 10, eligibleCategories: [], reviewCategories: [] };
+  const policy: Parameters<typeof importDecision>[0] = { autoPublish: true, maxRiskScore: 10, eligibleCategories: [], reviewCategories: [] };
   it("publishes a clean, complete, low-risk import", () => {
     expect(importDecision(policy, base)).toEqual({ publish: true, score: 0, reasons: [] });
   });

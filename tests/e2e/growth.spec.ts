@@ -1,19 +1,19 @@
 import { expect, test } from "@playwright/test";
-import { BASE, registerUser, signIn, sql } from "./helpers";
+import { BASE, registerUser, signIn, signOut, sql } from "./helpers";
 
 /** Account drawer, tab bar, password visibility, sign-in destination and the notification centre. */
 test.describe.configure({ mode: "serial" });
 const RUN = `g${Date.now().toString(36)}`;
 const U = { email: `growth-${RUN}@example.test`, password: "" };
+// One signed-in session shared by the tests below (sign-ins are rate limited per address).
+let session: Awaited<ReturnType<import("@playwright/test").BrowserContext["storageState"]>>;
 
 test("sign-in goes to the homepage; the password can be shown and hidden", async ({ browser }) => {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   U.password = await registerUser(page, U.email, "Grace Growth");
   await expect(page).toHaveURL(`${BASE}/?welcome=1`);
-  await page.getByRole("button", { name: /Open account menu/ }).click();
-  await page.getByTestId("account-menu").getByRole("button", { name: "Sign out" }).click();
-  await page.waitForURL(`${BASE}/`);
+  await signOut(page);
   await page.goto(`${BASE}/signin`);
   const pw = page.getByLabel("Password", { exact: true });
   await pw.fill(U.password);
@@ -28,18 +28,17 @@ test("sign-in goes to the homepage; the password can be shown and hidden", async
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(`${BASE}/`);
   // A redirect the user asked for is still honoured.
-  await page.getByRole("button", { name: /Open account menu/ }).click();
-  await page.getByTestId("account-menu").getByRole("button", { name: "Sign out" }).click();
-  await page.waitForURL(`${BASE}/`);
+  await signOut(page);
   await signIn(page, U.email, U.password, "/account/reviews");
   await expect(page).toHaveURL(/\/account\/reviews$/);
+  session = await ctx.storageState();
   await ctx.close();
 });
 
 test("the account drawer opens over the page without moving it, and closes with Escape", async ({ browser }) => {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, storageState: session });
   const page = await ctx.newPage();
-  await signIn(page, U.email, U.password, "/");
+  await page.goto(`${BASE}/`);
   const nav = page.getByRole("navigation", { name: "Mobile" });
   const before = await nav.boundingBox();
   const width = await page.evaluate(() => document.documentElement.clientWidth);
@@ -62,8 +61,8 @@ test("the account drawer opens over the page without moving it, and closes with 
 });
 
 test("the notification centre lists, marks read and deletes notifications; preferences save", async ({ browser }) => {
-  const page = await (await browser.newContext()).newPage();
-  await signIn(page, U.email, U.password, "/account/notifications");
+  const page = await (await browser.newContext({ storageState: session })).newPage();
+  await page.goto(`${BASE}/account/notifications`);
   const [u] = await sql<{ id: string }>(`select id from "User" where email = $1`, [U.email]);
   await sql(`insert into "Notification" (id, "userId", type, title, body, "linkPath", "createdAt") values (UUID(), $1, 'NEW_APP', 'New in Productivity: Test App', 'A new app', '/apps', UTC_TIMESTAMP(3)), (UUID(), $1, 'ANNOUNCEMENT', 'Hello from Webcenta', null, null, UTC_TIMESTAMP(3))`, [u!.id]);
   await page.reload();
