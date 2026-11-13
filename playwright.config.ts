@@ -49,7 +49,7 @@ export default defineConfig({
   },
   projects: [
     { name: "journeys", testMatch: /journeys\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
-    { name: "desktop", testMatch: /(marketplace|responsive|security|pwa|reviews|settings|hosts|consent|growth)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
+    { name: "desktop", testMatch: /(marketplace|responsive|security|pwa|reviews|settings|hosts|consent|growth|audit-screens)\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
     { name: "tablet", testMatch: /(marketplace|responsive)\.spec\.ts/, use: { ...devices["iPad (gen 7) landscape"], browserName: "chromium" } },
     { name: "mobile", testMatch: /(marketplace|responsive|pwa)\.spec\.ts/, use: { ...devices["Pixel 7"] } },
   ],
