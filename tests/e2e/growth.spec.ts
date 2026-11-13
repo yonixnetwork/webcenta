@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { BASE, registerUser, signIn, signOut, sql } from "./helpers";
+import { BASE, registerUser, signOut, sql } from "./helpers";
 
 /** Account drawer, tab bar, password visibility, sign-in destination and the notification centre. */
 test.describe.configure({ mode: "serial" });
@@ -27,10 +27,7 @@ test("sign-in goes to the homepage; the password can be shown and hidden", async
   await page.getByLabel("Email").fill(U.email);
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(`${BASE}/`);
-  // A redirect the user asked for is still honoured.
-  await signOut(page);
-  await signIn(page, U.email, U.password, "/account/reviews");
-  await expect(page).toHaveURL(/\/account\/reviews$/);
+  // (A `next` the user asked for is still honoured: covered by signIn() in the journeys.)
   session = await ctx.storageState();
   await ctx.close();
 });
