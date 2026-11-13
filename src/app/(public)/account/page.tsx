@@ -30,8 +30,10 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <Field label="Country (optional, ISO code)" hint="Used to show apps available to you when we cannot detect your country."><input name="preferredCountry" maxLength={2} defaultValue={user.preferredCountry ?? ""} className={`${inputClass} uppercase`} /></Field>
         </ActionForm>
       </Card>
+      <div id="security" className="scroll-mt-24 space-y-6">
       {hasPassword > 0 && <Card><h2 className="mb-4 font-semibold">Password</h2><ChangePasswordForm /></Card>}
       <Card><h2 className="mb-4 font-semibold">Sign-in methods</h2><LinkedAccounts providers={await enabledSocialProviders()} /></Card>
+      </div>
       <Card>
         <h2 className="mb-3 font-semibold">Recent sign-in activity</h2>
         <ul className="mb-4 divide-y divide-border text-sm">

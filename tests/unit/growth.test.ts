@@ -124,3 +124,69 @@ describe("taxonomy and catalogue", () => {
     for (const u of urls) expect(u).toMatch(/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(\/\S*)?$/);
   });
 });
+
+import { visitMilestone } from "@/lib/visits";
+import { importDecision } from "@/server/importer/policy";
+import { dedupeRails } from "@/server/personalization/recommend";
+import type { CheckOutcome } from "@/server/scanner/scan";
+
+describe("visit milestones", () => {
+  it("shows nothing below 500 and only milestones that were reached", () => {
+    expect(visitMilestone(0)).toBeNull();
+    expect(visitMilestone(499)).toBeNull();
+    expect(visitMilestone(500)).toBe("500+ visits");
+    expect(visitMilestone(999)).toBe("500+ visits");
+    expect(visitMilestone(1000)).toBe("1K+ visits");
+    expect(visitMilestone(4999)).toBe("1K+ visits");
+    expect(visitMilestone(5000)).toBe("5K+ visits");
+    expect(visitMilestone(10_000)).toBe("10K+ visits");
+    expect(visitMilestone(50_000)).toBe("50K+ visits");
+    expect(visitMilestone(100_000)).toBe("100K+ visits");
+    expect(visitMilestone(2_500_000)).toBe("1M+ visits");
+  });
+});
+
+describe("risk-based publishing of imports", () => {
+  const pass = (check: string, provider = "internal"): CheckOutcome => ({ check: check as never, provider, verdict: "PASS", summary: "" });
+  const base: Parameters<typeof importDecision>[1] = {
+    outcomes: [pass("DNS_RESOLUTION"), pass("TLS_CERTIFICATE"), pass("THREAT_INTEL_DOMAIN", "cloudflare-security-dns")],
+    categorySlugs: ["productivity", "productivity-notes"], manualReview: false, complianceRequired: false, tierAllowsAuto: true,
+    reviewRequired: false, openReports: 0, hasLogo: true, descriptionLength: 200,
+  };
+  const policy: Parameters<typeof importDecision>[0] = { autoPublish: true, maxRiskScore: 10, eligibleCategories: [], reviewCategories: [] };
+  it("publishes a clean, complete, low-risk import", () => {
+    expect(importDecision(policy, base)).toEqual({ publish: true, score: 0, reasons: [] });
+  });
+  it("sends everything uncertain to review, with reasons", () => {
+    const cases: Array<[Partial<typeof base>, Partial<typeof policy>, RegExp]> = [
+      [{ outcomes: [...base.outcomes, { check: "PHISHING_HEURISTICS" as never, provider: "internal", verdict: "FAIL", summary: "", severity: "HIGH" }] }, {}, /failed checks/],
+      [{ outcomes: [pass("DNS_RESOLUTION")] }, {}, /no external/],
+      [{ manualReview: true }, {}, /always needs a moderator/],
+      [{ reviewRequired: true }, {}, /sent for review/],
+      [{ hasLogo: false }, {}, /no logo/],
+      [{ descriptionLength: 20 }, {}, /too little information/],
+      [{}, { reviewCategories: ["productivity"] }, /always needs review/],
+      [{}, { eligibleCategories: ["games"] }, /not enabled/],
+      [{}, { autoPublish: false }, /off/],
+      [{ outcomes: [...base.outcomes, { check: "POLICY_PAGES" as never, provider: "internal", verdict: "WARN", summary: "", severity: "MEDIUM" }] }, { maxRiskScore: 5 }, /risk score 9/],
+    ];
+    for (const [ctx, pol, re] of cases) {
+      const d = importDecision({ ...policy, ...pol }, { ...base, ...ctx });
+      expect(d.publish, String(re)).toBe(false);
+      expect(d.reasons.join("; ")).toMatch(re);
+    }
+  });
+});
+
+describe("recommendation rails", () => {
+  const card = (id: string) => ({ id }) as never;
+  it("never repeats an app across rails and drops rails left too short", () => {
+    const out = dedupeRails([
+      { key: "a", title: "Recommended for you", items: ["1", "2", "3", "4"].map(card) },
+      { key: "b", title: "You might like these", items: ["1", "2", "5"].map(card) },
+      { key: "c", title: "Discover more apps", items: ["6", "7", "8", "1"].map(card) },
+    ]);
+    expect(out.map((r) => r.key)).toEqual(["a", "c"]);
+    expect(out[1]!.items.map((i: { id: string }) => i.id)).toEqual(["6", "7", "8"]);
+  });
+});

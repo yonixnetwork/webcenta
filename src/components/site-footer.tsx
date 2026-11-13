@@ -6,7 +6,7 @@ const SOCIAL_LABEL: Record<string, string> = { x: "X", facebook: "Facebook", ins
 
 export function SiteFooter({ name = "Webcenta", contactEmail, socialLinks = [] }: { name?: string; contactEmail?: string; socialLinks?: Array<{ key: string; url: string }> }) {
   return (
-    <footer className="mt-20 border-t border-border bg-surface">
+    <footer className="mt-16 border-t border-border bg-surface pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-0">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-[2fr_1fr_1fr] sm:px-6">
         <div className="space-y-3">
           <Logo />
@@ -33,6 +33,7 @@ export function SiteFooter({ name = "Webcenta", contactEmail, socialLinks = [] }
             <li><Link href="/legal/privacy" className="hover:text-text">Privacy Policy</Link></li>
             <li><Link href="/legal/content" className="hover:text-text">Content Policy</Link></li>
             <li><Link href="/legal/cookies" className="hover:text-text">Cookie Policy</Link> · <CookieSettingsLink /></li>
+            <li><Link href="/legal" className="hover:text-text">All policies</Link></li>
             {contactEmail && <li><a href={`mailto:${contactEmail}`} className="hover:text-text">{contactEmail}</a></li>}
           </ul>
           {socialLinks.length > 0 && (

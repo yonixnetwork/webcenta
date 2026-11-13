@@ -102,7 +102,7 @@ test("an administrator imports a web app with its details, logo and screenshot",
   await expect(page.getByText(/Saved/)).toBeVisible();
   await page.goto(`${ADMIN}/imports`);
   await page.getByLabel("Website addresses").fill("https://importme.localhost");
-  await page.getByLabel("Category").selectOption("productivity");
+  await page.getByRole("combobox", { name: "Category", exact: true }).selectOption("productivity");
   await page.getByLabel(/Import a single address immediately/).check();
   await page.getByRole("button", { name: "Add to queue" }).click();
   await expect(page.getByText(/Imported\./)).toBeVisible({ timeout: 30_000 });
@@ -114,7 +114,7 @@ test("an administrator imports a web app with its details, logo and screenshot",
   const ids = [data.logoAssetId, ...(data.screenshotAssetIds ?? [])].filter((x): x is string => Boolean(x));
   const media = await sql<{ id: string; kind: string }>(`select id, kind from "MediaAsset" where kind in ('LOGO', 'SCREENSHOT')`);
   expect(media.filter((m) => ids.includes(m.id)).map((m) => m.kind).sort()).toEqual(["LOGO", "SCREENSHOT"]);
-  await expect(page.getByRole("link", { name: "Open listing" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Preview & review" }).first()).toBeVisible();
 });
 
 test("push notifications: the admin page explains the audience and refuses an empty audience", async () => {

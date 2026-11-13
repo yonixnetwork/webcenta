@@ -16,7 +16,7 @@ export default async function DeveloperHome() {
     return (
       <div className="space-y-6 py-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Webcenta for Developers</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">Webcenta for Developers</h1>
           <p className="mt-2 text-muted">Create a developer organisation to submit apps, verify your domains, reply to reviews and see analytics. Listing is free; every submission is reviewed before it appears.</p>
         </div>
         <Card>

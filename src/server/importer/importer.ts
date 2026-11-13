@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import type { ListingInput } from "@/server/listings/input";
 import { db } from "@/server/db";
 import { normalizeWebsiteUrl } from "@/lib/url";
 import { safeFetch } from "@/server/scanner/safe-fetch";
@@ -48,10 +47,6 @@ async function firstStored(urls: string[], kind: "LOGO" | "SCREENSHOT", adminId:
   return ids;
 }
 
-function guessPricing(m: { hasPricingPage: boolean; mentionsFree: boolean }): ListingInput["pricingModel"] {
-  if (m.hasPricingPage) return m.mentionsFree ? "FREEMIUM" : "PAID";
-  return "FREE";
-}
 
 /** The administrator new imports are credited to: the one who queued it, else the first active owner/administrator. */
 async function importAdmin(preferred: string | null): Promise<string | null> {
@@ -113,7 +108,8 @@ export async function importCandidate(id: string): Promise<ImportOutcome> {
     name, tagline, description: description.slice(0, 5000), features: [], websiteUrl: c.url,
     privacyPolicyUrl: ownPolicy(meta.privacyUrl), termsUrl: ownPolicy(meta.termsUrl),
     publisherName: (meta.siteName || name).slice(0, 120), primaryCategoryId: cat.id, categoryIds: [], tags: [],
-    pricingModel: guessPricing(meta), pricingDetails: "Detected automatically; check the website for current prices.",
+    // Pricing is never guessed: "not stated" until a moderator or the developer sets it.
+    pricingModel: "UNKNOWN",
     isOpenSource: false, platforms: ["WEB"], isBrowserBased: true, isMobileFriendly: meta.mobileFriendly, isPwaInstallable: Boolean(manifest?.standalone),
     ageRating: cat.defaultAgeRating, supportedCountries: [], languages: meta.lang ? [meta.lang.slice(0, 2)] : [],
     logoAssetId: logoIds[0], screenshotAssetIds: shotIds,
@@ -143,7 +139,7 @@ export async function runImports(now = new Date()): Promise<number> {
   await db.systemSetting.upsert({ where: { key: LAST_RUN }, create: { key: LAST_RUN, value: { at: now.toISOString() } }, update: { value: { at: now.toISOString() } } });
   // Recover candidates left IMPORTING by an interrupted run.
   await db.importCandidate.updateMany({ where: { status: "IMPORTING", processedAt: null, createdAt: { lt: new Date(now.getTime() - 30 * 60_000) } }, data: { status: "QUEUED" } });
-  const next = await db.importCandidate.findMany({ where: { status: "QUEUED" }, orderBy: [{ priority: "desc" }, { createdAt: "asc" }], take: Math.min(20, Math.max(1, s.num("perRun") || 4)), select: { id: true } });
+  const next = await db.importCandidate.findMany({ where: { status: "QUEUED", ...(s.bool("catalogueSource") ? {} : { source: { not: "catalogue" } }) }, orderBy: [{ priority: "desc" }, { createdAt: "asc" }], take: Math.min(20, Math.max(1, s.num("perRun") || 4)), select: { id: true } });
   let imported = 0;
   for (const n of next) {
     const r = await importCandidate(n.id).catch((e) => ({ status: "FAILED", reason: String(e) }) as ImportOutcome);

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { PROVIDER_LABEL, type SocialProvider } from "@/lib/social-providers";
 import { buttonClass } from "@/components/ui/button";
-import { Field, FormMessage, inputClass } from "@/components/ui/form";
+import { Field, FormMessage } from "@/components/ui/form";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export function ChangePasswordForm() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -21,9 +22,9 @@ export function ChangePasswordForm() {
       setMsg(error ? { ok: false, text: "Current password is incorrect, or the new password is too short (min 10)." } : { ok: true, text: "Password changed. Other sessions were signed out." });
       if (!error) form.reset();
     }}>
-      <Field label="Current password"><input name="currentPassword" type="password" required autoComplete="current-password" className={inputClass} /></Field>
-      <Field label="New password" hint="At least 10 characters."><input name="newPassword" type="password" required minLength={10} maxLength={128} autoComplete="new-password" className={inputClass} /></Field>
-      <Field label="Confirm new password"><input name="confirm" type="password" required minLength={10} autoComplete="new-password" className={inputClass} /></Field>
+      <Field label="Current password"><PasswordInput name="currentPassword" required autoComplete="current-password" /></Field>
+      <Field label="New password" hint="At least 10 characters."><PasswordInput name="newPassword" required minLength={10} maxLength={128} autoComplete="new-password" /></Field>
+      <Field label="Confirm new password"><PasswordInput name="confirm" required minLength={10} autoComplete="new-password" /></Field>
       {msg && <FormMessage tone={msg.ok ? "success" : "danger"}>{msg.text}</FormMessage>}
       <button type="submit" disabled={pending} className={buttonClass("primary", "md")}>Change password</button>
     </form>

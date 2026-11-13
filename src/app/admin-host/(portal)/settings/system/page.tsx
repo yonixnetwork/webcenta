@@ -29,7 +29,7 @@ export default async function ConfigurationInventory() {
       {groups.map((g) => (
         <section key={g.category} aria-labelledby={`c-${g.category}`} className="space-y-2">
           <h2 id={`c-${g.category}`} className="text-lg font-bold">{g.category}</h2>
-          <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
+          <div className="relative overflow-x-auto rounded-2xl border border-border bg-surface">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="bg-surface-2 text-xs uppercase tracking-wide text-subtle">
                 <tr><th className="px-3 py-2">Variable</th><th className="px-3 py-2">Purpose</th><th className="px-3 py-2">Required</th><th className="px-3 py-2">Where</th><th className="px-3 py-2">Change needs</th><th className="px-3 py-2">In this environment</th></tr>

@@ -100,18 +100,26 @@ export async function runCampaignBatch(campaignId: string): Promise<boolean> {
   const c = await db.pushCampaign.findUnique({ where: { id: campaignId } });
   if (!c || c.status === "SENT" || c.status === "FAILED") return true;
   if (c.status === "QUEUED") {
-    const recipients = await db.pushSubscription.count({ where: { failureCount: { lt: 5 } } });
+    const recipients = await db.pushSubscription.count({ where: { failureCount: { lt: 5 }, OR: [{ userId: null }, { user: { status: "ACTIVE", notifyAnnouncements: true, pushNotifications: true } }] } });
     await db.pushCampaign.update({ where: { id: c.id }, data: { status: "SENDING", recipients } });
   }
+  // Browsers without an account opted in through the browser; signed-in users also need their
+  // announcement and push preferences on.
   const subs = await db.pushSubscription.findMany({
-    where: { failureCount: { lt: 5 }, ...(c.cursor ? { id: { gt: c.cursor } } : {}) },
-    orderBy: { id: "asc" }, take: BATCH, select: { id: true, endpoint: true, p256dh: true, auth: true },
+    where: { failureCount: { lt: 5 }, ...(c.cursor ? { id: { gt: c.cursor } } : {}), OR: [{ userId: null }, { user: { status: "ACTIVE", notifyAnnouncements: true, pushNotifications: true } }] },
+    orderBy: { id: "asc" }, take: BATCH, select: { id: true, endpoint: true, p256dh: true, auth: true, userId: true },
   });
   if (!subs.length) {
     await db.pushCampaign.update({ where: { id: c.id }, data: { status: "SENT", completedAt: new Date() } });
     return true;
   }
   const r = await sendBatch(subs, { title: c.title, body: c.body, url: c.url });
+  // The same announcement in each signed-in recipient's notification centre (once per user).
+  const users = [...new Set(subs.map((s) => s.userId).filter((u): u is string => Boolean(u)))];
+  for (const userId of users) {
+    const exists = await db.notification.findFirst({ where: { userId, type: "ANNOUNCEMENT", data: { equals: { campaignId: c.id } } }, select: { id: true } });
+    if (!exists) await db.notification.create({ data: { userId, type: "ANNOUNCEMENT", title: c.title, body: c.body, linkPath: c.url, data: { campaignId: c.id } } });
+  }
   await db.pushCampaign.update({ where: { id: c.id }, data: { cursor: subs[subs.length - 1]!.id, delivered: { increment: r.delivered }, failed: { increment: r.failed } } });
   return false;
 }
@@ -119,7 +127,7 @@ export async function runCampaignBatch(campaignId: string): Promise<boolean> {
 /** Cron: continue every campaign that is still sending, within a time budget. */
 export async function continueCampaigns(budgetMs = 15_000) {
   const until = Date.now() + budgetMs;
-  const open = await db.pushCampaign.findMany({ where: { status: { in: ["QUEUED", "SENDING"] } }, orderBy: { createdAt: "asc" }, select: { id: true } });
+  const open = await db.pushCampaign.findMany({ where: { kind: "CAMPAIGN", status: { in: ["QUEUED", "SENDING"] } }, orderBy: { createdAt: "asc" }, select: { id: true } });
   for (const c of open) {
     while (Date.now() < until) if (await runCampaignBatch(c.id)) break;
   }

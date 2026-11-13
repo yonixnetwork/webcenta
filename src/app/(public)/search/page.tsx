@@ -29,7 +29,7 @@ export default async function SearchPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-extrabold tracking-tight">{filters.q ? <>Results for “{filters.q}”</> : "Search & browse"}</h1>
+      <h1 className="text-2xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">{filters.q ? <>Results for “{filters.q}”</> : "Search & browse"}</h1>
       <div className="max-w-2xl"><SearchBox defaultValue={filters.q ?? ""} suggested={tree.slice(0, 6).map((c) => c.name)} /></div>
       <FilterBar basePath="/search" filters={filters} total={result.total} categories={tree.map((c) => ({ slug: c.slug, name: c.name }))} />
       {result.items.length === 0 ? (

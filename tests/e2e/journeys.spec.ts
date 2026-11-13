@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { ADMIN, BASE, DEVHOST, devSignIn, categoryId, closeDb, freshTotp, markTotpUsed, pngBuffer, provisionAdmin, registerUser, runCron, setSite, signIn, sql, totp } from "./helpers";
+import { ADMIN, BASE, DEVHOST, devSignIn, categoryId, closeDb, freshTotp, markTotpUsed, pngBuffer, provisionAdmin, registerUser, runCron, setSite, signIn, signOut, sql, totp } from "./helpers";
 
 /**
  * The ten end-to-end user journeys, executed in order against the real app,
@@ -67,8 +67,7 @@ test("1. visitor discovers an app, opens its details and visits the official web
 test("2. a user registers, logs in, saves an application and writes a review", async () => {
   USER.password = await registerUser(userPage, USER.email, USER.name);
   // Log out and back in to exercise the full sign-in flow.
-  await userPage.getByRole("button", { name: "Sign out", exact: true }).click();
-  await userPage.waitForURL(`${BASE}/`);
+  await signOut(userPage);
   await signIn(userPage, USER.email, USER.password);
   await userPage.goto(`${BASE}/app/sample-skyline-weather`);
   await userPage.getByRole("button", { name: "Save" }).click();

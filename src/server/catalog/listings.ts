@@ -16,6 +16,7 @@ export const cardSelect = {
   ageRating: true,
   ratingCount: true,
   ratingAverage: true,
+  visitCount: true,
   publisherName: true,
   source: true,
   securityStatus: true,

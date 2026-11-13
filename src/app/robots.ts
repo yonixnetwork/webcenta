@@ -8,7 +8,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   // Admin → Settings → Branding & SEO → "Allow search engines" (off for staging).
   if (!(await getSection("seo")).bool("allowIndexing")) return { rules: [{ userAgent: "*", disallow: "/" }] };
   return {
-    rules: [{ userAgent: "*", allow: "/", disallow: ["/go/", "/api/", "/search"] }],
+    rules: [{ userAgent: "*", allow: "/", disallow: ["/go/", "/api/", "/search", "/account", "/account-export", "/signin", "/signup", "/forgot-password", "/reset-password", "/offline"] }],
     sitemap: `${origin}/sitemap.xml`,
     host: origin,
   };

@@ -43,6 +43,8 @@ enum PricingModel {
   FREEMIUM
   PAID
   SUBSCRIPTION
+  /// Not stated (e.g. automatic imports): pricing is never guessed.
+  UNKNOWN
 }
 
 enum Platform {
@@ -179,6 +181,9 @@ model Listing {
   // --- Classification ---
   primaryCategoryId  String?
   pricingModel       PricingModel @default(FREE)
+  /// Unique outbound clicks through Webcenta (sum of daily uniques, bots and the listing's own
+  /// developers excluded). Shown publicly only as milestones (500+, 1K+…).
+  visitCount         Int          @default(0)
   pricingDetails     String? @db.Text
   isOpenSource       Boolean      @default(false)
   sourceCodeUrl      String? @db.Text

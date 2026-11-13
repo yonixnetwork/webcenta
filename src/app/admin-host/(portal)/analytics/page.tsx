@@ -16,14 +16,17 @@ export default async function AnalyticsAdmin({ searchParams }: { searchParams: P
         <h1 className="text-2xl font-extrabold tracking-tight">Platform analytics</h1>
         <nav className="flex gap-1 rounded-xl bg-surface-2 p-1 text-sm">{[7, 30, 90].map((d) => <Link key={d} href={`/analytics?days=${d}`} className={cn("rounded-lg px-3 py-1", d === days ? "bg-surface font-semibold" : "text-muted")}>{d} days</Link>)}</nav>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Listing views" value={s.totals.views} /><Stat label="Unique visitors" value={s.totals.uniqueVisitors} hint="Sum of daily uniques" />
-        <Stat label="Outbound clicks" value={s.totals.outboundClicks} /><Stat label="CTR" value={`${(s.ctr * 100).toFixed(1)}%`} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <Stat label="Listing views" value={s.totals.views} /><Stat label="Unique listing viewers" value={s.totals.uniqueVisitors} hint="Sum of daily uniques" />
+        <Stat label="Outbound clicks" value={s.totals.outboundClicks} /><Stat label="Unique outbound clicks" value={s.totals.uniqueOutboundClicks} hint="The public “visits” count" />
+        <Stat label="Click-through rate" value={`${(s.ctr * 100).toFixed(1)}%`} hint="Outbound clicks ÷ views" />
       </div>
-      <div className="rounded-2xl border border-border bg-surface p-4"><LineChart title="Traffic" points={s.series as unknown as Array<Record<string, number | string>>} series={[{ key: "views", label: "Views", color: "#6366f1" }, { key: "outboundClicks", label: "Outbound clicks", color: "#0ea5e9" }]} /></div>
+      <p className="text-xs text-subtle">Bots, repeated events within 30 minutes and a listing&apos;s own developers are not counted. An outbound click means a visitor left Webcenta for the website; it does not prove the website loaded.</p>
+      <div className="rounded-2xl border border-border bg-surface p-4"><LineChart title="Traffic" points={s.series as unknown as Array<Record<string, number | string>>} series={[{ key: "views", label: "Views", color: "#6366f1" }, { key: "uniqueVisitors", label: "Unique viewers", color: "#a855f7" }, { key: "outboundClicks", label: "Outbound clicks", color: "#0ea5e9" }, { key: "uniqueOutboundClicks", label: "Unique outbound clicks", color: "#10b981" }]} /></div>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-surface p-4"><BarList title="Popular categories" rows={s.topCategories.map((c) => ({ key: c.name, value: c.views, secondary: c.clicks }))} /></div>
-        <div className="rounded-2xl border border-border bg-surface p-4"><BarList title="Popular applications" rows={s.topListings.map((l) => ({ key: l.name, value: l.views, secondary: l.outboundClicks }))} /></div>
+        <div className="rounded-2xl border border-border bg-surface p-4"><BarList title="Most viewed applications" rows={s.topListings.map((l) => ({ key: l.name, value: l.views, secondary: l.outboundClicks }))} /></div>
+        <div className="rounded-2xl border border-border bg-surface p-4"><BarList title="Most visited applications" valueLabel="Unique visits" rows={s.mostVisited.map((l) => ({ key: l.name, value: l.uniqueOutboundClicks }))} /></div>
         <div className="rounded-2xl border border-border bg-surface p-4"><BarList title="Countries" rows={s.countries.map((c) => ({ key: c.key, value: c.views }))} /></div>
         <div className="rounded-2xl border border-border bg-surface p-4"><BarList title="Devices" rows={s.devices.map((c) => ({ key: c.key.toLowerCase(), value: c.views }))} /></div>
         <div className="rounded-2xl border border-border bg-surface p-4"><BarList title="Search trends" valueLabel="Searches" rows={s.topSearches.map((q) => ({ key: q.query, value: q.count }))} /></div>

@@ -52,6 +52,16 @@ model User {
   adultConfirmedAt       DateTime? @db.DateTime(3)
   /// Self-declared date of birth (asked at sign-up). Caps maxAgeRating; set once.
   birthDate              DateTime? @db.Date
+  /// Last visit to the marketplace (updated at most hourly) and last "come back" reminder.
+  lastSeenAt             DateTime? @db.DateTime(3)
+  lastReminderAt         DateTime? @db.DateTime(3)
+  /// Notification preferences (in-app, and push on devices where it is turned on).
+  notifyNewApps          Boolean   @default(true)
+  notifySavedUpdates     Boolean   @default(true)
+  notifyAnnouncements    Boolean   @default(true)
+  notifyReminders        Boolean   @default(true)
+  /// Copy notifications to this user's push-enabled devices.
+  pushNotifications      Boolean   @default(true)
 
   createdAt DateTime  @default(now()) @db.DateTime(3)
   updatedAt DateTime  @updatedAt @db.DateTime(3)

@@ -37,7 +37,7 @@ export function OfflineRetry() {
   return (
     <section aria-labelledby="offline-title" className="mt-16 text-center">
       <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-brand-soft text-brand"><WifiOff className="size-8" aria-hidden /></div>
-      <h1 id="offline-title" className="mt-6 text-3xl font-extrabold tracking-tight">You&apos;re currently offline.</h1>
+      <h1 id="offline-title" className="mt-6 text-2xl font-extrabold tracking-tight sm:text-3xl">You&apos;re currently offline.</h1>
       <p className="mt-3 text-muted">Please check your internet connection and try again.</p>
       <div className="mt-6 flex flex-wrap justify-center gap-3">
         <button type="button" onClick={retry} disabled={status === "checking"} className={buttonClass("primary", "md")}>

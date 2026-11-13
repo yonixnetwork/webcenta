@@ -8,6 +8,7 @@ import { ReportForm } from "@/components/report-form";
 import { ShareButton } from "@/components/share-button";
 import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
+import { visitMilestone } from "@/lib/visits";
 import { AGE_LABEL, PLATFORM_LABEL, PRICING_LABEL, SECURITY_LABEL, VERIFICATION_LABEL, formatDate, isSampleListing } from "@/lib/labels";
 import { displayDomain } from "@/lib/url";
 import { enumArray, stringArray } from "@/lib/json-arrays";
@@ -25,18 +26,28 @@ import { ReviewsSection } from "@/components/community/reviews-section";
 import { ViewTracker } from "@/components/community/view-tracker";
 import { mediaUrl } from "@/server/storage";
 
+const PUBLIC_URL = () => (process.env.PUBLIC_ORIGIN || "http://localhost:3000").replace(/\/$/, "");
+/** Absolute URL of public media (for crawlers and social previews). */
+const absoluteMedia = (key: string) => { const u = mediaUrl(key); return u.startsWith("http") ? u : `${PUBLIC_URL()}${u}`; };
+
 type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<{ sort?: string; rpage?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const listing = await getPublicListing(await getViewerContext(), slug);
   if (!listing) return { title: "App not found", robots: { index: false } };
-  const description = listing.tagline ?? listing.description.slice(0, 155);
+  const category = listing.primaryCategory?.name ?? "Web app";
+  const summary = (listing.tagline ?? listing.description).replace(/\s+/g, " ").trim();
+  const description = `${summary.slice(0, 120)}${summary.length > 120 ? "…" : ""} ${category} web app by ${listing.publisherName}. Details, reviews and alternatives on Webcenta.`.slice(0, 200);
+  // Social preview: the app's own screenshot, else its logo, else the site default (never a made-up image).
+  const shot = listing.media.find((m) => m.kind === "SCREENSHOT") ?? listing.media.find((m) => m.kind === "LOGO");
+  const image = shot ? absoluteMedia(shot.asset.storageKey) : undefined;
   return {
-    title: `${listing.name} — ${listing.primaryCategory?.name ?? "Web app"}`,
+    title: `${listing.name} — ${category}`,
     description,
     alternates: { canonical: `/app/${listing.slug}` },
-    openGraph: { title: listing.name, description, url: `/app/${listing.slug}` },
+    openGraph: { type: "website", title: `${listing.name} — ${category}`, description, url: `/app/${listing.slug}`, ...(image ? { images: [{ url: image, alt: `${listing.name} ${shot!.kind === "LOGO" ? "logo" : "screenshot"}` }] } : {}) },
+    twitter: { card: shot?.kind === "SCREENSHOT" ? "summary_large_image" : "summary", title: listing.name, description, ...(image ? { images: [image] } : {}) },
     robots: isSampleListing(listing.slug) ? { index: false } : undefined,
   };
 }
@@ -70,6 +81,7 @@ export default async function AppPage({ params, searchParams }: Props) {
   const logo = listing.media.find((m) => m.kind === "LOGO");
   const screenshots = listing.media.filter((m) => m.kind === "SCREENSHOT" || m.kind === "PREVIEW");
   const showRating = listing.ratingCount > 0;
+  const visits = visitMilestone(listing.visitCount);
   const platforms = enumArray(listing.platforms, Object.values(Platform));
   const features = stringArray(listing.features);
   const supportedCountries = stringArray(listing.supportedCountries);
@@ -77,6 +89,8 @@ export default async function AppPage({ params, searchParams }: Props) {
   const verification = listing.developer ? VERIFICATION_LABEL[listing.developer.verificationLevel] : "Unclaimed listing";
   const reportAction = submitListingReport.bind(null, listing.slug);
 
+  const logoKey = listing.media.find((m) => m.kind === "LOGO")?.asset.storageKey;
+  const shotKeys = listing.media.filter((m) => m.kind === "SCREENSHOT").slice(0, 4).map((m) => m.asset.storageKey);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
@@ -85,7 +99,10 @@ export default async function AppPage({ params, searchParams }: Props) {
     url: listing.websiteUrl,
     applicationCategory: listing.primaryCategory?.name,
     operatingSystem: platforms.map((p) => PLATFORM_LABEL[p]).join(", "),
-    author: { "@type": "Organization", name: listing.publisherName },
+    author: { "@type": "Organization", name: listing.publisherName, ...(listing.publisherUrl ? { url: listing.publisherUrl } : {}) },
+    mainEntityOfPage: `${PUBLIC_URL()}/app/${listing.slug}`,
+    ...(logoKey ? { image: absoluteMedia(logoKey) } : {}),
+    ...(shotKeys.length ? { screenshot: shotKeys.map(absoluteMedia) } : {}),
     ...(listing.pricingModel === "FREE" ? { offers: { "@type": "Offer", price: "0", priceCurrency: "USD" } } : {}),
     ...(showRating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: Number(listing.ratingAverage.toFixed(1)), bestRating: 5, worstRating: 1, ratingCount: listing.ratingCount, reviewCount: listing.ratingCount } } : {}),
   };
@@ -109,7 +126,7 @@ export default async function AppPage({ params, searchParams }: Props) {
         <div className="flex flex-1 items-start gap-4 sm:gap-6">
           <AppIcon name={listing.name} storageKey={logo?.asset.storageKey} size="lg" />
           <div className="min-w-0 space-y-2">
-            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{listing.name}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-4xl">{listing.name}</h1>
             {listing.tagline && <p className="text-lg text-muted">{listing.tagline}</p>}
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
               <span className="font-medium text-brand">{listing.publisherName}</span>
@@ -117,7 +134,8 @@ export default async function AppPage({ params, searchParams }: Props) {
               {listing.source === "EDITORIAL" && <span className="text-subtle">· Listed by Webcenta editors</span>}
             </p>
             <div className="flex flex-wrap gap-1.5 pt-1">
-              <Badge tone={listing.pricingModel === "FREE" ? "success" : "neutral"}>{PRICING_LABEL[listing.pricingModel]}</Badge>
+              {listing.pricingModel !== "UNKNOWN" && <Badge tone={listing.pricingModel === "FREE" ? "success" : "neutral"}>{PRICING_LABEL[listing.pricingModel]}</Badge>}
+              {visits && <Badge tone="outline"><span title="Unique visits to the official website through Webcenta">{visits} through Webcenta</span></Badge>}
               {listing.isOpenSource && <Badge tone="brand">Open source</Badge>}
               {listing.isPwaInstallable && <Badge>Installable PWA</Badge>}
               <Badge tone="outline">Age {AGE_LABEL[listing.ageRating]}</Badge>

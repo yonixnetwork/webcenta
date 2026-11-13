@@ -3,6 +3,7 @@ import { BadgeCheck, Star } from "lucide-react";
 import type { ListingCard } from "@/server/catalog/listings";
 import { PRICING_LABEL, isSampleListing } from "@/lib/labels";
 import { AppIcon } from "./app-icon";
+import { visitMilestone } from "@/lib/visits";
 import { Badge } from "./ui/badge";
 
 export function AppCard({ app, sponsored = false, compact = false }: { app: ListingCard; sponsored?: boolean; compact?: boolean }) {
@@ -28,7 +29,8 @@ export function AppCard({ app, sponsored = false, compact = false }: { app: List
       <div className="mt-auto flex flex-wrap items-center gap-1.5">
         {sponsored && <Badge tone="warning">Sponsored</Badge>}
         {isSampleListing(app.slug) && <Badge tone="outline">Sample</Badge>}
-        <Badge tone={app.pricingModel === "FREE" ? "success" : "neutral"}>{PRICING_LABEL[app.pricingModel]}</Badge>
+        {app.pricingModel !== "UNKNOWN" && <Badge tone={app.pricingModel === "FREE" ? "success" : "neutral"}>{PRICING_LABEL[app.pricingModel]}</Badge>}
+        {visitMilestone(app.visitCount) && <Badge tone="outline">{visitMilestone(app.visitCount)}</Badge>}
         {app.isOpenSource && <Badge tone="brand">Open source</Badge>}
         {showRating && (
           <span className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-muted">

@@ -2,7 +2,7 @@ import { cn } from "@/components/ui/cn";
 
 export function DataTable({ head, children, empty, className }: { head: string[]; children: React.ReactNode; empty?: boolean; className?: string }) {
   return (
-    <div className={cn("overflow-x-auto rounded-2xl border border-border bg-surface", className)}>
+    <div className={cn("relative overflow-x-auto rounded-2xl border border-border bg-surface", className)}>
       <table className="w-full min-w-[640px] text-left text-sm">
         <thead className="bg-surface-2 text-xs uppercase tracking-wide text-subtle"><tr>{head.map((h) => <th key={h} scope="col" className="px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
         <tbody className="divide-y divide-border">{children}</tbody>

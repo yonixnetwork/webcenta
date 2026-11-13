@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { connection } from "next/server";
 import { db } from "@/server/db";
 import { publicCategoryWhere, publicListingWhere } from "@/server/catalog/visibility";
+import { PUBLIC_POLICIES } from "@/server/setup/legal-texts";
 
 /**
  * Sitemap of indexable public pages. Uses a country-agnostic viewer that denies
@@ -16,17 +17,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [listings, categories, collections] = await Promise.all([
     db.listing.findMany({
       where: { AND: [publicListingWhere(ctx), { NOT: { slug: { startsWith: "sample-" } } }] },
-      select: { slug: true, updatedAt: true }, take: 40_000,
+      select: { slug: true, updatedAt: true, contentUpdatedAt: true }, take: 40_000,
     }),
-    db.category.findMany({ where: publicCategoryWhere(), select: { slug: true, updatedAt: true } }),
+    // 18+ categories only show an age gate to crawlers: not useful search results.
+    db.category.findMany({ where: { AND: [publicCategoryWhere(), { defaultAgeRating: { not: "AGE_18_PLUS" } }] }, select: { slug: true, updatedAt: true } }),
     db.collection.findMany({ where: { isEditorial: true, visibility: "PUBLIC", NOT: { slug: { startsWith: "sample-" } } }, select: { slug: true, updatedAt: true } }),
   ]);
   return [
     { url: `${origin}/`, changeFrequency: "daily", priority: 1 },
     { url: `${origin}/categories`, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${origin}/apps`, changeFrequency: "daily", priority: 0.8 },
     { url: `${origin}/about`, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${origin}/legal`, changeFrequency: "monthly", priority: 0.2 },
+    ...["terms", "privacy", "cookies", "content", "reviews", "developers", ...Object.keys(PUBLIC_POLICIES)].map((t) => ({ url: `${origin}/legal/${t}`, changeFrequency: "monthly" as const, priority: 0.2 })),
     ...categories.map((c) => ({ url: `${origin}/c/${c.slug}`, lastModified: c.updatedAt, changeFrequency: "daily" as const, priority: 0.7 })),
-    ...listings.map((l) => ({ url: `${origin}/app/${l.slug}`, lastModified: l.updatedAt, changeFrequency: "weekly" as const, priority: 0.6 })),
+    ...listings.map((l) => ({ url: `${origin}/app/${l.slug}`, lastModified: l.contentUpdatedAt ?? l.updatedAt, changeFrequency: "weekly" as const, priority: 0.6 })),
     ...collections.map((c) => ({ url: `${origin}/collections/${c.slug}`, lastModified: c.updatedAt, changeFrequency: "weekly" as const, priority: 0.5 })),
   ];
 }

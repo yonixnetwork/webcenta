@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { normalizeWebsiteUrl } from "@/lib/url";
-import { PLATFORMS, PRICING } from "@/lib/search-params";
+import { LISTING_PRICING, PLATFORMS } from "@/lib/search-params";
 
 const optionalUrl = z.preprocess((v) => (v === "" || v == null ? undefined : v), z.string().trim().max(500).refine((u) => normalizeWebsiteUrl(u) !== null, "Must be an https:// URL").optional());
 const list = (max: number, itemMax: number) => z.preprocess(
@@ -23,7 +23,7 @@ export const listingInputSchema = z.object({
   primaryCategoryId: z.string().min(1, "Choose a category"),
   categoryIds: list(4, 64),
   tags: list(10, 32),
-  pricingModel: z.enum(PRICING),
+  pricingModel: z.enum(LISTING_PRICING),
   pricingDetails: z.string().trim().max(200).optional().transform((v) => v || undefined),
   isOpenSource: z.preprocess((v) => v === "on" || v === true || v === "true", z.boolean()),
   sourceCodeUrl: optionalUrl,

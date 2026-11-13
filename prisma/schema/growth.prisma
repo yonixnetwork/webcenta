@@ -41,6 +41,10 @@ model PushCampaign {
   failed           Int                @default(0)
   /// Subscriptions are sent in batches; the last id sent so far.
   cursor           String?
+  /// CAMPAIGN (admin, everyone), EVENT (one user's notification) or REMINDER.
+  kind             String             @default("CAMPAIGN") @db.VarChar(20)
+  /// For EVENT and REMINDER pushes: the user they were sent to.
+  userId           String?
   createdByAdminId String?
   createdAt        DateTime           @default(now()) @db.DateTime(3)
   completedAt      DateTime?          @db.DateTime(3)
@@ -72,6 +76,8 @@ model ImportCandidate {
   /// "catalogue" (Webcenta's researched list) or "admin".
   source           String       @default("admin") @db.VarChar(40)
   status           ImportStatus @default(QUEUED)
+  /// Never publish automatically: always wait for a moderator ("Send for review").
+  reviewRequired   Boolean      @default(false)
   priority         Int          @default(0)
   attempts         Int          @default(0)
   listingId        String?

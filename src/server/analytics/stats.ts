@@ -41,6 +41,15 @@ export async function rollupDay(day: Date): Promise<number> {
   });
 }
 
+/** Recomputes each listing's public visit total (sum of daily unique outbound clicks). */
+export async function refreshVisitCounts(): Promise<number> {
+  return db.$executeRaw`
+    UPDATE Listing l
+    JOIN (SELECT listingId, SUM(uniqueOutboundClicks) AS visits FROM ListingDailyStat GROUP BY listingId) s ON s.listingId = l.id
+    SET l.visitCount = s.visits
+    WHERE l.visitCount <> s.visits`;
+}
+
 export interface SeriesPoint { date: string; views: number; uniqueVisitors: number; outboundClicks: number; uniqueOutboundClicks: number; searchImpressions: number }
 export interface Breakdown { key: string; views: number; outboundClicks: number }
 
@@ -54,7 +63,7 @@ export async function listingStats(listingIds: string[], days: number) {
   const [daily, dims, perListing] = await Promise.all([
     db.listingDailyStat.groupBy({ by: ["date"], where, _sum: { views: true, uniqueVisitors: true, outboundClicks: true, uniqueOutboundClicks: true, searchImpressions: true }, orderBy: { date: "asc" } }),
     db.listingDailyDimensionStat.groupBy({ by: ["dimension", "key"], where, _sum: { views: true, outboundClicks: true } }),
-    db.listingDailyStat.groupBy({ by: ["listingId"], where, _sum: { views: true, outboundClicks: true, uniqueVisitors: true } }),
+    db.listingDailyStat.groupBy({ by: ["listingId"], where, _sum: { views: true, outboundClicks: true, uniqueVisitors: true, uniqueOutboundClicks: true } }),
   ]);
   const byDate = new Map(daily.map((d) => [d.date.toISOString().slice(0, 10), d._sum]));
   const series: SeriesPoint[] = [];
@@ -78,7 +87,7 @@ export async function listingStats(listingIds: string[], days: number) {
     from, to, series, totals,
     ctr: totals.views ? totals.outboundClicks / totals.views : 0,
     countries: breakdown("COUNTRY"), devices: breakdown("DEVICE"), referrers: breakdown("REFERRER"),
-    perListing: perListing.map((p) => ({ listingId: p.listingId, views: p._sum.views ?? 0, outboundClicks: p._sum.outboundClicks ?? 0, uniqueVisitors: p._sum.uniqueVisitors ?? 0 })),
+    perListing: perListing.map((p) => ({ listingId: p.listingId, views: p._sum.views ?? 0, outboundClicks: p._sum.outboundClicks ?? 0, uniqueVisitors: p._sum.uniqueVisitors ?? 0, uniqueOutboundClicks: p._sum.uniqueOutboundClicks ?? 0 })),
   };
 }
 
@@ -98,10 +107,14 @@ export async function platformStats(days: number) {
       FROM ListingDailyStat s JOIN Listing l ON l.id = s.listingId JOIN Category c ON c.id = l.primaryCategoryId LEFT JOIN Category p ON p.id = c.parentId
       WHERE s.date >= ${from} GROUP BY 1 ORDER BY 2 DESC LIMIT 10`,
   ]);
-  const top = await db.listing.findMany({ where: { id: { in: listing.perListing.sort((a, b) => b.views - a.views).slice(0, 10).map((p) => p.listingId) } }, select: { id: true, name: true, slug: true } });
+  const mostViewed = [...listing.perListing].sort((a, b) => b.views - a.views).slice(0, 10);
+  const mostVisited = [...listing.perListing].filter((p) => p.uniqueOutboundClicks > 0).sort((a, b) => b.uniqueOutboundClicks - a.uniqueOutboundClicks).slice(0, 10);
+  const names = await db.listing.findMany({ where: { id: { in: [...mostViewed, ...mostVisited].map((p) => p.listingId) } }, select: { id: true, name: true } });
+  const named = <T extends { listingId: string }>(p: T) => ({ ...p, name: names.find((t) => t.id === p.listingId)?.name ?? "?" });
   return {
     ...listing,
-    topListings: listing.perListing.slice(0, 10).map((p) => ({ ...p, name: top.find((t) => t.id === p.listingId)?.name ?? "?" })),
+    topListings: mostViewed.map(named),
+    mostVisited: mostVisited.map(named),
     userGrowth: userGrowth.map((r) => ({ date: r.d.toISOString().slice(0, 10), count: Number(r.n) })),
     developerGrowth: devGrowth.map((r) => ({ date: r.d.toISOString().slice(0, 10), count: Number(r.n) })),
     topSearches: searches.map((s) => ({ query: s.query, count: s._sum.count ?? 0 })),

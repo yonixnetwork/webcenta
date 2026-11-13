@@ -221,3 +221,26 @@ export async function deleteAccountAction(_s: ActionState, form: FormData): Prom
   await audit({ actorType: "USER", actorUserId: u.id, action: "user.delete.request" });
   redirect("/?account-deleted=1");
 }
+
+const PREF_KEYS = ["notifyNewApps", "notifySavedUpdates", "notifyAnnouncements", "notifyReminders", "pushNotifications", "emailNotifications"] as const;
+
+/** Notification preferences (Account → Notifications). Security notices are always delivered. */
+export async function notificationPrefsAction(_s: ActionState, form: FormData): Promise<ActionState> {
+  const u = await mustUser();
+  const data = Object.fromEntries(PREF_KEYS.map((k) => [k, form.get(k) === "on"])) as Record<(typeof PREF_KEYS)[number], boolean>;
+  await db.user.update({ where: { id: u.id }, data });
+  revalidatePath("/account/notifications");
+  return { ok: true, message: "Notification preferences saved." };
+}
+
+export async function markNotificationReadAction(id: string) {
+  const u = await mustUser();
+  await db.notification.updateMany({ where: { id, userId: u.id, readAt: null }, data: { readAt: new Date() } });
+  revalidatePath("/account/notifications");
+}
+
+export async function deleteNotificationAction(id: string) {
+  const u = await mustUser();
+  await db.notification.deleteMany({ where: { id, userId: u.id } });
+  revalidatePath("/account/notifications");
+}

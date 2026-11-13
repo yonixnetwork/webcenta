@@ -111,7 +111,10 @@
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
 
-html { background: var(--bg); }
+html { background: var(--bg); scrollbar-gutter: stable; }
+/* Nothing may widen the page beyond the screen (which would push fixed bars sideways). "clip" keeps
+   position: sticky working, unlike overflow: hidden. */
+html, body { overflow-x: clip; }
 body { background: var(--bg); color: var(--text); font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiased; }
 
 :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
@@ -126,7 +129,9 @@ body { background: var(--bg); color: var(--text); font-feature-settings: "cv11",
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 60%, transparent), transparent);
   animation: shimmer 1.4s infinite; }
 
-.scrollbar-none { scrollbar-width: none; }
+/* Horizontal scrollers are a positioning context, so absolutely positioned descendants (e.g. the
+   sr-only text in off-screen cards) stay inside them instead of widening the page on phones. */
+.scrollbar-none { scrollbar-width: none; position: relative; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 
 .hero-glow {

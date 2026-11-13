@@ -25,6 +25,14 @@ enum NotificationType {
   CLAIM_UPDATE
   SECURITY_NOTICE
   SYSTEM
+  /// A new app in the user's interests.
+  NEW_APP
+  /// A saved app was updated.
+  APP_UPDATE
+  /// Marketplace announcement from Webcenta.
+  ANNOUNCEMENT
+  /// "New apps since your last visit" reminder.
+  REMINDER
 }
 
 model Review {

@@ -6,6 +6,7 @@ import { findValidInvitation, invitationTotpSecret } from "@/server/admin/invita
 import { otpauthUri } from "@/server/admin/crypto";
 import { ROLE_LABEL } from "@/server/admin/permissions";
 import { acceptInviteAction } from "@/server/actions/admin";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export const metadata = { title: "Accept invitation" };
 
@@ -20,8 +21,8 @@ export default async function AcceptInvite({ searchParams }: { searchParams: Pro
     <AdminAuthShell title="Set up your administrator account" subtitle={`${inv.email} · ${ROLE_LABEL[inv.role]}`}>
       <ActionForm action={acceptInviteAction.bind(null, token)} submitLabel="Create account">
         <Field label="Your name"><input name="name" required maxLength={80} autoComplete="name" className={inputClass} /></Field>
-        <Field label="Password" hint="At least 12 characters. Use a password manager."><input name="password" type="password" required minLength={12} maxLength={200} autoComplete="new-password" className={inputClass} /></Field>
-        <Field label="Confirm password"><input name="confirm" type="password" required minLength={12} autoComplete="new-password" className={inputClass} /></Field>
+        <Field label="Password" hint="At least 12 characters. Use a password manager."><PasswordInput name="password" required minLength={12} maxLength={200} autoComplete="new-password" /></Field>
+        <Field label="Confirm password"><PasswordInput name="confirm" required minLength={12} autoComplete="new-password" /></Field>
         <div className="space-y-2 rounded-xl bg-surface-2 p-3 text-sm">
           <p className="font-medium">Two-factor authentication (required)</p>
           <p className="text-muted">Scan this code with an authenticator app (e.g. 1Password, Google Authenticator, Aegis), then enter the 6-digit code.</p>

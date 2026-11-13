@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Sign in", robots: { index: false } }
 
 export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
   const sp = await searchParams;
-  const next = sp.next && isSafeRelativePath(sp.next) ? sp.next : "/account";
+  const next = sp.next && isSafeRelativePath(sp.next) ? sp.next : "/";
   if (await getCurrentUser()) redirect(next);
   return (
     <AuthShell title="Welcome back" subtitle="Sign in to save apps, write reviews and manage your listings."
