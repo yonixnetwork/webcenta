@@ -51,7 +51,10 @@ Updated: CSP expectation (`frame-src 'self' …`), developer verification method
 
 * Run 1: 136 passed, 3 failed. The failures came from the new suite leaving state for later suites: the sign-up rate limit was used up by 4 extra sign-ups, the import settings were not reset, and the filter-bar locator was fragile. All three were fixed in the tests (the application was not changed to make tests pass).
 * Run 2: 135 passed, 1 failed. A pre-existing race in `security.spec.ts` (SSRF domain test): the next domain was typed while the previous submission was still running and the form reset. It passes on its own (13/13). The test now waits for each submission.
-* Final run: see the PR's CI result (GitHub Actions runs the full suite on MySQL 8).
+* CI on the PR exposed two more problems, both fixed before merging:
+  * **MySQL 8 (a real bug):** the scheduler lease compared a JSON number with `CAST(… AS UNSIGNED)`, which MySQL 8's strict mode rejects for `1.79e12` stored as a double. MariaDB accepts it, so local runs passed. The fix compares as `DECIMAL(20,0)`, and all 337 tests then passed on MySQL 8.0 locally.
+  * **Sign-in rate limit:** the new suite used up the shared sign-in allowance (10 per 5 minutes), which broke a later security test on the faster CI runner. The suite now returns its allowance when it finishes.
+* **Final CI on the merged head `0f8c57c`: all 6 checks green** (MariaDB 10.11 full suite including E2E, MySQL 8.0 suite, Hostinger production-only build; each twice, for push and pull request).
 
 Existing tests updated for intended changes only: tab labels (Home, Games, Apps, Search; Saved removed), profile editing behind "Edit profile", "Check verification" button text, the import result message with job number, the filter summary locator.
 
@@ -64,4 +67,9 @@ Existing tests updated for intended changes only: tab labels (Home, Games, Apps,
 
 ## Deployment and live verification
 
-_Filled in after merge and Hostinger deployment (below)._
+* **Merge:** [yonixnetwork/webcenta#11](https://github.com/yonixnetwork/webcenta/pull/11) merged into `main` as `e60a093`.
+* **Hostinger build** `01a1d5de…`: completed (17:04–17:07 UTC). `prepare-standalone` copied `cron-tick.mjs` and wrote the environment snapshot (29 names, including `CRON_SECRET` and `PUBLIC_ORIGIN`).
+* **Runtime log 17:07:13 UTC:** `auto-migrate: Applied 1 migration(s): 20261114120000_scheduler_push_imports_ads`, then "database is up to date". No errors.
+* **Hostinger cron job created** through the Hostinger API (uid `qHmggYwnPu`): `*/5 * * * *` → `/opt/alt/alt-nodejs22/root/usr/bin/node /home/u658485007/domains/webcenta.com/hbuilds/current/nodejs/cron-tick.mjs`. Before this there was no cron job for webcenta.com at all.
+* **First real production run (cron output, 17:35 UTC):** `webcenta cron: HTTP 200 run 01a1d5fa…: processed 54, failed 0, enqueued 13, recovered 0, 15661 ms`. Runtime log: `[webcenta] cron tick processed=54 failed=0 enqueued=13 in 15661ms`. The 54 jobs were the backlog that had accumulated while the scheduler never ran: queued security checks, email and notification jobs.
+* **Following runs (every 5 minutes):** e.g. 17:45 UTC `HTTP 200 run 01a1d603…: processed 4, failed 0, enqueued 4, recovered 0, 110 ms`. The backlog is cleared and normal runs take about 0.1 s.
