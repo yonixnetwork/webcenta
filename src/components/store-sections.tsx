@@ -66,7 +66,8 @@ const GRADIENTS = ["from-indigo-600 via-violet-600 to-fuchsia-500", "from-sky-60
 export function FeaturedCarousel({ label, items, sponsoredIds = [] }: { label: string; items: ListingCard[]; sponsoredIds?: string[] }) {
   if (!items.length) return null;
   return (
-    <section aria-label={label}>
+    <section aria-labelledby="featured-carousel">
+      <h2 id="featured-carousel" className="sr-only">{label}</h2>
       <ul className="scrollbar-none -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
         {items.slice(0, 8).map((app, i) => {
           const shot = shotOf(app);

@@ -30,7 +30,8 @@ export default async function HomePage() {
     <div className="space-y-7 sm:space-y-12">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgLd).replace(/</g, "\\u003c") }} />
 
-      {/* Phones: categories first, like the App Store and Google Play. The search tab lives in the bottom bar. */}
+      {/* Phones: a large title and categories first, like the App Store and Google Play. The search tab lives in the bottom bar. */}
+      <h1 className="-mb-4 text-[2rem] font-extrabold leading-tight tracking-tight sm:hidden">Discover</h1>
       <nav aria-label="Browse" className="scrollbar-none -mx-4 -mt-1 flex gap-2 overflow-x-auto px-4 py-1 sm:hidden">
         <Link href="/search?sort=popular" className={chip}><ChartNoAxesColumn className="size-4 text-brand" aria-hidden />Top charts</Link>
         <Link href="/categories" className={chip}><LayoutGrid className="size-4 text-brand" aria-hidden />Categories</Link>
@@ -54,7 +55,6 @@ export default async function HomePage() {
           </p>
         </div>
       </section>
-      <h1 className="sr-only sm:hidden">Webcenta — discover web apps</h1>
 
       {featured && <FeaturedCarousel label={featured.key === "featured" ? "Featured" : "Editor’s pick"} items={featured.items} sponsoredIds={featured.sponsoredIds} />}
 

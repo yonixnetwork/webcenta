@@ -84,7 +84,7 @@ test("OAuth sections show the exact callback URLs for both sites; paid integrati
   await expect(page.getByText("http://developers.localhost:3100/api/auth/callback/google", { exact: true })).toBeVisible();
   // Apple (paid developer programme), Web Risk, VirusTotal, Plausible, Stripe and PayPal are switched off.
   for (const id of ["apple", "webrisk", "virustotal", "plausible", "stripe", "paypal"]) {
-    expect((await page.request.get(`${ADMIN}/settings/${id}`)).status()).toBe(404);
+    expect((await page.goto(`${ADMIN}/settings/${id}`))?.status(), id).toBe(404);
   }
   await page.goto(`${BASE}/signin`);
   await expect(page.getByRole("button", { name: /Apple/ })).toHaveCount(0);

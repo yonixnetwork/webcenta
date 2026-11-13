@@ -5,8 +5,10 @@ import { settle, sql } from "./helpers";
 test.describe("marketplace", () => {
   test("homepage shows real rails and no fabricated sections", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Find the right web app");
-    await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
+    // Phones: a large "Discover" title like the app stores; wider screens: the introduction.
+    const phone = (page.viewportSize()?.width ?? 1280) < 640;
+    await expect(page.getByRole("heading", { level: 1 }).locator("visible=true")).toContainText(phone ? "Discover" : "Find the right web app");
+    await expect(page.getByRole("region", { name: "Featured" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "New on Webcenta" })).toBeVisible();
     // Data-driven rails appear only when real data exists (never fabricated).
     const trending = Number((await sql<{ n: string }>(`select count(*) n from "Listing" where status = 'PUBLISHED' and "trendingScore" > 0`))[0]!.n);

@@ -42,7 +42,10 @@ const site = https({ key: readFileSync(new URL("site.key", dir)), cert: readFile
   if (s.mode === "app" && path === "/icon.png") { res.writeHead(200, { "content-type": "image/png" }); return res.end(ICON); }
   if (s.mode === "app" && path === "/og.png") { res.writeHead(200, { "content-type": "image/png" }); return res.end(OG); }
   if (s.mode === "app" && path === "/privacy") { res.writeHead(200, { "content-type": "text/html" }); return res.end(`<html><title>Privacy Policy</title><body><h1>Privacy Policy of ${host}</h1><p>${"This privacy policy explains how we collect and use personal data when you use our website. ".repeat(20)}</p></body></html>`); }
-  if (path === "/privacy" || path === "/terms") { res.writeHead(200, { "content-type": "text/html" }); return res.end("<html><title>Policy</title><body>Policy</body></html>"); }
+  if (path === "/privacy" || path === "/terms") {
+    res.writeHead(200, { "content-type": "text/html" });
+    return res.end(`<html><title>Privacy Policy</title><body><h1>Privacy Policy of ${host}</h1><p>${"This privacy policy explains how we collect and use personal data when you use our website. ".repeat(20)}</p></body></html>`);
+  }
   switch (s.mode) {
     case "down": res.writeHead(503); return res.end("down");
     case "redirect-evil": res.writeHead(302, { location: "https://evil-site.localhost/landing" }); return res.end();
