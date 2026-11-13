@@ -67,7 +67,7 @@ test("every navigation button works: header, mobile tabs, footer", async ({ page
   await page.goto("/");
   const phone = (page.viewportSize()?.width ?? 1280) < 640; // the tab bar is shown below the sm breakpoint
   if (phone) {
-    for (const [label, path] of [["Categories", "/categories"], ["Search", "/search"], ["Games", "/c/games"], ["Today", "/"]] as const) {
+    for (const [label, path] of [["Apps", "/apps"], ["Search", "/search"], ["Games", "/c/games"], ["Saved", "/signin"], ["Today", "/"]] as const) {
       await page.getByRole("navigation", { name: "Mobile" }).getByRole("link", { name: label }).click();
       await expect(page).toHaveURL(new RegExp(`${path === "/" ? "/$" : path}`));
     }
