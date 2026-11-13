@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ListingInput } from "@/server/listings/input";
 import { db } from "@/server/db";
 import { normalizeWebsiteUrl } from "@/lib/url";
@@ -30,13 +31,17 @@ async function fetchImage(url: string): Promise<Uint8Array | null> {
 /** A screenshot from WordPress.com mShots. The first request starts the capture; it answers with a GIF placeholder until it is ready. */
 const mshotsUrl = (site: string) => `https://s.wordpress.com/mshots/v1/${encodeURIComponent(site)}?w=1280&h=800`;
 
-async function firstStored(urls: string[], kind: "LOGO" | "SCREENSHOT", adminId: string, max: number): Promise<string[]> {
+/** Stores up to `max` images from the URLs, skipping repeated URLs and identical images. */
+async function firstStored(urls: string[], kind: "LOGO" | "SCREENSHOT", adminId: string, max: number, seen = new Set<string>()): Promise<string[]> {
   const ids: string[] = [];
-  for (const u of urls) {
+  for (const u of [...new Set(urls)]) {
     if (ids.length >= max) break;
     try {
       const bytes = await fetchImage(u);
       if (!bytes) continue;
+      const hash = createHash("sha256").update(bytes).digest("hex");
+      if (seen.has(hash)) continue;
+      seen.add(hash);
       ids.push((await storeImageBytes(bytes, kind, { adminId })).id);
     } catch { /* unsupported, too small, animated…: try the next one */ }
   }
@@ -94,8 +99,9 @@ export async function importCandidate(id: string): Promise<ImportOutcome> {
 
   const origin = new URL(base).origin;
   const logoIds = await firstStored([...(manifest?.iconUrls ?? []), ...meta.iconUrls, `${origin}/apple-touch-icon.png`], "LOGO", adminId, 1);
-  const shotIds = await firstStored([...(manifest?.screenshotUrls ?? []).slice(0, 3), ...meta.imageUrls.slice(0, 1)], "SCREENSHOT", adminId, 3);
-  if (useMshots && shotIds.length < 4) shotIds.push(...(await firstStored([mshotsUrl(c.url)], "SCREENSHOT", adminId, 1)));
+  const shotHashes = new Set<string>();
+  const shotIds = await firstStored([...(manifest?.screenshotUrls ?? []).slice(0, 3), ...meta.imageUrls.slice(0, 1)], "SCREENSHOT", adminId, 3, shotHashes);
+  if (useMshots && shotIds.length < 4) shotIds.push(...(await firstStored([mshotsUrl(c.url)], "SCREENSHOT", adminId, 1, shotHashes)));
 
   const name = (c.name || manifest?.name || meta.name || c.domain).slice(0, 80);
   let description = [meta.description, manifest?.description].filter(Boolean).sort((a, b) => b!.length - a!.length)[0]?.trim() ?? "";

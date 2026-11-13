@@ -106,12 +106,14 @@ test("an administrator imports a web app with its details, logo and screenshot",
   await page.getByLabel(/Import a single address immediately/).check();
   await page.getByRole("button", { name: "Add to queue" }).click();
   await expect(page.getByText(/Imported\./)).toBeVisible({ timeout: 30_000 });
-  const [l] = await sql<{ id: string; name: string; description: string; privacyPolicyUrl: string | null }>(`select l.id, r.data->>'$.name' name, r.data->>'$.description' description, r.data->>'$.privacyPolicyUrl' "privacyPolicyUrl" from "Listing" l join "ListingRevision" r on r."listingId" = l.id where l.domain = 'importme.localhost'`);
-  expect(l?.name).toBe("importme App");
-  expect(l?.description).toContain("helps teams plan projects");
-  expect(l?.privacyPolicyUrl).toBe("https://importme.localhost/privacy");
-  const media = await sql<{ kind: string }>(`select kind from "MediaAsset" where id in (select json_unquote(r.data->'$.logoAssetId') from "ListingRevision" r where r."listingId" = $1) or json_contains((select r.data->'$.screenshotAssetIds' from "ListingRevision" r where r."listingId" = $1), json_quote(id))`, [l!.id]);
-  expect(media.map((m) => m.kind).sort()).toEqual(["LOGO", "SCREENSHOT"]);
+  const [rev] = await sql<{ data: string | Record<string, unknown> }>(`select r.data from "Listing" l join "ListingRevision" r on r."listingId" = l.id where l.domain = 'importme.localhost'`);
+  const data = (typeof rev!.data === "string" ? JSON.parse(rev!.data) : rev!.data) as { name: string; description: string; privacyPolicyUrl?: string; logoAssetId?: string; screenshotAssetIds?: string[] };
+  expect(data.name).toBe("importme App");
+  expect(data.description).toContain("helps teams plan projects");
+  expect(data.privacyPolicyUrl).toBe("https://importme.localhost/privacy");
+  const ids = [data.logoAssetId, ...(data.screenshotAssetIds ?? [])].filter((x): x is string => Boolean(x));
+  const media = await sql<{ id: string; kind: string }>(`select id, kind from "MediaAsset" where kind in ('LOGO', 'SCREENSHOT')`);
+  expect(media.filter((m) => ids.includes(m.id)).map((m) => m.kind).sort()).toEqual(["LOGO", "SCREENSHOT"]);
   await expect(page.getByRole("link", { name: "Open listing" }).first()).toBeVisible();
 });
 
