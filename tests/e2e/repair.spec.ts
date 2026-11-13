@@ -26,8 +26,8 @@ let userSession: Awaited<ReturnType<import("@playwright/test").BrowserContext["s
 
 test.afterAll(async () => {
   await sql(`delete from "SystemSetting" where "key" in ('config.adsterra', 'config.ads', 'config.google', 'config.imports', 'jobs.lock')`);
-  // This file signs up extra accounts; give later suites their own sign-up allowance.
-  await sql(`delete from "AuthRateLimit" where "key" like '%sign-up%'`);
+  // This file signs up and signs in extra accounts; give later suites their own allowance.
+  await sql(`delete from "AuthRateLimit" where "key" like '%sign-up%' or "key" like '%sign-in%'`);
   await sql(`update "SystemSetting" set value = $1 where "key" = 'config.__version'`, [JSON.stringify({ v: `repair-reset-${RUN}` })]);
   await sql(`delete from "PushSubscription"`);
   await closeDb();
