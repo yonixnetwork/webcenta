@@ -101,6 +101,8 @@ test("SSRF: domain verification cannot reach private networks or cloud metadata"
     await alice.getByLabel("Domain").fill(bad);
     await alice.getByRole("button", { name: "Get verification code" }).click();
     await expect(alice.getByText(/Enter a valid public domain/)).toBeVisible();
+    // Wait for this submission to finish (the form resets afterwards) before typing the next one.
+    await expect(alice.getByRole("button", { name: "Get verification code" })).toBeEnabled();
   }
   // A public-looking domain whose proof URL redirects to the metadata service.
   await setSite("private-redirect.localhost", { mode: "redirect-private" });
