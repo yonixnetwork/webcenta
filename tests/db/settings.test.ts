@@ -133,7 +133,7 @@ describe("integrations read the settings service", () => {
   });
   it("developer portal, network and SEO settings", async () => {
     await saveSection("developer", { values: { allowNewOrganizations: "off", verifyHtmlMeta: "off", maxDraftsPerOrg: "3" } }, { adminId });
-    expect(await developerPolicy()).toEqual({ allowNewOrganizations: false, maxDraftsPerOrg: 3, methods: ["DNS_TXT", "WELL_KNOWN_FILE"] });
+    expect(await developerPolicy()).toEqual({ allowNewOrganizations: false, maxDraftsPerOrg: 3, methods: ["DNS_TXT", "HTML_FILE", "WELL_KNOWN_FILE"] });
     await saveSection("security", { values: { trustedProxyHops: "2", geoCountryHeader: "X-Country" } }, { adminId });
     expect(await networkSettings()).toMatchObject({ trustedProxyHops: 2, geoCountryHeader: "x-country" });
     await saveSection("seo", { values: { allowIndexing: "off" } }, { adminId });

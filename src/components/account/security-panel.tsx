@@ -45,7 +45,7 @@ export function LinkedAccounts({ providers }: { providers: SocialProvider[] }) {
           <li key={p} className="flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2">
             <span>{label}</span>
             {linked ? <span className="text-success">Connected</span> : p === "credential" ? <span className="text-subtle">Not set</span> : (
-              <button type="button" className={buttonClass("secondary", "sm")} onClick={() => authClient.linkSocial({ provider: p, callbackURL: "/account" })}>Connect</button>
+              <button type="button" className={buttonClass("secondary", "sm")} onClick={() => authClient.linkSocial({ provider: p, callbackURL: "/account/security" })}>Connect</button>
             )}
           </li>
         );

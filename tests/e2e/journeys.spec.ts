@@ -96,10 +96,10 @@ test("3. a developer registers, verifies their domain, submits an application an
   await devPage.getByRole("button", { name: "Get verification code" }).click();
   const code = (await devPage.getByTestId("challenge").first().textContent())!.trim();
   // Before publishing the proof, verification must fail.
-  await devPage.getByRole("button", { name: "Check now" }).click();
+  await devPage.getByRole("button", { name: "Check verification" }).click();
   await expect(devPage.getByRole("alert").filter({ hasText: /Could not load|does not contain/ })).toBeVisible();
   await setSite(APP.host, { verification: code });
-  await devPage.getByRole("button", { name: "Check now" }).click();
+  await devPage.getByRole("button", { name: "Check verification" }).click();
   await expect(devPage.getByText(`${APP.host} is verified.`)).toBeVisible();
 
   await devPage.goto(`${DEVHOST}/listings/new`);

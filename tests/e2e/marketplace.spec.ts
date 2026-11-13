@@ -40,7 +40,7 @@ test.describe("marketplace", () => {
 
   test("filters narrow results and are reflected in the URL", async ({ page }) => {
     await page.goto("/search?q=code");
-    await page.getByText("Filters").click();
+    await page.locator("summary", { hasText: "Filters" }).click();
     await page.getByLabel("Open source").check();
     await page.getByRole("button", { name: "Apply" }).click();
     await expect(page).toHaveURL(/openSource=1/);

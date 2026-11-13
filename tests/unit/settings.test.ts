@@ -159,7 +159,7 @@ describe("origins and CSP additions", () => {
     expect(csp).not.toContain("evil");
     expect(csp).not.toContain("script-src *");
     expect(csp).toContain("connect-src 'self' https://*.google-analytics.com;");
-    expect(csp).toContain("frame-src https://www.google.com;");
+    expect(csp).toContain("frame-src 'self' https://www.google.com;");
     expect(buildCsp("n", false)).not.toContain("frame-src");
   });
   it("keeps ads off app, account, developer and leaving pages", () => {

@@ -102,7 +102,8 @@ export function buildCsp(nonce: string, isDev: boolean, mediaOrigin?: string, al
     `img-src 'self' data: blob:${mediaOrigin ? ` ${mediaOrigin}` : ""}${extra(add.img)}`,
     "font-src 'self'",
     `connect-src 'self'${extra(add.connect)}`,
-    ...(add.frame?.length ? [`frame-src${extra(add.frame)}`] : []),
+    // 'self' keeps Webcenta's own ad frames (/ads/frame/…) working when providers add sources.
+    ...(add.frame?.length ? [`frame-src 'self'${extra(add.frame)}`] : []),
     "object-src 'none'",
     "base-uri 'self'",
     allowExternalFormRedirect ? "form-action 'self' https:" : "form-action 'self'",

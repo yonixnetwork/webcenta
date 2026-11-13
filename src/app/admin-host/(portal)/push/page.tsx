@@ -8,6 +8,7 @@ import { db } from "@/server/db";
 import { requireAdmin } from "@/server/admin/auth";
 import { sendPushAction } from "@/server/actions/admin";
 import { getSection } from "@/server/settings/store";
+import { pushDiagnostics } from "@/server/push/diagnostics";
 
 export const metadata = { title: "Push notifications" };
 
@@ -18,13 +19,15 @@ export default async function PushAdmin({ searchParams }: { searchParams: Promis
   await requireAdmin("push.send");
   const kind = (await searchParams).kind;
   const since = weekAgo();
-  const [subscribers, signedIn, log, week, cfg] = await Promise.all([
+  const [subscribers, signedIn, log, week, cfg, d] = await Promise.all([
     db.pushSubscription.count({ where: { failureCount: { lt: 5 } } }),
     db.pushSubscription.count({ where: { failureCount: { lt: 5 }, userId: { not: null } } }),
     db.pushCampaign.findMany({ where: kind && KIND_LABEL[kind] ? { kind } : {}, orderBy: { createdAt: "desc" }, take: 100 }),
     db.pushCampaign.groupBy({ by: ["kind"], where: { createdAt: { gte: since } }, _sum: { delivered: true, failed: true }, _count: { _all: true } }),
     getSection("engagement"),
+    pushDiagnostics(7),
   ]);
+  const stat = (label: string, value: string | number, hint?: string) => <li className="rounded-xl border border-border p-3 text-sm"><span className="text-xs text-subtle">{label}</span><br /><strong className="text-lg">{value}</strong>{hint && <><br /><span className="text-xs text-muted">{hint}</span></>}</li>;
   return (
     <>
       <h1 className="text-2xl font-extrabold tracking-tight">Push notifications</h1>
@@ -41,6 +44,32 @@ export default async function PushAdmin({ searchParams }: { searchParams: Promis
             return <li key={k} className="rounded-xl border border-border p-3 text-sm"><strong>{KIND_LABEL[k]}s, last 7 days</strong><br />{w?._count._all ?? 0} sent · {w?._sum.delivered ?? 0} accepted · {w?._sum.failed ?? 0} failed</li>;
           })}
         </ul>
+      </Card>
+      <Card>
+        <h2 className="mb-1 font-semibold">Delivery report (last {d.days} days)</h2>
+        <p className="mb-3 text-xs text-subtle">Push attempts are counted per device. &ldquo;Accepted&rdquo; is the push service&apos;s answer (HTTP 201): Webcenta cannot see whether a phone displayed the notification or the user saw it.</p>
+        <ul className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4" data-testid="push-diagnostics">
+          {stat("In-app notifications created", d.notificationsCreated)}
+          {stat("Push attempts", d.attempts)}
+          {stat("Accepted by push services", d.accepted)}
+          {stat("Failed attempts", d.failed)}
+          {stat("Expired subscriptions removed", d.expired)}
+          {stat("Signed-in users without push", `${d.usersWithoutPush} of ${d.activeUsers}`, "No device has turned on notifications")}
+          {stat("Devices not eligible", d.notEligible, `${d.unhealthy} failing repeatedly · ${d.optedOut} opted out`)}
+          {stat("Last accepted delivery", d.lastAcceptedAt ? formatDate(d.lastAcceptedAt) : "never", d.lastAttemptAt ? `Last attempt ${formatDate(d.lastAttemptAt)}` : undefined)}
+        </ul>
+        <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+          <div><p className="font-semibold">Error categories</p>{d.categories.length ? <ul className="text-muted">{d.categories.map((c) => <li key={c.category}>{c.category}: {c.count}</li>)}</ul> : <p className="text-muted">No failures.</p>}</div>
+          <div><p className="font-semibold">By device type</p>{d.platforms.length ? <ul className="text-muted">{d.platforms.map((p) => <li key={p.platform}>{p.platform}: {p.accepted} accepted · {p.failed} failed · {p.expired} expired</li>)}</ul> : <p className="text-muted">No attempts yet.</p>}</div>
+          <div><p className="font-semibold">Subscribed devices</p><ul className="text-muted">{d.subscriptionsByPlatform.map((p) => <li key={p.platform}>{p.platform}: {p.count}</li>)}<li>iPhone/iPad Home Screen apps: {d.iosStandalone}</li></ul></div>
+        </div>
+        {d.recentFailures.length > 0 && (
+          <details className="mt-3 text-sm"><summary className="cursor-pointer font-semibold">Recent failing devices ({d.recentFailures.length})</summary>
+            <DataTable head={["Device", "Account", "Last failure", "Error", "Failures", "Last accepted", "Last confirmed by browser"]}>
+              {d.recentFailures.map((f) => <tr key={f.id}><td className={td}>{f.platform ?? "?"}{f.standalone ? " (installed)" : ""}</td><td className={td}>{f.userId ? "signed in" : "no account"}</td><td className={td}>{formatDate(f.lastFailureAt)}</td><td className={`${td} max-w-xs text-xs break-words`}>{f.lastError}</td><td className={td}>{f.failureCount}</td><td className={td}>{formatDate(f.lastSuccessAt)}</td><td className={td}>{formatDate(f.lastSyncedAt)}</td></tr>)}
+            </DataTable>
+          </details>
+        )}
       </Card>
       <Card>
         <h2 className="mb-3 font-semibold">Send an announcement</h2>

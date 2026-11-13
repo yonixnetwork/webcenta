@@ -139,3 +139,13 @@ body { background: var(--bg); color: var(--text); font-feature-settings: "cv11",
     radial-gradient(60% 80% at 15% 0%, color-mix(in srgb, var(--brand) 18%, transparent), transparent 70%),
     radial-gradient(50% 70% at 90% 10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%);
 }
+
+/* "Continue with Google": Google's standard light/dark button colours (branding guidelines). */
+.google-btn { background: #fff; color: #1f1f1f; border-color: #747775; }
+.google-btn:hover { background: #f8f9fa; }
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .google-btn { background: #131314; color: #e3e3e3; border-color: #8e918f; }
+  :root:not(.light) .google-btn:hover { background: #1f1f20; }
+}
+:root.dark .google-btn { background: #131314; color: #e3e3e3; border-color: #8e918f; }
+:root.dark .google-btn:hover { background: #1f1f20; }

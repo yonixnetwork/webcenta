@@ -5,7 +5,7 @@ import { db } from "../src/server/db";
 import { getSection } from "../src/server/settings/store";
 
 getSection("jobs")
-  .then((c) => runTick(c.num("tickBudgetMs") || 25_000))
+  .then((c) => runTick(c.num("tickBudgetMs") || 25_000, "cli"))
   .then((r) => console.log(JSON.stringify(r)))
   .catch((e) => {
     console.error(e);

@@ -42,16 +42,17 @@ async function pushToUser(userId: string, m: { type: NotificationType; title: st
   if (!cfg.bool("pushEvents")) return;
   const user = await db.user.findUnique({ where: { id: userId }, select: { pushNotifications: true, status: true } });
   if (!user || user.status !== "ACTIVE" || !user.pushNotifications) return;
-  const subs = await db.pushSubscription.findMany({ where: { userId, failureCount: { lt: 5 } }, select: { id: true, endpoint: true, p256dh: true, auth: true } });
+  const subs = await db.pushSubscription.findMany({ where: { userId, failureCount: { lt: 5 } }, select: { id: true, endpoint: true, p256dh: true, auth: true, userId: true, platform: true } });
   if (!subs.length) return;
   if (m.type !== "SECURITY_NOTICE") {
     const today = await db.pushCampaign.count({ where: { userId, kind: { in: ["EVENT", "REMINDER"] }, createdAt: { gte: new Date(Date.now() - 86_400_000) } } });
     if (today >= Math.max(1, cfg.num("maxPushPerDay") || 3)) return;
   }
   const { sendBatch } = await import("@/server/push/push");
-  const r = await sendBatch(subs, { title: m.title, body: m.body, url: m.url });
+  const kind = m.type === "REMINDER" ? "REMINDER" : "EVENT";
+  const r = await sendBatch(subs, { title: m.title, body: m.body, url: m.url }, { kind, userId });
   // Delivery log (Admin → Push notifications): accepted by the push service, not proof of display.
-  await db.pushCampaign.create({ data: { kind: m.type === "REMINDER" ? "REMINDER" : "EVENT", userId, title: m.title.slice(0, 120), body: (m.body || m.title).slice(0, 400), url: m.url.slice(0, 500), status: "SENT", recipients: subs.length, delivered: r.delivered, failed: r.failed, completedAt: new Date() } });
+  await db.pushCampaign.create({ data: { kind, userId, title: m.title.slice(0, 120), body: (m.body || m.title).slice(0, 400), url: m.url.slice(0, 500), status: "SENT", recipients: subs.length, delivered: r.delivered, failed: r.failed, completedAt: new Date() } });
 }
 
 /** Template with {placeholders}. */

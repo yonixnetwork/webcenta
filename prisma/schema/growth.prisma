@@ -13,12 +13,41 @@ model PushSubscription {
   userAgent     String?   @db.VarChar(255)
   failureCount  Int       @default(0)
   lastSuccessAt DateTime? @db.DateTime(3)
+  /// Last failed attempt: HTTP status from the push service and a short category (never the payload).
+  lastFailureAt DateTime? @db.DateTime(3)
+  lastStatus    Int?
+  lastError     String?   @db.VarChar(300)
+  /// "android", "ios", "desktop"… from the user agent; "standalone" when sent from an installed app.
+  platform      String?   @db.VarChar(40)
+  standalone    Boolean   @default(false)
+  /// Last time the browser confirmed this subscription (every visit with notifications on).
+  lastSyncedAt  DateTime? @db.DateTime(3)
   createdAt     DateTime  @default(now()) @db.DateTime(3)
   updatedAt     DateTime  @updatedAt @db.DateTime(3)
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+}
+
+/// One web push attempt to one subscription. ACCEPTED means the push service accepted the
+/// message (HTTP 201); it does not prove the device displayed it.
+model PushDelivery {
+  id             String   @id @default(uuid(7))
+  campaignId     String?
+  subscriptionId String?
+  userId         String?
+  /// ACCEPTED, FAILED or EXPIRED (the push service said the subscription is gone).
+  outcome        String   @db.VarChar(20)
+  statusCode     Int?
+  /// expired, unauthorized, payload, rate-limited, service-error, network, other.
+  category       String?  @db.VarChar(40)
+  platform       String?  @db.VarChar(40)
+  kind           String   @default("CAMPAIGN") @db.VarChar(20)
+  createdAt      DateTime @default(now()) @db.DateTime(3)
+
+  @@index([createdAt])
+  @@index([campaignId])
 }
 
 enum PushCampaignStatus {
@@ -82,6 +111,10 @@ model ImportCandidate {
   attempts         Int          @default(0)
   listingId        String?
   lastError        String?      @db.Text
+  /// Where the last attempt failed (fetch, metadata, duplicate, category, listing, checks) and why.
+  failedStage      String?      @db.VarChar(40)
+  errorCategory    String?      @db.VarChar(40)
+  retryable        Boolean      @default(true)
   createdByAdminId String?
   createdAt        DateTime     @default(now()) @db.DateTime(3)
   processedAt      DateTime?    @db.DateTime(3)

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Fragment } from "react";
+import { Ad } from "@/components/ads/ad";
 import { ChartNoAxesColumn, LayoutGrid, ShieldCheck, Sparkles } from "lucide-react";
 import { CategoryIcon } from "@/components/category-icon";
 import { AppCard } from "@/components/app-card";
@@ -74,7 +76,14 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           Listings appear here once they have been reviewed and published. Check back soon.
         </EmptyState>
       ) : (
-        rails.filter((r) => r !== featured).map((r) => <StoreListSection key={r.key} title={r.title} subtitle={r.subtitle} href={r.href} items={r.items} sponsoredIds={r.sponsoredIds} ranked={ranked.has(r.key)} />)
+        rails.filter((r) => r !== featured).map((r, i) => (
+          <Fragment key={r.key}>
+            <StoreListSection title={r.title} subtitle={r.subtitle} href={r.href} items={r.items} sponsoredIds={r.sponsoredIds} ranked={ranked.has(r.key)} />
+            {/* Ads sit between whole sections, never inside a row of apps. */}
+            {i === 1 && <Ad placement="home-native" />}
+            {i === 3 && <Ad placement="home-display" />}
+          </Fragment>
+        ))
       )}
 
       <section aria-labelledby="browse-categories" className="space-y-4">

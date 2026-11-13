@@ -48,6 +48,9 @@ const nextConfig: NextConfig = {
             : []),
         ],
       },
+      // Ad frames are embedded by Webcenta's own pages only (the route also sends frame-ancestors 'self').
+      // Listed after the rule above so this value wins.
+      { source: "/ads/frame/:unit", headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }] },
     ];
   },
 };

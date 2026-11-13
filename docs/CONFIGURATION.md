@@ -107,7 +107,7 @@ Dashboard: **Stripe** (immediate, connection test), **PayPal** (immediate, conne
 
 ## Advertising
 
-Dashboard: **Google AdSense** (immediate).
+Dashboard: **Google AdSense** (immediate), **Adsterra** (immediate), **Ad placements** (immediate).
 
 ## Analytics
 

@@ -9,6 +9,7 @@ import { PROVIDER_LABEL, type SocialProvider } from "@/lib/social-providers";
 import { buttonClass } from "@/components/ui/button";
 import { Field, FormMessage, inputClass } from "@/components/ui/form";
 import { PasswordInput } from "@/components/ui/password-input";
+import { GitHubLogo, GoogleLogo } from "./google-logo";
 
 function SocialButtons({ providers, next }: { providers: SocialProvider[]; next: string }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -16,13 +17,19 @@ function SocialButtons({ providers, next }: { providers: SocialProvider[]; next:
   return (
     <div className="space-y-2">
       {providers.map((p) => (
-        <button key={p} type="button" disabled={busy !== null} className={buttonClass("secondary", "lg", "w-full")}
+        <button key={p} type="button" disabled={busy !== null}
+          // Google: the standard "Sign in with Google" look (white button, grey outline, colour G;
+          // dark variant in dark mode) from Google's branding guidelines.
+          className={p === "google"
+            ? "google-btn relative flex h-12 w-full items-center justify-center gap-3 rounded-full border px-4 text-[15px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60"
+            : buttonClass("secondary", "lg", "w-full gap-3")}
           onClick={async () => {
             setBusy(p);
             await authClient.signIn.social({ provider: p, callbackURL: next, errorCallbackURL: "/signin?error=oauth" });
             setBusy(null);
           }}>
-          Continue with {PROVIDER_LABEL[p]}
+          {p === "google" ? <GoogleLogo className="size-5 shrink-0" /> : p === "github" ? <GitHubLogo className="size-5 shrink-0" /> : null}
+          <span className="truncate">{busy === p ? "Redirecting…" : `Continue with ${PROVIDER_LABEL[p]}`}</span>
         </button>
       ))}
       <div className="flex items-center gap-3 py-2 text-xs text-subtle"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>

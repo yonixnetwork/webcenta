@@ -8,7 +8,8 @@ import { recomputeScores } from "@/server/analytics/ranking";
 import { reconcileSearchDocuments } from "@/server/search/document";
 import { pingIndexNow } from "@/server/settings/site";
 
-export type JobHandler = (payload: unknown) => Promise<void>;
+/** A handler may return what it did (a count or a small object), shown in Admin → Scheduler. */
+export type JobHandler = (payload: unknown) => Promise<unknown>;
 
 /** Registered job handlers. Later phases add scans, roll-ups, emails, etc. */
 export const handlers: Record<string, JobHandler> = {
@@ -34,7 +35,7 @@ export const handlers: Record<string, JobHandler> = {
 };
 
 Object.assign(handlers, {
-  "email.deliver": async () => { await deliverPending(25); },
+  "email.deliver": async () => deliverPending(25),
   /** Tells IndexNow search engines about new or changed listing pages. */
   "indexnow.ping": async (payload: unknown) => {
     const r = await pingIndexNow((payload as { paths?: string[] }).paths ?? []);
@@ -47,7 +48,7 @@ Object.assign(handlers, {
   },
   "ranking.recompute": async () => { await recomputeScores(); },
   "submission.check": async (payload: unknown) => { await processSubmission((payload as { revisionId: string }).revisionId); },
-  "monitor.enqueue": async () => { await enqueueDueScans(20); },
+  "monitor.enqueue": async () => enqueueDueScans(20),
   "scan.listing": async (payload: unknown) => {
     const { listingId } = payload as { listingId: string };
     await monitorListing(listingId, "SCHEDULED");
@@ -67,12 +68,22 @@ Object.assign(handlers, {
   /** Continues push campaigns in batches. */
   "push.campaigns": async () => {
     const { continueCampaigns } = await import("@/server/push/push");
-    await continueCampaigns(15_000);
+    return continueCampaigns(15_000);
   },
   /** Imports queued web apps (Admin → Import web apps; Settings → Automatic web app imports). */
   "imports.run": async () => {
     const { runImports } = await import("@/server/importer/importer");
-    await runImports();
+    return runImports();
+  },
+  /** Marks queued imports whose website is already listed (or queued twice) as duplicates. */
+  "imports.dedupe": async () => {
+    const { skipQueuedDuplicates } = await import("@/server/importer/dedupe");
+    return skipQueuedDuplicates();
+  },
+  /** Proposes fuller descriptions for imported listings whose description is too short. */
+  "imports.enrich": async () => {
+    const { enrichDescriptions } = await import("@/server/importer/enrich");
+    return enrichDescriptions();
   },
   /** Notifications for a newly published app / an updated saved app, and inactivity reminders. */
   "notify.new-app": async (payload: unknown) => {
@@ -85,29 +96,37 @@ Object.assign(handlers, {
   },
   "notify.reminders": async () => {
     const { sendInactivityReminders } = await import("@/server/community/notifications");
-    await sendInactivityReminders();
+    return sendInactivityReminders();
   },
   "users.purge-deleted": async () => {
     const cutoff = new Date(Date.now() - 30 * 86_400_000);
-    await db.user.deleteMany({ where: { status: "PENDING_DELETION", deletedAt: { lt: cutoff } } });
+    return (await db.user.deleteMany({ where: { status: "PENDING_DELETION", deletedAt: { lt: cutoff } } })).count;
   },
   "maintenance.purge-history": async () => {
     await db.interactionEvent.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 180 * 86_400_000) } } });
     await db.authEvent.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 180 * 86_400_000) } } });
     await db.emailMessage.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 90 * 86_400_000) } } });
+    await db.pushDelivery.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 60 * 86_400_000) } } });
   },
 } satisfies Record<string, JobHandler>);
 
-export const recurringJobs: Array<{ type: keyof typeof handlers & string; everyMinutes: number }> = [
-  { type: "maintenance.purge-expired", everyMinutes: 60 },
-  { type: "maintenance.purge-raw-events", everyMinutes: 24 * 60 },
-  { type: "email.deliver", everyMinutes: 5 },
-  { type: "push.campaigns", everyMinutes: 5 },
-  { type: "imports.run", everyMinutes: 10 },
-  { type: "notify.reminders", everyMinutes: 6 * 60 },
-  { type: "stats.rollup", everyMinutes: 15 },
-  { type: "ranking.recompute", everyMinutes: 60 },
-  { type: "monitor.enqueue", everyMinutes: 15 },
-  { type: "users.purge-deleted", everyMinutes: 24 * 60 },
-  { type: "maintenance.purge-history", everyMinutes: 24 * 60 },
+/**
+ * Recurring jobs, enqueued by every scheduler tick once per window. Frequencies follow the
+ * workload: cheap, user-facing work often; network-heavy or expensive work less often.
+ * `label` and `what` are shown in Admin → Scheduler.
+ */
+export const recurringJobs: Array<{ type: keyof typeof handlers & string; everyMinutes: number; label: string; what: string }> = [
+  { type: "email.deliver", everyMinutes: 5, label: "Email retries", what: "Retries emails that could not be sent immediately." },
+  { type: "push.campaigns", everyMinutes: 5, label: "Push announcements", what: "Continues sending announcement batches (100 devices per batch)." },
+  { type: "imports.run", everyMinutes: 10, label: "Import web apps", what: "Imports the next queued web apps (Settings → Automatic web app imports sets how often and how many)." },
+  { type: "imports.dedupe", everyMinutes: 60, label: "Duplicate detection", what: "Skips queued imports whose website is already listed or queued under another address." },
+  { type: "imports.enrich", everyMinutes: 60, label: "Description enrichment", what: "Proposes fuller descriptions (from each app's own website) for imported listings, for review." },
+  { type: "stats.rollup", everyMinutes: 15, label: "Analytics roll-up", what: "Aggregates views and visits per day and refreshes visit counters." },
+  { type: "monitor.enqueue", everyMinutes: 15, label: "Security re-checks", what: "Queues periodic security scans of listings that are due." },
+  { type: "ranking.recompute", everyMinutes: 60, label: "Rankings", what: "Recomputes trending and popularity scores." },
+  { type: "maintenance.purge-expired", everyMinutes: 60, label: "Clean-up (hourly)", what: "Removes expired sessions, rate-limit buckets, old job history." },
+  { type: "notify.reminders", everyMinutes: 6 * 60, label: "Inactivity reminders", what: "Reminds push users who were away that new apps arrived." },
+  { type: "maintenance.purge-raw-events", everyMinutes: 24 * 60, label: "Raw event clean-up", what: "Deletes raw listing events older than 35 days." },
+  { type: "users.purge-deleted", everyMinutes: 24 * 60, label: "Account deletion", what: "Permanently deletes accounts 30 days after the user asked." },
+  { type: "maintenance.purge-history", everyMinutes: 24 * 60, label: "History clean-up", what: "Deletes old interaction, sign-in, email and push delivery history." },
 ];

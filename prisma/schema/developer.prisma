@@ -27,6 +27,8 @@ enum DomainVerificationMethod {
   DNS_TXT
   HTML_META
   WELL_KNOWN_FILE
+  /// webcenta-domain-verification-<id>.html at the website root.
+  HTML_FILE
 }
 
 enum DomainVerificationStatus {
@@ -58,17 +60,17 @@ model DeveloperOrg {
   slug              String                     @unique
   displayName       String
   legalName         String?
-  websiteUrl        String? @db.Text
+  websiteUrl        String?                    @db.Text
   /// Public contact address (distinct from members' login emails).
-  contactEmail      String? @db.VarChar(254)
+  contactEmail      String?                    @db.VarChar(254)
   countryCode       String?                    @db.Char(2)
-  bio               String? @db.Text
+  bio               String?                    @db.Text
   logoAssetId       String?
   status            DeveloperStatus            @default(ACTIVE)
   verificationLevel DeveloperVerificationLevel @default(UNVERIFIED)
   verifiedAt        DateTime?                  @db.DateTime(3)
   suspendedAt       DateTime?                  @db.DateTime(3)
-  suspendReason     String? @db.Text
+  suspendReason     String?                    @db.Text
   createdAt         DateTime                   @default(now()) @db.DateTime(3)
   updatedAt         DateTime                   @updatedAt @db.DateTime(3)
 
@@ -101,19 +103,21 @@ model DeveloperMember {
 }
 
 model DomainVerification {
-  id            String                   @id @default(uuid(7))
-  orgId         String
+  id                 String                   @id @default(uuid(7))
+  orgId              String
   /// Lower-case host, e.g. "app.example.com" or "example.com".
-  domain        String @db.VarChar(255)
-  method        DomainVerificationMethod
+  domain             String                   @db.VarChar(255)
+  method             DomainVerificationMethod
   /// Random challenge value the developer publishes. Not a credential.
-  challenge     String
-  status        DomainVerificationStatus @default(PENDING)
-  verifiedAt    DateTime?                @db.DateTime(3)
-  lastCheckedAt DateTime?                @db.DateTime(3)
-  failureReason String? @db.Text
-  createdAt     DateTime                 @default(now()) @db.DateTime(3)
-  updatedAt     DateTime                 @updatedAt @db.DateTime(3)
+  challenge          String
+  /// A pending challenge must be proven before this time; a new code is issued afterwards.
+  challengeExpiresAt DateTime?                @db.DateTime(3)
+  status             DomainVerificationStatus @default(PENDING)
+  verifiedAt         DateTime?                @db.DateTime(3)
+  lastCheckedAt      DateTime?                @db.DateTime(3)
+  failureReason      String?                  @db.Text
+  createdAt          DateTime                 @default(now()) @db.DateTime(3)
+  updatedAt          DateTime                 @updatedAt @db.DateTime(3)
 
   org    DeveloperOrg   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   claims ListingClaim[]
@@ -135,7 +139,7 @@ model ComplianceDocument {
   validFrom     DateTime?         @db.DateTime(3)
   expiresAt     DateTime?         @db.DateTime(3)
   decision      ReviewDecision    @default(PENDING)
-  decisionNotes String? @db.Text
+  decisionNotes String?           @db.Text
   reviewedById  String?
   reviewedAt    DateTime?         @db.DateTime(3)
   createdAt     DateTime          @default(now()) @db.DateTime(3)
@@ -157,9 +161,9 @@ model ListingClaim {
   orgId                String
   requestedById        String
   domainVerificationId String?
-  evidence             String? @db.Text
+  evidence             String?        @db.Text
   decision             ReviewDecision @default(PENDING)
-  decisionNotes        String? @db.Text
+  decisionNotes        String?        @db.Text
   reviewedById         String?
   reviewedAt           DateTime?      @db.DateTime(3)
   createdAt            DateTime       @default(now()) @db.DateTime(3)

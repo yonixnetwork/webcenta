@@ -52,7 +52,8 @@ test("SQL/tsquery injection payloads are treated as text", async ({ request }) =
 
 test("stored XSS in names, reviews and collections is escaped", async () => {
   const payload = `<img src=x onerror="window.__xss=1"><script>window.__xss=1</script>`;
-  await alice.goto(`${BASE}/account`);
+  await alice.goto(`${BASE}/account/profile`);
+  await alice.getByRole("button", { name: "Edit profile" }).click();
   await alice.getByLabel(/Display name/).fill(`Alice ${payload}`.slice(0, 80));
   await alice.getByRole("button", { name: "Save profile" }).click();
   await expect(alice.getByText("Profile saved.")).toBeVisible();
@@ -100,6 +101,8 @@ test("SSRF: domain verification cannot reach private networks or cloud metadata"
     await alice.getByLabel("Domain").fill(bad);
     await alice.getByRole("button", { name: "Get verification code" }).click();
     await expect(alice.getByText(/Enter a valid public domain/)).toBeVisible();
+    // Wait for this submission to finish (the form resets afterwards) before typing the next one.
+    await expect(alice.getByRole("button", { name: "Get verification code" })).toBeEnabled();
   }
   // A public-looking domain whose proof URL redirects to the metadata service.
   await setSite("private-redirect.localhost", { mode: "redirect-private" });
@@ -107,7 +110,7 @@ test("SSRF: domain verification cannot reach private networks or cloud metadata"
   await alice.getByLabel("Method").selectOption("WELL_KNOWN_FILE");
   await alice.getByRole("button", { name: "Get verification code" }).click();
   const card = alice.locator('[data-domain="private-redirect.localhost"]');
-  await card.getByRole("button", { name: "Check now" }).click();
+  await card.getByRole("button", { name: "Check verification" }).click();
   await expect(card.getByText(/private or reserved address/).first()).toBeVisible();
 });
 

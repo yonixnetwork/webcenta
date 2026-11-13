@@ -7,16 +7,18 @@
  *   or any page rendered for a signed-in visitor (marked x-wc-personal by the proxy).
  * Bump VERSION to roll out a new cache; clients are prompted to reload.
  */
-const VERSION = "wc-v4";
+const VERSION = "wc-v5";
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = "/offline";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/icons/icon-512.png", "/manifest.webmanifest"];
-const NO_CACHE = [/^\/api\//, /^\/account/, /^\/developer/, /^\/go\//, /^\/signin/, /^\/signup/, /^\/reset-password/, /^\/forgot-password/, /^\/account-export/, /^\/media\//];
+const NO_CACHE = [/^\/api\//, /^\/account/, /^\/developer/, /^\/go\//, /^\/signin/, /^\/signup/, /^\/reset-password/, /^\/forgot-password/, /^\/account-export/, /^\/media\//, /^\/ads\//];
 
 async function precache() {
   const cache = await caches.open(STATIC_CACHE);
-  await cache.addAll(PRECACHE);
+  // Never let a failed download stop the worker from installing: without an installed worker the
+  // browser cannot receive push notifications at all (seen on phones with a weak connection).
+  await Promise.all(PRECACHE.map((u) => cache.add(u).catch(() => undefined)));
   // Also cache the offline page's own stylesheets and scripts (content-hashed).
   const res = await cache.match(OFFLINE_URL);
   if (!res) return;
@@ -39,16 +41,24 @@ self.addEventListener("activate", (event) => {
 });
 
 // Web push: show the notification Webcenta sent, and open its page when tapped.
+// Every push must show a notification (userVisibleOnly); a malformed payload still shows a
+// generic one, otherwise browsers may revoke the subscription.
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data ? event.data.text() : "" }; }
   const title = typeof data.title === "string" && data.title ? data.title : "Webcenta";
   const url = typeof data.url === "string" && data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "/";
-  event.waitUntil(self.registration.showNotification(title, {
+  const options = {
     body: typeof data.body === "string" ? data.body : "",
-    icon: data.icon || "/icons/icon-192.png",
-    badge: data.badge || "/icons/favicon-48.png",
+    icon: typeof data.icon === "string" && data.icon.startsWith("/") ? data.icon : "/icons/icon-192.png",
+    badge: typeof data.badge === "string" && data.badge.startsWith("/") ? data.badge : "/icons/badge-96.png",
     data: { url },
+  };
+  if (typeof data.tag === "string" && data.tag) { options.tag = data.tag; options.renotify = true; }
+  if (typeof data.ts === "number") options.timestamp = data.ts;
+  event.waitUntil(self.registration.showNotification(title, options).catch((err) => {
+    console.error("[webcenta sw] showNotification failed", err);
+    return self.registration.showNotification(title, { body: options.body, data: { url } });
   }));
 });
 
@@ -58,7 +68,22 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const w of wins) if (w.url === url && "focus" in w) return w.focus();
+    // An open Webcenta window elsewhere: navigate it instead of opening another one.
+    for (const w of wins) if (new URL(w.url).origin === self.location.origin && "navigate" in w) { await w.focus(); return w.navigate(url); }
     return self.clients.openWindow(url);
+  })());
+});
+
+// The push service replaced or expired the subscription: subscribe again with the same key and
+// tell the server, so notifications keep arriving without the user doing anything.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil((async () => {
+    try {
+      const old = event.oldSubscription;
+      const key = (old && old.options && old.options.applicationServerKey) || (await (await fetch("/api/push", { cache: "no-store" })).json()).publicKey;
+      const sub = event.newSubscription || (await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }));
+      await fetch("/api/push", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...sub.toJSON(), oldEndpoint: old ? old.endpoint : undefined }) });
+    } catch (err) { console.error("[webcenta sw] resubscribe failed", err); }
   })());
 });
 
