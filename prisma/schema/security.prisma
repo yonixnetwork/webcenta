@@ -42,6 +42,8 @@ enum CheckType {
   DNS_CHANGE
   POLICY_PAGES
   DOMAIN_VERIFICATION
+  DOMAIN_AGE
+  POLICY_CONTENT
 }
 
 enum AlertSeverity {

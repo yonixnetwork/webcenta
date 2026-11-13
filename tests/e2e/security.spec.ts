@@ -244,6 +244,7 @@ test("signing in with an unverified email is refused and re-sends the link", asy
   await page.goto(`${BASE}/signup`);
   await page.getByLabel("Name").fill("Una");
   await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Date of birth").fill("1988-02-29");
   await page.getByLabel(/^Password/).fill("correct-horse-battery-staple");
   await page.getByLabel("Confirm password").fill("correct-horse-battery-staple");
   await page.getByRole("checkbox").check();

@@ -10,6 +10,7 @@ import { db } from "@/server/db";
 import { getSection } from "@/server/settings/store";
 import { derivedSecret } from "@/server/settings/keys";
 import { sendEmail } from "@/server/email/send";
+import { MIN_SIGNUP_AGE, ageOn, parseBirthDate, ratingForAge } from "@/lib/age";
 import { actionEmail } from "@/server/email/templates";
 
 /**
@@ -161,7 +162,35 @@ function buildAuth(o: AuthOptions, surface: AuthSurface) {
       database: { generateId: false },
       ipAddress: { ipAddressHeaders: ["x-forwarded-for", "x-real-ip"] },
     },
+    // Date of birth, asked at sign-up (social sign-ins are asked once afterwards). It sets the
+    // highest content rating the account may see and cannot be changed through the auth API.
+    user: {
+      additionalFields: {
+        birthDate: { type: "date", required: false, input: true, returned: false },
+      },
+    },
     databaseHooks: {
+      user: {
+        create: {
+          before: async (user) => {
+            const raw = (user as { birthDate?: unknown }).birthDate;
+            if (raw === undefined || raw === null) return { data: { ...user, birthDate: null } };
+            const birthDate = parseBirthDate(raw);
+            if (!birthDate || ageOn(birthDate) < MIN_SIGNUP_AGE) return false;
+            const rating = ratingForAge(ageOn(birthDate));
+            return { data: { ...user, birthDate, maxAgeRating: rating === "AGE_18_PLUS" ? "AGE_18_PLUS" : rating, adultConfirmedAt: rating === "AGE_18_PLUS" ? new Date() : null } };
+          },
+        },
+        update: {
+          // Only Webcenta's own account settings may set the date of birth (once).
+          before: async (data) => {
+            if (!("birthDate" in data)) return;
+            const rest = { ...data } as Record<string, unknown>;
+            delete rest.birthDate;
+            return { data: rest };
+          },
+        },
+      },
       session: {
         create: {
           // Suspended accounts and accounts pending deletion cannot sign in.

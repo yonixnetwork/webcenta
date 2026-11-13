@@ -4,7 +4,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { AlertSeverity, CheckType, ScanTrigger } from "@/generated/prisma/enums";
 import { db } from "@/server/db";
 import { analyzeHtml } from "./html";
-import { blocklistCheck, googleWebRisk, urlhaus, virusTotal, type Verdict } from "./providers";
+import { blocklistCheck, cloudflareSecurityDns, domainRegistered, googleWebRisk, urlhaus, virusTotal, type Verdict } from "./providers";
+import { parseSiteHtml } from "@/server/importer/metadata";
 import { safeFetch, type SafeResponse } from "./safe-fetch";
 import { brandLabel, levenshtein, PROTECTED_BRANDS, registrableDomain, skeleton } from "./domains";
 
@@ -62,10 +63,20 @@ export async function runChecks(target: { url: string; domain: string; privacyPo
 
   // Threat intelligence (all hosts in the chain)
   const hostsToCheck = [...new Set([target.domain, ...hopHosts])];
-  const intel = await Promise.all([blocklistCheck(hostsToCheck), googleWebRisk(res.finalUrl || target.url), urlhaus(target.url), virusTotal(target.url)]);
+  // Paid providers (Web Risk, VirusTotal) report SKIPPED while they are switched off.
+  const intel = await Promise.all([blocklistCheck(hostsToCheck), googleWebRisk(res.finalUrl || target.url), urlhaus(target.url), virusTotal(target.url), ...[...new Set([target.domain, finalHost].filter(Boolean))].map((h) => cloudflareSecurityDns(h))]);
   for (const r of intel) {
-    checks.push({ check: r.provider === "webcenta-blocklist" ? "THREAT_INTEL_DOMAIN" : "THREAT_INTEL_URL", provider: r.provider, verdict: r.verdict, summary: r.summary, evidence: r.evidence, severity: r.verdict === "FAIL" ? "CRITICAL" : r.verdict === "WARN" ? "HIGH" : undefined });
+    if (r.verdict === "SKIPPED" && (r.provider === "google-web-risk" || r.provider === "virustotal")) continue;
+    const domainLevel = r.provider === "webcenta-blocklist" || r.provider === "cloudflare-security-dns";
+    checks.push({ check: domainLevel ? "THREAT_INTEL_DOMAIN" : "THREAT_INTEL_URL", provider: r.provider, verdict: r.verdict, summary: r.summary, evidence: r.evidence, severity: r.verdict === "FAIL" ? "CRITICAL" : r.verdict === "WARN" ? "HIGH" : undefined });
   }
+
+  // Domain age (public RDAP). Very new domains are a common sign of scams.
+  const registered = await domainRegistered(target.domain);
+  if (registered) {
+    const days = Math.floor((Date.now() - registered.getTime()) / 86_400_000);
+    checks.push({ check: "DOMAIN_AGE", provider: "rdap", verdict: days < 30 ? "WARN" : "PASS", summary: days < 30 ? `Domain registered only ${days} day(s) ago` : `Domain registered ${Math.floor(days / 365)} year(s) ago (${registered.toISOString().slice(0, 10)})`, evidence: { registered: registered.toISOString() }, severity: days < 30 ? "MEDIUM" : undefined });
+  } else checks.push({ check: "DOMAIN_AGE", provider: "rdap", verdict: "SKIPPED", summary: "Registration date not available from RDAP" });
 
   // Phishing heuristics
   const pageText = `${page.title ?? ""} ${page.text}`.toLowerCase();
@@ -97,13 +108,28 @@ export async function runChecks(target: { url: string; domain: string; privacyPo
     checks.push({ check: "DOWNLOAD_BEHAVIOUR", provider: "internal", verdict: "FAIL", summary: `Homepage triggers a file download (${ctype || disp})`, severity: "HIGH" });
   } else checks.push({ check: "DOWNLOAD_BEHAVIOUR", provider: "internal", verdict: "PASS", summary: "No automatic download" });
 
-  // Policy pages
-  if (target.privacyPolicyUrl || target.termsUrl) {
-    const urls = [target.privacyPolicyUrl, target.termsUrl].filter(Boolean) as string[];
+  // Policy pages: given ones, or the links on the homepage. A real privacy policy is reachable,
+  // is substantial, talks about privacy/personal data and names this website.
+  const found = analyzeLinks(res.body, res.finalUrl || target.url);
+  const privacyUrl = target.privacyPolicyUrl ?? found.privacy;
+  const termsUrl = target.termsUrl ?? found.terms;
+  if (privacyUrl || termsUrl) {
+    const urls = [privacyUrl, termsUrl].filter(Boolean) as string[];
     const results = await Promise.all(urls.map((u) => safeFetch(u)));
     const bad = results.filter((r) => !r.ok);
-    checks.push({ check: "POLICY_PAGES", provider: "internal", verdict: bad.length ? "WARN" : "PASS", summary: bad.length ? `${bad.length} policy page(s) unreachable` : "Policy pages reachable", severity: "LOW" });
-  } else checks.push({ check: "POLICY_PAGES", provider: "internal", verdict: "WARN", summary: "No privacy policy or terms URL provided", severity: "LOW" });
+    checks.push({ check: "POLICY_PAGES", provider: "internal", verdict: bad.length ? "WARN" : "PASS", summary: bad.length ? `${bad.length} policy page(s) unreachable` : `Policy pages reachable${!target.privacyPolicyUrl && found.privacy ? " (found on the homepage)" : ""}`, severity: "LOW" });
+    const priv = privacyUrl ? results[0] : null;
+    if (priv?.ok) {
+      const text = analyzeHtml(priv.body).text.toLowerCase();
+      const host = (() => { try { return new URL(priv.finalUrl).hostname.toLowerCase(); } catch { return ""; } })();
+      const sameSite = registrableDomain(host) === listedReg || POLICY_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+      const names = [listedReg, brandLabel(target.domain), ...(page.title ? [page.title.split(/[|–—:-]/)[0]!.trim().toLowerCase()] : [])].filter((x) => x.length >= 3);
+      const namesSite = names.some((n) => text.includes(n.toLowerCase()));
+      const isPolicy = /privacy|personal (data|information)|data protection/.test(text) && text.length > 800;
+      const problems = [!sameSite && `hosted on ${host}`, !isPolicy && "does not read like a privacy policy", !namesSite && "does not mention this website"].filter(Boolean);
+      checks.push({ check: "POLICY_CONTENT", provider: "internal", verdict: problems.length ? "WARN" : "PASS", summary: problems.length ? `Privacy policy ${problems.join(", ")}` : "Privacy policy belongs to this website", severity: problems.length ? "MEDIUM" : undefined });
+    }
+  } else checks.push({ check: "POLICY_PAGES", provider: "internal", verdict: "WARN", summary: "No privacy policy or terms found", severity: "LOW" });
 
   // Domain ownership
   if (target.orgId) {
@@ -129,6 +155,16 @@ export async function runChecks(target: { url: string; domain: string; privacyPo
     }
   }
   return { res, page, checks, nameservers: ns };
+}
+
+/** Common hosted privacy-policy services (a policy hosted there still belongs to the site). */
+const POLICY_HOSTS = ["termly.io", "iubenda.com", "termsfeed.com", "privacypolicies.com", "getterms.io", "notion.site", "google.com"];
+
+/** Privacy policy and terms links on a page. */
+function analyzeLinks(html: string, base: string): { privacy: string | null; terms: string | null } {
+  if (!html) return { privacy: null, terms: null };
+  const m = parseSiteHtml(html, base);
+  return { privacy: m.privacyUrl, terms: m.termsUrl };
 }
 
 export interface PreviousScan { finalUrl: string | null; pageTitle: string | null; contentHash: string | null; nameservers: string[]; tlsFingerprint: string | null; tlsIssuer: string | null }
@@ -180,6 +216,7 @@ export async function scanListing(listingId: string, trigger: ScanTrigger, opts:
  */
 export function qualifiesForAutoApproval(outcomes: CheckOutcome[]): boolean {
   const relevant = outcomes.filter((o) => o.verdict !== "SKIPPED");
-  const externalPass = outcomes.some((o) => o.check === "THREAT_INTEL_URL" && o.verdict === "PASS");
+  // An external source must have looked at the site: URLhaus, or Cloudflare's malware filter.
+  const externalPass = outcomes.some((o) => (o.check === "THREAT_INTEL_URL" || (o.check === "THREAT_INTEL_DOMAIN" && o.provider !== "webcenta-blocklist")) && o.verdict === "PASS");
   return externalPass && relevant.every((o) => o.verdict === "PASS");
 }

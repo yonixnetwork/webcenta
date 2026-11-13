@@ -161,11 +161,11 @@ function resolve(def: SectionDef, stored: StoredSection | undefined, env: Record
 export class Section {
   constructor(readonly r: ResolvedSection) {}
   get enabled() {
-    return this.r.enabled;
+    return this.r.enabled && !this.r.def.paid;
   }
-  /** Enabled and every required field present. */
+  /** Enabled and every required field present. Paid integrations are switched off for now. */
   get ready() {
-    return this.r.enabled && missingFields(this.r).length === 0;
+    return this.enabled && missingFields(this.r).length === 0;
   }
   str(k: string): string {
     const v = this.r.values[k];
@@ -255,7 +255,7 @@ export function statusOf(r: ResolvedSection): SectionStatus {
 
 export async function allSections(): Promise<Array<{ section: Section; status: SectionStatus }>> {
   const c = await load();
-  return SECTIONS.map((def) => {
+  return SECTIONS.filter((def) => !def.paid).map((def) => {
     const r = resolve(def, c.rows.get(def.id));
     return { section: new Section(r), status: statusOf(r) };
   });

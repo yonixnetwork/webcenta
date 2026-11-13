@@ -58,7 +58,7 @@ test.describe("PWA", () => {
     await page.goto("/offline");
     await page.getByRole("button", { name: "Retry" }).click();
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Find the right web app");
+    await expect(page.getByRole("heading", { level: 1 }).locator("visible=true")).toContainText(/Discover|Find the right web app/);
   });
 
   test("an updated service worker triggers the update prompt and reload", async ({ page }) => {
@@ -73,7 +73,7 @@ test.describe("PWA", () => {
       const next = `wc-v${current + 1}`;
       writeFileSync(SERVED_SW, original.replace(`const VERSION = "wc-v${current}"`, `const VERSION = "${next}"`));
       await page.evaluate(async () => { const reg = await navigator.serviceWorker.getRegistration(); await reg?.update(); });
-      await expect(page.getByText("A new version of Webcenta is available.")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText("Webcenta has been updated.")).toBeVisible({ timeout: 15_000 });
       const reload = page.waitForEvent("load");
       await page.getByRole("button", { name: "Reload" }).click();
       await reload;
@@ -96,7 +96,7 @@ test.describe("PWA", () => {
     });
     const banner = page.getByTestId("install-banner");
     await expect(banner).toBeVisible();
-    await expect(banner).toContainText("not an app-store app");
+    await expect(banner).toContainText("Add Webcenta to your home screen");
     await banner.getByRole("button", { name: "Install" }).click();
     expect(await page.evaluate(() => (window as unknown as { __prompted?: boolean }).__prompted)).toBe(true);
     await expect(banner).toBeHidden();

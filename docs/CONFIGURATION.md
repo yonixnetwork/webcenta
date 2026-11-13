@@ -99,6 +99,7 @@ Dashboard: **Email (SMTP)** (immediate, connection test).
 | `SMTP_USER` | Fallback SMTP username. | Optional | No | No | Yes — Email (SMTP) (env is a fallback) | Immediate |
 | `SMTP_PASSWORD` | Fallback SMTP password. | Optional | Yes | No | Yes — Email (SMTP) (env is a fallback) | Immediate |
 | `EMAIL_FROM` | Fallback sender address. | Optional | No | No | Yes — Email (SMTP) (env is a fallback) | Immediate |
+| `SUPPORT_INBOX_EMAIL` | Fallback support inbox: addresses that receive every Contact & support message (reply-to the visitor). | Optional | No | No | Yes — Notifications (env is a fallback) | Immediate |
 
 ## Payments
 
@@ -151,7 +152,7 @@ Dashboard: **Developer portal** (immediate).
 
 ## Background jobs
 
-Dashboard: **Scheduled tasks** (immediate).
+Dashboard: **Scheduled tasks** (immediate), **Automatic web app imports** (immediate).
 
 | Variable | Purpose | Required | Secret | Startup | Managed in dashboard | Change needs |
 | --- | --- | --- | --- | --- | --- | --- |

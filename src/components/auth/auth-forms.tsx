@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { MIN_SIGNUP_AGE, ageOn, parseBirthDate } from "@/lib/age";
 import { PROVIDER_LABEL, type SocialProvider } from "@/lib/social-providers";
 import { buttonClass } from "@/components/ui/button";
 import { Field, FormMessage, inputClass } from "@/components/ui/form";
@@ -63,6 +64,12 @@ export function SignInForm({ providers, next, initialError }: { providers: Socia
   );
 }
 
+/** Age in whole years from a YYYY-MM-DD date, or null when it is not a valid date. */
+function ageFrom(value: string): number | null {
+  const d = parseBirthDate(value);
+  return d ? ageOn(d) : null;
+}
+
 export function SignUpForm({ providers, next }: { providers: SocialProvider[]; next: string }) {
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
@@ -77,8 +84,12 @@ export function SignUpForm({ providers, next }: { providers: SocialProvider[]; n
         const name = String(f.get("name")).trim(), email = String(f.get("email")).trim(), password = String(f.get("password"));
         if (password !== String(f.get("confirm"))) return setError("The passwords do not match.");
         if (!f.get("terms")) return setError("Please accept the terms to continue.");
+        const birthDate = String(f.get("birthDate") ?? "");
+        const age = ageFrom(birthDate);
+        if (age === null) return setError("Please enter your date of birth.");
+        if (age < MIN_SIGNUP_AGE) return setError(`You must be at least ${MIN_SIGNUP_AGE} years old to create an account.`);
         setPending(true); setError("");
-        const { error: err } = await authClient.signUp.email({ name, email, password, callbackURL: `${next}${next.includes("?") ? "&" : "?"}welcome=1` });
+        const { error: err } = await authClient.signUp.email({ name, email, password, birthDate, callbackURL: `${next}${next.includes("?") ? "&" : "?"}welcome=1` });
         setPending(false);
         if (err) {
           setError(err.status === 422 || err.code === "USER_ALREADY_EXISTS" ? "An account with this email may already exist. Try signing in or resetting your password." :
@@ -90,6 +101,7 @@ export function SignUpForm({ providers, next }: { providers: SocialProvider[]; n
         {error && <FormMessage>{error}</FormMessage>}
         <Field label="Name"><input name="name" required maxLength={80} autoComplete="name" className={inputClass} /></Field>
         <Field label="Email"><input name="email" type="email" required autoComplete="email" className={inputClass} /></Field>
+        <Field label="Date of birth" hint="Used to show content suitable for your age. It is never shown to anyone."><input name="birthDate" type="date" required autoComplete="bday" max={new Date().toISOString().slice(0, 10)} min="1900-01-01" className={inputClass} /></Field>
         <Field label="Password" hint="At least 10 characters."><input name="password" type="password" required minLength={10} maxLength={128} autoComplete="new-password" className={inputClass} /></Field>
         <Field label="Confirm password"><input name="confirm" type="password" required minLength={10} autoComplete="new-password" className={inputClass} /></Field>
         <label className="flex items-start gap-2 text-sm">

@@ -7,7 +7,7 @@
  *   or any page rendered for a signed-in visitor (marked x-wc-personal by the proxy).
  * Bump VERSION to roll out a new cache; clients are prompted to reload.
  */
-const VERSION = "wc-v3";
+const VERSION = "wc-v4";
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = "/offline";
@@ -35,6 +35,30 @@ self.addEventListener("activate", (event) => {
     const keys = await caches.keys();
     await Promise.all(keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k)));
     await self.clients.claim();
+  })());
+});
+
+// Web push: show the notification Webcenta sent, and open its page when tapped.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data ? event.data.text() : "" }; }
+  const title = typeof data.title === "string" && data.title ? data.title : "Webcenta";
+  const url = typeof data.url === "string" && data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "/";
+  event.waitUntil(self.registration.showNotification(title, {
+    body: typeof data.body === "string" ? data.body : "",
+    icon: data.icon || "/icons/icon-192.png",
+    badge: data.badge || "/icons/favicon-48.png",
+    data: { url },
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const w of wins) if (w.url === url && "focus" in w) return w.focus();
+    return self.clients.openWindow(url);
   })());
 });
 

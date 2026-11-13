@@ -11,6 +11,23 @@ import { parseFilters } from "@/lib/search-params";
 import { getPublicCategory } from "@/server/catalog/categories";
 import { searchListings } from "@/server/search/search";
 import { getViewerContext } from "@/server/viewer";
+import { AGE_ORDER } from "@/server/catalog/visibility";
+import { getCurrentUser } from "@/server/auth/session";
+
+/** Shown instead of an adults-only category to visitors and users who have not confirmed they are 18 or older. */
+async function AgeGate({ name }: { name: string }) {
+  const user = await getCurrentUser();
+  return (
+    <div className="mx-auto max-w-md space-y-3 rounded-3xl border border-border bg-surface p-6 text-center shadow-card">
+      <p className="mx-auto grid size-14 place-items-center rounded-full bg-danger-soft text-xl font-extrabold text-danger">18+</p>
+      <h1 className="text-2xl font-extrabold tracking-tight">{name} is for adults</h1>
+      <p className="text-sm text-muted">
+        {user ? "Your account settings do not allow adult content. If you are 18 or older (or the age of majority where you live), you can allow it in Privacy & data." : "Sign in and confirm that you are an adult to browse this category."}
+      </p>
+      <Link href={user ? "/account/privacy" : `/signin`} className="inline-block rounded-full bg-brand px-5 py-2 text-sm font-semibold text-brand-contrast">{user ? "Open Privacy & data" : "Sign in"}</Link>
+    </div>
+  );
+}
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -30,6 +47,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const cat = await getPublicCategory(slug);
   if (!cat) notFound();
   const ctx = await getViewerContext();
+  if (AGE_ORDER.indexOf(cat.defaultAgeRating) > AGE_ORDER.indexOf(ctx.maxAgeRating)) return <AgeGate name={cat.name} />;
   const filters = { ...parseFilters(await searchParams), category: cat.slug };
   const result = await searchListings(ctx, filters);
 

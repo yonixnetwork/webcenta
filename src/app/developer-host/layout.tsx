@@ -19,7 +19,7 @@ export default async function DeveloperRoot({ children }: { children: React.Reac
       <DeveloperHeader theme={theme} user={user ? { name: user.name } : null} marketplaceUrl={publicOrigin()} />
       <main id="main" className="mx-auto max-w-7xl px-4 py-6 sm:px-6">{children}</main>
       <footer className="border-t border-border py-6 text-center text-xs text-subtle">
-        Webcenta for Developers · <a href={`${publicOrigin()}/legal/developer-agreement`} className="hover:text-text">Developer agreement</a> · <a href={`${publicOrigin()}/contact`} className="hover:text-text">Support</a>
+        Webcenta for Developers · <a href={`${publicOrigin()}/legal/developers`} className="hover:text-text">Developer agreement</a> · <a href={`${publicOrigin()}/contact`} className="hover:text-text">Support</a>
       </footer>
     </div>
   );

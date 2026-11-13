@@ -21,7 +21,7 @@ for (const theme of ["light", "dark"] as const) {
       for (const path of PAGES) {
         const res = await page.goto(path);
         expect(res!.status(), path).toBe(NOT_FOUND.has(path) ? 404 : 200);
-        await expect(page.locator("h1").first(), path).toBeVisible();
+        await expect(page.locator("h1:visible").first(), path).toBeVisible();
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(overflow, `${path} horizontal overflow`).toBeLessThanOrEqual(1);
         const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -67,7 +67,7 @@ test("every navigation button works: header, mobile tabs, footer", async ({ page
   await page.goto("/");
   const phone = (page.viewportSize()?.width ?? 1280) < 640; // the tab bar is shown below the sm breakpoint
   if (phone) {
-    for (const [label, path] of [["Categories", "/categories"], ["Search", "/search"], ["Discover", "/"]] as const) {
+    for (const [label, path] of [["Categories", "/categories"], ["Search", "/search"], ["Games", "/c/games"], ["Today", "/"]] as const) {
       await page.getByRole("navigation", { name: "Mobile" }).getByRole("link", { name: label }).click();
       await expect(page).toHaveURL(new RegExp(`${path === "/" ? "/$" : path}`));
     }
@@ -77,7 +77,7 @@ test("every navigation button works: header, mobile tabs, footer", async ({ page
     await page.getByRole("link", { name: "Sign in" }).click();
     await expect(page).toHaveURL(/\/signin/);
   }
-  for (const [label, re] of [["Contact & support", /\/contact$/], ["Terms", /\/legal\/terms$/], ["About & how listings are checked", /\/about$/]] as const) {
+  for (const [label, re] of [["Contact & support", /\/contact$/], ["Terms of Service", /\/legal\/terms$/], ["About & how listings are checked", /\/about$/]] as const) {
     await page.getByRole("contentinfo").getByRole("link", { name: label }).click();
     await expect(page).toHaveURL(re);
   }

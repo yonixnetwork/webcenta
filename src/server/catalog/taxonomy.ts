@@ -50,6 +50,8 @@ function node(slug: string, name: string, icon: string, opts: Opts, children: Ch
 
 const HIGH_FIN: Opts = { riskTier: "HIGH", manualReview: true, complianceDocs: true };
 const RESTRICTED_18: Opts = { riskTier: "HIGH", ageRating: "AGE_18_PLUS", restricted: true, manualReview: true, complianceDocs: true };
+/** Visible to adults only (18+), every listing reviewed by a moderator, licence evidence where it applies. */
+const ADULT_FIN: Opts = { riskTier: "HIGH", ageRating: "AGE_18_PLUS", manualReview: true, complianceDocs: true };
 
 export const TAXONOMY: TaxonomyNode[] = [
   node("ai", "AI & Artificial Intelligence", "Sparkles", { description: "AI assistants, generators, agents and machine-learning tools." }, [
@@ -62,19 +64,30 @@ export const TAXONOMY: TaxonomyNode[] = [
   node("programming", "Programming", "Code", {}, ["Online IDEs", "Learn to code", "Code playgrounds", "Package registries", "Code search"]),
   node("education", "Education", "GraduationCap", {}, ["Online courses", "Language learning", "Tutoring", "Exam preparation", "Reference", "Teaching tools"]),
   node("science", "Science & Research", "FlaskConical", {}, ["Research papers", "Citation managers", "Data repositories", "Scientific calculators", "Astronomy", "Lab tools"]),
-  node("cryptocurrency", "Cryptocurrency", "Bitcoin", { riskTier: "MEDIUM", manualReview: true }, [
-    ["Exchanges", { ...HIGH_FIN, restricted: true, ageRating: "AGE_18_PLUS" }],
-    ["Wallets", { riskTier: "HIGH", manualReview: true }],
-    ["DeFi", { ...HIGH_FIN, restricted: true, ageRating: "AGE_18_PLUS" }],
+  node("cryptocurrency", "Cryptocurrency", "Bitcoin", { riskTier: "MEDIUM", manualReview: true, description: "Wallets, exchanges, DEX screeners, explorers and research tools that work in the browser." }, [
+    ["Exchanges", ADULT_FIN],
+    ["Decentralized exchanges (DEX)", { ...ADULT_FIN, icon: "ArrowLeftRight" }],
+    ["DEX screeners", { riskTier: "MEDIUM", manualReview: true, icon: "Scan" }],
+    ["Wallets", { riskTier: "HIGH", manualReview: true, icon: "Wallet" }],
+    ["DeFi", ADULT_FIN],
     ["NFT platforms", { riskTier: "HIGH", manualReview: true }],
     "Blockchain explorers",
+    ["Token scanners", { riskTier: "MEDIUM", manualReview: true, icon: "Scan" }],
+    "On-chain analytics",
     ["Token launchpads", { ...HIGH_FIN, restricted: true, ageRating: "AGE_18_PLUS" }],
-    ["Trading bots", { ...HIGH_FIN, restricted: true, ageRating: "AGE_18_PLUS" }],
-    "Analytics", "Portfolio tracking", "Research tools",
+    ["Trading bots", ADULT_FIN],
+    "Analytics", "Portfolio tracking", "Research tools", "Crypto news", "Crypto tools",
   ]),
   node("blockchain-web3", "Blockchain & Web3", "Blocks", { riskTier: "MEDIUM", manualReview: true }, ["dApps", "Developer platforms", "Decentralized storage", "DAOs", "Identity"]),
-  node("forex", "Forex", "ChartCandlestick", { ...RESTRICTED_18, description: "Foreign-exchange brokers and trading tools. Requires licence verification." }, [
+  node("forex", "Forex", "ChartCandlestick", { ...ADULT_FIN, description: "Foreign-exchange brokers and trading tools. Brokers need licence verification." }, [
     "Brokers", "Trading platforms", "Signals", "Economic calendars", "Education",
+    ["Forex tools", { riskTier: "MEDIUM", manualReview: true, complianceDocs: false }],
+    ["Currency converters", { riskTier: "LOW", manualReview: false, complianceDocs: false, ageRating: "ALL_AGES" }],
+    ["Position size calculators", { riskTier: "MEDIUM", manualReview: true, complianceDocs: false }],
+  ]),
+  node("trading", "Trading", "ChartLine", { riskTier: "MEDIUM", manualReview: true, description: "Charting, screeners, journals and research for stocks, crypto and forex traders." }, [
+    "Charting", "Screeners", "Trading journals", "Backtesting", "Market news", "Economic calendars",
+    ["Copy trading", ADULT_FIN], ["Prop firms", ADULT_FIN], ["Trading signals", ADULT_FIN],
   ]),
   node("finance", "Finance & Accounting", "Calculator", { riskTier: "MEDIUM" }, ["Accounting", "Budgeting", "Tax", "Payroll", "Expense tracking", "Calculators"]),
   node("banking-fintech", "Banking & Fintech", "Landmark", HIGH_FIN, ["Digital banks", "Payments", "Money transfer", ["Lending", { ...HIGH_FIN, restricted: true }], "Business banking"]),
@@ -90,9 +103,9 @@ export const TAXONOMY: TaxonomyNode[] = [
   node("games", "Games", "Gamepad2", {}, ["Browser games", "Multiplayer", "Puzzle", "Strategy", "Game platforms", "Game tools", "Esports"]),
   node("entertainment", "Entertainment", "Clapperboard", {}, ["Movies & TV info", "Comics", "Humor", "Events & tickets", "Fan communities"]),
   node("video-streaming", "Video & Streaming", "MonitorPlay", {}, ["Video platforms", "Live streaming", "Video editing", "Screen recording", "Podcasts"]),
-  node("adult-entertainment", "Adult Entertainment", "ShieldBan", { ...RESTRICTED_18, description: "Legal adult services for verified adults only. Hidden until legal review." }, []),
-  node("art-design", "Art & Design", "Palette", {}, ["Graphic design", "UI/UX design", "Illustration", "Icons & fonts", "Color tools", "3D design", "Mockups"]),
-  node("photography", "Photography", "Camera", {}, ["Photo editing", "Stock photos", "Portfolios", "Image hosting", "Background removal"]),
+  node("adult-entertainment", "Adult Content", "ShieldBan", { riskTier: "HIGH", ageRating: "AGE_18_PLUS", manualReview: true, description: "Legal adult services. Shown only to signed-in users who confirmed they are adults." }, ["Entertainment", "Adult dating", "Sexual health"]),
+  node("art-design", "Graphics & Design", "Palette", {}, ["Graphic design", "Art & drawing", "UI/UX design", "Illustration", "Icons & fonts", "Color tools", "3D design", "Mockups"]),
+  node("photography", "Photo & Video", "Camera", {}, ["Photo editing", "Video editors", "Stock photos", "Portfolios", "Image hosting", "Background removal"]),
   node("books-reading", "Books & Reading", "BookOpen", {}, ["E-books", "Audiobooks", "Book discovery", "Read-later", "Writing platforms"]),
   node("music-audio", "Music & Audio", "Headphones", {}, ["Music streaming", "Music production", "Audio editing", "Radio", "Sound effects"]),
   node("communication", "Communication", "MessageCircle", { riskTier: "MEDIUM" }, ["Messaging", "Video calls", "Email", "Team chat", "Translation"]),
@@ -107,7 +120,7 @@ export const TAXONOMY: TaxonomyNode[] = [
     "Telehealth", "Symptom information", "Pharmacies", "Mental health", "Medical records",
   ]),
   node("parenting", "Parenting", "Baby", { riskTier: "MEDIUM" }, ["Pregnancy", "Baby care", "Family organisation", "Childcare"]),
-  node("children-family", "Children & Family", "ToyBrick", { riskTier: "HIGH", manualReview: true, description: "Services for children. Enhanced checks for children's data protection." }, [
+  node("children-family", "Kids & Family", "ToyBrick", { riskTier: "HIGH", manualReview: true, description: "Services for children. Enhanced checks for children's data protection." }, [
     "Kids learning", "Kids games", "Family safety", "Parental controls",
   ]),
   node("lifestyle", "Lifestyle", "Coffee", {}, ["Hobbies", "Fashion & beauty", "Home & garden", "Pets", "Spirituality"]),
@@ -125,6 +138,13 @@ export const TAXONOMY: TaxonomyNode[] = [
   node("weather", "Weather", "CloudSun", {}, ["Forecasts", "Radar & maps", "Air quality", "Climate data"]),
   node("maps-navigation", "Maps & Navigation", "Map", {}, ["Maps", "Route planning", "Location sharing", "Geodata"]),
   node("browser-tools", "Browser Tools", "Globe", { riskTier: "MEDIUM", manualReview: true }, ["Extensions", "Bookmarks", "Tab managers", "Ad blockers", "Browser testing"]),
+  node("reference", "Reference", "Library", {}, ["Dictionaries", "Encyclopedias", "Translation", "Thesauruses", "Libraries & archives", "How-to guides"]),
+  node("beauty", "Beauty", "Brush", {}, ["Makeup", "Skincare", "Hair", "Salons & booking", "Virtual try-on"]),
+  node("comics", "Comics", "BookImage", {}, ["Webcomics", "Manga", "Comic creation"]),
+  node("ar-vr", "AR & VR", "Glasses", {}, ["WebXR experiences", "3D viewers", "Virtual tours", "AR try-on"]),
+  node("events", "Events", "Ticket", {}, ["Event discovery", "Ticketing", "Event planning", "Conferences"]),
+  node("personalization", "Personalisation", "Sparkle", {}, ["Wallpapers", "Themes", "Avatars", "Fonts"]),
+  node("libraries-demo", "Libraries & Demo", "Package", {}, ["Open-source libraries", "Demos", "Showcases", "Templates"]),
   node("other", "Other Digital Services", "LayoutGrid", {}, []),
 ];
 
@@ -132,7 +152,8 @@ export const TAXONOMY: TaxonomyNode[] = [
 export function flattenTaxonomy(nodes: TaxonomyNode[] = TAXONOMY) {
   const out: Array<TaxonomyNode & { parentSlug: string | null; sortOrder: number }> = [];
   nodes.forEach((n, i) => {
-    out.push({ ...n, parentSlug: null, sortOrder: i });
+    const pos = TOP_LEVEL_ORDER.indexOf(n.slug);
+    out.push({ ...n, parentSlug: null, sortOrder: pos >= 0 ? pos : TOP_LEVEL_ORDER.length + i });
     (n.children ?? []).forEach((c, j) => out.push({ ...c, parentSlug: n.slug, sortOrder: j }));
   });
   return out;
@@ -155,5 +176,21 @@ export const CATEGORY_EMOJI: Record<string, string> = {
   "transport-automotive": "🚗", "news-magazines": "📰", "marketing-seo": "📣",
   "website-builders": "🧱", "hosting-cloud": "☁️", cybersecurity: "🔐", "data-analysis": "📊",
   automation: "⚙️", "utilities-converters": "🧰", weather: "⛅", "maps-navigation": "🗺️",
-  "browser-tools": "🧭", other: "🗂️",
+  "browser-tools": "🧭", other: "🗂️", reference: "📖", beauty: "💄", comics: "💥", "ar-vr": "🥽", events: "🎟️",
+  personalization: "✨", "libraries-demo": "📦", trading: "💹",
 };
+
+/**
+ * Display order of the top-level categories (store-style: everyday categories first).
+ * Applied to new installations and once to existing ones by taxonomy revision 2.
+ */
+export const TOP_LEVEL_ORDER = [
+  "ai", "productivity", "business", "education", "games", "entertainment", "social-networks", "communication",
+  "photography", "video-streaming", "music-audio", "books-reading", "reference", "news-magazines", "shopping",
+  "food-drink", "health-fitness", "medical", "lifestyle", "beauty", "travel", "maps-navigation", "weather", "sports",
+  "finance", "banking-fintech", "investing", "trading", "cryptocurrency", "blockchain-web3", "forex",
+  "utilities-converters", "developer-tools", "programming", "art-design", "ar-vr", "comics", "dating", "parenting",
+  "children-family", "events", "household", "transport-automotive", "personalization", "libraries-demo", "science",
+  "marketing-seo", "website-builders", "hosting-cloud", "cybersecurity", "data-analysis", "automation",
+  "browser-tools", "community", "ecommerce", "betting-gambling", "adult-entertainment", "other",
+];

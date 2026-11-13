@@ -20,7 +20,9 @@ const blockedCategory = (ctx: ViewerContext): Prisma.CategoryWhereInput => {
     : ctx.unknownCountryPolicy === "deny"
       ? [{ geoRestrictions: { some: {} } }]
       : [];
-  const self: Prisma.CategoryWhereInput[] = [{ isEnabled: false }, { isRestricted: true }, ...geo];
+  // A category for an older audience hides its listings too, whatever a listing's own rating says.
+  const tooOld: Prisma.CategoryWhereInput = { defaultAgeRating: { notIn: allowedAgeRatings(ctx.maxAgeRating) } };
+  const self: Prisma.CategoryWhereInput[] = [{ isEnabled: false }, { isRestricted: true }, tooOld, ...geo];
   return { OR: [...self, { parent: { OR: self } }] };
 };
 

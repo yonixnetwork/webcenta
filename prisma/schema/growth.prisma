@@ -1,0 +1,85 @@
+// ---- Web push notifications and the web-app import queue ----
+
+/// A browser that agreed to receive Webcenta push notifications. Signed-in or not:
+/// the subscription belongs to the browser, and is linked to a user only when one is signed in.
+model PushSubscription {
+  id            String    @id @default(uuid(7))
+  /// SHA-256 of the endpoint URL (the endpoint itself can exceed an index's length).
+  endpointHash  String    @unique @db.Char(64)
+  endpoint      String    @db.Text
+  p256dh        String    @db.VarChar(255)
+  auth          String    @db.VarChar(255)
+  userId        String?
+  userAgent     String?   @db.VarChar(255)
+  failureCount  Int       @default(0)
+  lastSuccessAt DateTime? @db.DateTime(3)
+  createdAt     DateTime  @default(now()) @db.DateTime(3)
+  updatedAt     DateTime  @updatedAt @db.DateTime(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+}
+
+enum PushCampaignStatus {
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+}
+
+/// A push notification an administrator sent to every subscribed browser.
+model PushCampaign {
+  id               String             @id @default(uuid(7))
+  title            String             @db.VarChar(120)
+  body             String             @db.VarChar(400)
+  /// Path or URL on Webcenta opened when the notification is tapped.
+  url              String             @db.VarChar(500)
+  status           PushCampaignStatus @default(QUEUED)
+  recipients       Int                @default(0)
+  delivered        Int                @default(0)
+  failed           Int                @default(0)
+  /// Subscriptions are sent in batches; the last id sent so far.
+  cursor           String?
+  createdByAdminId String?
+  createdAt        DateTime           @default(now()) @db.DateTime(3)
+  completedAt      DateTime?          @db.DateTime(3)
+
+  @@index([status, createdAt])
+}
+
+enum ImportStatus {
+  QUEUED
+  IMPORTING
+  IMPORTED
+  FAILED
+  SKIPPED
+}
+
+/// A web app waiting to be imported automatically (site details, logo and screenshots are
+/// fetched from the site itself, then it goes through the normal security checks).
+model ImportCandidate {
+  id               String       @id @default(uuid(7))
+  /// SHA-256 of the normalised URL.
+  urlHash          String       @unique @db.Char(64)
+  url              String       @db.VarChar(2000)
+  domain           String       @db.VarChar(253)
+  /// Category slug to file it under (a top-level or a subcategory).
+  categorySlug     String?      @db.VarChar(191)
+  /// Optional name and summary from the person or list that suggested it.
+  name             String?      @db.VarChar(120)
+  note             String?      @db.Text
+  /// "catalogue" (Webcenta's researched list) or "admin".
+  source           String       @default("admin") @db.VarChar(40)
+  status           ImportStatus @default(QUEUED)
+  priority         Int          @default(0)
+  attempts         Int          @default(0)
+  listingId        String?
+  lastError        String?      @db.Text
+  createdByAdminId String?
+  createdAt        DateTime     @default(now()) @db.DateTime(3)
+  processedAt      DateTime?    @db.DateTime(3)
+
+  @@index([status, priority, createdAt])
+  @@index([domain])
+}

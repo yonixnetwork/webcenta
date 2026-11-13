@@ -69,3 +69,16 @@ export async function storeUpload(file: File, kind: MediaKind, by: Uploader) {
     },
   });
 }
+
+/** Stores an image fetched by Webcenta itself (automatic import): same validation and re-encoding as uploads. */
+export async function storeImageBytes(bytes: Uint8Array, kind: "LOGO" | "SCREENSHOT", by: Uploader) {
+  const img = await processImage(bytes, kind);
+  const key = `public/${kind.toLowerCase()}/${new Date().toISOString().slice(0, 7)}/${randomUUID()}.${img.ext}`;
+  await (await storage()).put(key, img.data, img.mimeType);
+  return db.mediaAsset.create({
+    data: {
+      kind, storageKey: key, mimeType: img.mimeType, byteSize: img.data.byteLength, sha256: createHash("sha256").update(img.data).digest("hex"),
+      width: img.width, height: img.height, uploadedByUserId: by.userId ?? null, uploadedByAdminId: by.adminId ?? null, moderationStatus: "PENDING",
+    },
+  });
+}

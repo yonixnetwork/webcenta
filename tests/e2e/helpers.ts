@@ -119,6 +119,7 @@ export async function registerUser(page: Page, email: string, name: string, pass
   await page.goto(`${BASE}/signup`);
   await page.getByLabel("Name").fill(name);
   await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Date of birth").fill("1990-05-01");
   await page.getByLabel(/^Password/).fill(password);
   await page.getByLabel("Confirm password").fill(password);
   await page.getByRole("checkbox").check();

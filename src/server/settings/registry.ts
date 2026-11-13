@@ -53,6 +53,11 @@ export interface SectionDef {
   /** When a saved change takes effect. */
   apply: Apply;
   applyNote?: string;
+  /**
+   * Set for integrations that need a paid plan. They are hidden from Settings and switched off
+   * (Section.enabled is false) until the owner decides to pay for them.
+   */
+  paid?: string;
   /** Who may edit. Credentials require integrations.manage (Super Administrators). */
   permission: "settings.manage" | "integrations.manage";
   /** A real connection test exists (src/server/settings/testers.ts). */
@@ -207,6 +212,25 @@ export const SECTIONS: SectionDef[] = [
     ],
   },
 
+  {
+    id: "imports",
+    group: "Background jobs",
+    title: "Automatic web app imports",
+    description: "Adds web apps from the import queue on a schedule, with the details, logo and screenshots each website publishes about itself.",
+    usedBy: "The \"imports.run\" scheduled job and Admin → Import web apps. Imported apps go through the normal security checks; risky categories always wait for a moderator.",
+    permission: "settings.manage",
+    toggle: true,
+    // On by default on a real site; off for local development and tests (no outbound imports).
+    envEnabled: (e) => !/\/\/(localhost|127\.0\.0\.1|[^/]*\.localhost)(:|\/|$)/.test(e.PUBLIC_ORIGIN ?? "http://localhost"),
+    apply: "immediate",
+    fields: [
+      { key: "intervalMinutes", label: "Import every (minutes)", help: "How often the queue is processed (10–1440). 60 = hourly, 1440 = daily.", type: "number", default: 30, min: 10, max: 1440 },
+      { key: "perRun", label: "Web apps per run", help: "How many queued web apps are imported each time (1–20).", type: "number", default: 4, min: 1, max: 20 },
+      { key: "autoPublish", label: "Publish automatically when every check passes", help: "Off: every imported app waits in Submissions for a moderator. Finance, crypto, adult and other sensitive categories always wait for a moderator.", type: "boolean", default: true },
+      { key: "screenshots", label: "Screenshots", help: "The website's own images (web app manifest screenshots and its social preview image), and optionally a screenshot captured by WordPress.com mShots (free, no key; an unofficial public service without guarantees).", type: "select", default: "mshots", options: [{ value: "mshots", label: "Website images + WordPress.com mShots capture" }, { value: "site", label: "Only the website's own images" }] },
+    ],
+  },
+
   // ---------------------------------------------------------------- Email & notifications
   {
     id: "email",
@@ -239,6 +263,7 @@ export const SECTIONS: SectionDef[] = [
     permission: "settings.manage",
     apply: "immediate",
     fields: [
+      { key: "supportEmails", label: "Support inbox", help: "Comma-separated addresses that receive every Contact & support message (for example your Gmail address). The email comes from the From address in Email settings, with Reply-To set to the visitor, so you can answer directly. Leave empty to use the admin alert recipients.", type: "textarea", env: "SUPPORT_INBOX_EMAIL", max: 2000 },
       { key: "adminAlertEmails", label: "Admin alert recipients", help: "Comma-separated addresses. Leave empty to email every active administrator.", type: "textarea", max: 2000 },
       { key: "emailAdminAlerts", label: "Email administrators about alerts", help: "In-app alerts are always created; this controls the email copy.", type: "boolean", default: true },
       { key: "emailUserNotifications", label: "Email users about their notifications", help: "Users can still turn this off for themselves. When off here, nobody receives notification emails.", type: "boolean", default: true },
@@ -284,6 +309,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "apple",
+    paid: "Apple Developer Program, US$99/year",
     group: "Apple OAuth",
     title: "Apple sign-in",
     description: "\"Sign in with Apple\" on the marketplace and the developer portal.",
@@ -375,6 +401,7 @@ export const SECTIONS: SectionDef[] = [
   // ---------------------------------------------------------------- Scanning
   {
     id: "webrisk",
+    paid: "Google Cloud billing (commercial terms)",
     group: "Security scanning",
     title: "Google Web Risk",
     description: "Checks submitted and monitored websites against Google's unsafe-site lists.",
@@ -405,6 +432,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "virustotal",
+    paid: "Premium licence for commercial use",
     group: "Security scanning",
     title: "VirusTotal",
     description: "Checks websites against VirusTotal's aggregated engine verdicts.",
@@ -422,6 +450,7 @@ export const SECTIONS: SectionDef[] = [
   // ---------------------------------------------------------------- Analytics & advertising
   {
     id: "plausible",
+    paid: "Plausible subscription",
     group: "Analytics",
     title: "Plausible Analytics",
     description: "Privacy-friendly, cookie-free visitor statistics, in addition to Webcenta's own analytics.",
@@ -471,6 +500,7 @@ export const SECTIONS: SectionDef[] = [
   // ---------------------------------------------------------------- Payments
   {
     id: "stripe",
+    paid: "Not needed until billing exists",
     group: "Payments",
     title: "Stripe",
     description: "Card payments for future paid plans and sponsored placements.",
@@ -490,6 +520,7 @@ export const SECTIONS: SectionDef[] = [
   },
   {
     id: "paypal",
+    paid: "Not needed until billing exists",
     group: "Payments",
     title: "PayPal",
     description: "PayPal payments for future paid plans and sponsored placements.",

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/states";
+import { PushToggle } from "@/components/push-toggle";
 import { buttonClass } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { formatDate } from "@/lib/labels";
@@ -16,6 +17,11 @@ export default async function NotificationsPage() {
         <h1 className="text-2xl font-extrabold tracking-tight">Notifications</h1>
         {items.some((i) => !i.readAt) && <form action={markNotificationsReadAction}><button className={buttonClass("secondary", "sm")}>Mark all as read</button></form>}
       </div>
+      <section className="rounded-2xl border border-border bg-surface p-4">
+        <h2 className="mb-1 font-semibold">Push notifications</h2>
+        <p className="mb-3 text-sm text-muted">Get Webcenta news and new apps on this phone or computer, even when Webcenta is closed.</p>
+        <PushToggle />
+      </section>
       {items.length === 0 ? <EmptyState title="No notifications">Replies to your reviews and updates to your listings appear here.</EmptyState> : (
         <ul className="divide-y divide-border rounded-2xl border border-border bg-surface">
           {items.map((n) => (

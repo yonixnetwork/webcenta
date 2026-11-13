@@ -8,8 +8,17 @@ const dir = new URL("./.certs/", import.meta.url);
 const state = new Map(); // host -> { mode, verification }
 const get = (host) => state.get(host) ?? { mode: "normal", verification: "" };
 
+const ICON = readFileSync(new URL("../../public/icons/icon-512.png", import.meta.url));
+const OG = readFileSync(new URL("../../public/brand/og-default.png", import.meta.url));
+
 function page(host, s) {
   const name = host.split(".")[0];
+  if (s.mode === "app") {
+    return `<!doctype html><html lang="en"><head><title>${name} App | Fixture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="${name} helps teams plan projects and share notes in the browser. A local fixture for import tests.">
+<meta property="og:site_name" content="${name} App"><meta property="og:image" content="/og.png"><link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/icon.png"></head>
+<body><h1>${name}</h1><a href="/pricing">Pricing</a> <a href="/privacy">Privacy Policy</a> <a href="/terms">Terms</a><p>Start for free.</p></body></html>`;
+  }
   if (s.mode === "phishing") {
     return `<!doctype html><html><head><title>Wallet sync</title></head><body><h1>Validate your wallet</h1><p>Enter your 12-word seed phrase to restore and sync your wallet.</p><form action="/x"><textarea name="phrase"></textarea><button>Restore</button></form></body></html>`;
   }
@@ -29,7 +38,14 @@ const site = https({ key: readFileSync(new URL("site.key", dir)), cert: readFile
     res.writeHead(s.verification ? 200 : 404, { "content-type": "text/plain" });
     return res.end(s.verification || "not found");
   }
-  if (path === "/privacy" || path === "/terms") { res.writeHead(200, { "content-type": "text/html" }); return res.end("<html><title>Policy</title><body>Policy</body></html>"); }
+  if (s.mode === "app" && path === "/manifest.json") { res.writeHead(200, { "content-type": "application/manifest+json" }); return res.end(JSON.stringify({ name: `${host.split(".")[0]} App`, display: "standalone", icons: [{ src: "/icon.png", sizes: "512x512", type: "image/png" }], screenshots: [{ src: "/og.png", sizes: "1200x630", type: "image/png", form_factor: "wide" }] })); }
+  if (s.mode === "app" && path === "/icon.png") { res.writeHead(200, { "content-type": "image/png" }); return res.end(ICON); }
+  if (s.mode === "app" && path === "/og.png") { res.writeHead(200, { "content-type": "image/png" }); return res.end(OG); }
+  if (s.mode === "app" && path === "/privacy") { res.writeHead(200, { "content-type": "text/html" }); return res.end(`<html><title>Privacy Policy</title><body><h1>Privacy Policy of ${host}</h1><p>${"This privacy policy explains how we collect and use personal data when you use our website. ".repeat(20)}</p></body></html>`); }
+  if (path === "/privacy" || path === "/terms") {
+    res.writeHead(200, { "content-type": "text/html" });
+    return res.end(`<html><title>Privacy Policy</title><body><h1>Privacy Policy of ${host}</h1><p>${"This privacy policy explains how we collect and use personal data when you use our website. ".repeat(20)}</p></body></html>`);
+  }
   switch (s.mode) {
     case "down": res.writeHead(503); return res.end("down");
     case "redirect-evil": res.writeHead(302, { location: "https://evil-site.localhost/landing" }); return res.end();

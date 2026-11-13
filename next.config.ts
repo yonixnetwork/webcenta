@@ -2,8 +2,13 @@ import type { NextConfig } from "next";
 
 // Keep this file free of hosting-specific paths. Everything environment-specific
 // comes from environment variables (see .env.example and docs/DEPLOYMENT.md).
+// Identifies this build. The browser compares it with /api/version to tell visitors when a
+// new version has been deployed ("Webcenta was updated — reload").
+const buildId = Date.now().toString(36);
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  env: { NEXT_PUBLIC_BUILD_ID: buildId },
   reactStrictMode: true,
   // Self-contained server (.next/standalone/server.js). Hostinger's Node.js hosting
   // runs Next.js this way; `npm start` does the same locally and on a VPS.

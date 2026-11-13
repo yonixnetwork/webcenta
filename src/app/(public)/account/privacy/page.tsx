@@ -2,13 +2,19 @@ import { ActionForm } from "@/components/ui/action-form";
 import { buttonClass } from "@/components/ui/button";
 import { Card, Field, inputClass } from "@/components/ui/form";
 import { db } from "@/server/db";
+import { viewerMaxRating } from "@/server/viewer";
+import { ageOn, ratingForAge } from "@/lib/age";
+
+const RATING_LABEL = { ALL_AGES: "all ages", AGE_13_PLUS: "13+", AGE_16_PLUS: "16+", AGE_18_PLUS: "18+" } as const;
 import { requireUser } from "@/server/auth/session";
 import { getCategoryTree } from "@/server/catalog/categories";
 import { adultContentAction, clearHistoryAction, deleteAccountAction, resetInterestsAction, setInterestsAction, updatePrivacyAction } from "@/server/actions/user";
 
 export default async function PrivacyPage() {
   const user = await requireUser("/account/privacy");
-  const [tree, interests] = await Promise.all([getCategoryTree(), db.userInterest.findMany({ where: { userId: user.id }, include: { category: { select: { name: true } } } })]);
+  const effective = viewerMaxRating(user, user.preferredCountry);
+  const adultByAge = !user.birthDate || ratingForAge(ageOn(user.birthDate), user.preferredCountry) === "AGE_18_PLUS";
+  const [tree, interests] = await Promise.all([getCategoryTree(viewerMaxRating(user, user.preferredCountry)), db.userInterest.findMany({ where: { userId: user.id }, include: { category: { select: { name: true } } } })]);
   const explicit = new Set(interests.filter((i) => i.source === "EXPLICIT").map((i) => i.categoryId));
   const inferred = interests.filter((i) => i.source === "INFERRED").sort((a, b) => b.weight - a.weight).slice(0, 8);
   const check = "size-4 accent-[var(--brand)]";
@@ -44,13 +50,15 @@ export default async function PrivacyPage() {
       </Card>
       <Card>
         <h2 className="mb-1 font-semibold">Mature content</h2>
-        <p className="mb-3 text-sm text-muted">Currently showing apps rated up to <strong>{user.maxAgeRating === "AGE_18_PLUS" && user.adultConfirmedAt ? "18+" : "16+"}</strong>. This is a self-declaration, not age verification. Some regulated categories remain unavailable regardless of this setting.</p>
-        {user.adultConfirmedAt ? (
+        <p className="mb-3 text-sm text-muted">Currently showing apps rated up to <strong>{RATING_LABEL[effective]}</strong>. Based on the date of birth you gave; this is not identity verification. Some regulated categories remain unavailable regardless of this setting.</p>
+        {!adultByAge ? (
+          <p className="text-sm text-muted">Adult (18+) content is not available for your age.</p>
+        ) : user.adultConfirmedAt ? (
           <ActionForm action={adultContentAction} submitLabel="Hide 18+ apps" variant="secondary"><input type="hidden" name="enable" value="0" /></ActionForm>
         ) : (
           <ActionForm action={adultContentAction} submitLabel="Show 18+ apps" variant="secondary">
             <input type="hidden" name="enable" value="1" />
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="confirm" className={check} /> I confirm I am at least 18 years old.</label>
+            {!user.birthDate && <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="confirm" className={check} /> I confirm I am at least 18 years old.</label>}
           </ActionForm>
         )}
       </Card>

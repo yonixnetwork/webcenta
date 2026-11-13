@@ -63,6 +63,16 @@ Object.assign(handlers, {
       cursor = users[users.length - 1]!.id;
     }
   },
+  /** Continues push campaigns in batches. */
+  "push.campaigns": async () => {
+    const { continueCampaigns } = await import("@/server/push/push");
+    await continueCampaigns(15_000);
+  },
+  /** Imports queued web apps (Admin → Import web apps; Settings → Automatic web app imports). */
+  "imports.run": async () => {
+    const { runImports } = await import("@/server/importer/importer");
+    await runImports();
+  },
   "users.purge-deleted": async () => {
     const cutoff = new Date(Date.now() - 30 * 86_400_000);
     await db.user.deleteMany({ where: { status: "PENDING_DELETION", deletedAt: { lt: cutoff } } });
@@ -78,6 +88,8 @@ export const recurringJobs: Array<{ type: keyof typeof handlers & string; everyM
   { type: "maintenance.purge-expired", everyMinutes: 60 },
   { type: "maintenance.purge-raw-events", everyMinutes: 24 * 60 },
   { type: "email.deliver", everyMinutes: 5 },
+  { type: "push.campaigns", everyMinutes: 5 },
+  { type: "imports.run", everyMinutes: 10 },
   { type: "stats.rollup", everyMinutes: 15 },
   { type: "ranking.recompute", everyMinutes: 60 },
   { type: "monitor.enqueue", everyMinutes: 15 },

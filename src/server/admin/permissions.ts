@@ -19,6 +19,9 @@ export const PERMISSIONS = {
   "analytics.view": ["SUPER_ADMIN", "ADMIN", "MODERATOR", "ANALYTICS_VIEWER"],
   "monetization.manage": ["SUPER_ADMIN", "ADMIN"],
   "jobs.view": ["SUPER_ADMIN", "ADMIN"],
+  "push.send": ["SUPER_ADMIN", "ADMIN"],
+  /** Import web apps automatically (queue, catalogue). */
+  "imports.manage": ["SUPER_ADMIN", "ADMIN"],
 } as const satisfies Record<string, readonly AdminRole[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

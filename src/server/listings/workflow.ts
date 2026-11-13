@@ -12,6 +12,7 @@ import { invalidateCategoryCache } from "@/server/catalog/categories";
 import { listingInputSchema, type ListingInput } from "./input";
 import { developerPolicy } from "@/server/developer/policy";
 import { queueIndexNow } from "@/server/settings/site";
+import { getSection } from "@/server/settings/store";
 
 export class WorkflowError extends Error {}
 export interface Actor { type: ActorType; userId?: string; adminId?: string }
@@ -127,7 +128,11 @@ export async function processSubmission(revisionId: string) {
   const intelFail = outcomes.some((o) => o.check.startsWith("THREAT_INTEL") && o.verdict === "FAIL");
   const policy = await db.monitoringPolicy.findUnique({ where: { riskTier: refs.riskTier } });
   const org = rev.listing.developerId ? await db.developerOrg.findUnique({ where: { id: rev.listing.developerId } }) : null;
-  const established = org ? Date.now() - org.createdAt.getTime() > 7 * 86_400_000 : false;
+  // Developers: an organisation older than a week. Editorial listings: only automatic imports, and
+  // only while "Publish automatically" is on (Settings → Automatic web app imports).
+  const established = org
+    ? Date.now() - org.createdAt.getTime() > 7 * 86_400_000
+    : Boolean(await db.importCandidate.findFirst({ where: { listingId: rev.listingId }, select: { id: true } })) && (await getSection("imports")).bool("autoPublish");
   const openReports = await db.report.count({ where: { listingId: rev.listingId, status: { in: ["OPEN", "IN_REVIEW"] } } });
   const auto = !intelFail && qualifiesForAutoApproval(outcomes) && Boolean(policy?.allowAutoApproval) && !refs.manualReview && !refs.complianceRequired && established && openReports === 0;
   await db.listing.update({ where: { id: rev.listingId }, data: { riskTier: refs.riskTier } });

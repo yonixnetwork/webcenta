@@ -8,6 +8,7 @@ export interface EmailInput {
   text: string;
   html?: string;
   template: string;
+  replyTo?: string;
 }
 
 /**
@@ -18,7 +19,7 @@ export interface EmailInput {
  * recorded as LOGGED without being sent (development, tests, staging).
  */
 export async function sendEmail(input: EmailInput): Promise<{ id: string; delivered: boolean }> {
-  const msg = await db.emailMessage.create({ data: { ...input, to: input.to.toLowerCase() } });
+  const msg = await db.emailMessage.create({ data: { ...input, to: input.to.toLowerCase(), replyTo: input.replyTo?.toLowerCase() ?? null } });
   const delivered = await deliver(msg.id).catch(() => false);
   return { id: msg.id, delivered };
 }
@@ -61,7 +62,7 @@ export async function deliver(id: string): Promise<boolean> {
   }
   const s = smtpConfig(c);
   try {
-    await transportFor(s).sendMail({ from: s.from, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html ?? undefined });
+    await transportFor(s).sendMail({ from: s.from, to: msg.to, replyTo: msg.replyTo ?? undefined, subject: msg.subject, text: msg.text, html: msg.html ?? undefined });
     await db.emailMessage.update({ where: { id }, data: { status: "SENT", sentAt: new Date(), attempts: { increment: 1 }, lastError: null } });
     return true;
   } catch (err) {
