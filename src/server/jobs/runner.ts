@@ -64,7 +64,7 @@ export async function acquireTickLock(runId: string, ms: number): Promise<boolea
   const now = Date.now();
   const changed = await db.$executeRaw`
     UPDATE SystemSetting SET value = JSON_OBJECT('until', ${now + ms}, 'runId', ${runId}), updatedAt = UTC_TIMESTAMP(3)
-    WHERE \`key\` = ${LOCK_KEY} AND CAST(JSON_UNQUOTE(JSON_EXTRACT(value, '$.until')) AS UNSIGNED) < ${now}`;
+    WHERE \`key\` = ${LOCK_KEY} AND CAST(JSON_UNQUOTE(JSON_EXTRACT(value, '$.until')) AS DECIMAL(20,0)) < ${now}`;
   return changed === 1;
 }
 
