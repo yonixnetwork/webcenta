@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { after } from "next/server";
+import { Ad } from "@/components/ads/ad";
 import { FilterBar } from "@/components/filter-bar";
 import { Pagination } from "@/components/pagination";
 import { CardGrid } from "@/components/rail";
@@ -40,6 +41,7 @@ export default async function SearchPage({ searchParams }: Props) {
         <CardGrid items={result.items} />
       )}
       {result.truncated && <p className="text-center text-xs text-subtle">Showing the best matches. Refine your search to see more specific results.</p>}
+      <div className="flex justify-center"><Ad placement="mobile-compact" /><Ad placement="desktop-small" /><Ad placement="desktop-leaderboard" /></div>
       <Pagination basePath="/search" filters={filters} page={result.page} pageCount={result.pageCount} />
     </div>
   );

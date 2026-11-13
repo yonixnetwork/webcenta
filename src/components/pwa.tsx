@@ -1,7 +1,7 @@
 "use client";
 
 import { Bell, Download, RefreshCw, Share, X } from "lucide-react";
-import { enablePush, pushSupported } from "@/lib/push-client";
+import { enablePush, pushSupported, syncPush } from "@/lib/push-client";
 import { useEffect, useState } from "react";
 import { buttonClass } from "./ui/button";
 
@@ -13,7 +13,7 @@ interface BeforeInstallPromptEvent extends Event { prompt(): Promise<void>; user
  * (Chromium on Android/Windows/macOS/Linux), or Add-to-Home-Screen instructions
  * on iOS/iPadOS Safari (which has no install prompt API).
  */
-export function PwaManager({ build }: { build: string }) {
+export function PwaManager({ build, account = "" }: { build: string; account?: string }) {
   const [installEvt, setInstallEvt] = useState<BeforeInstallPromptEvent | null>(null);
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
   const [showIos, setShowIos] = useState(false);
@@ -58,6 +58,8 @@ export function PwaManager({ build }: { build: string }) {
           nw?.addEventListener("statechange", () => { if (nw.state === "installed" && navigator.serviceWorker.controller) setWaiting(nw); });
         });
       }).catch(() => undefined);
+      // Keep an existing push subscription valid and linked to whoever is signed in now.
+      void syncPush(account);
       // Reload only when an existing worker is replaced by an update (not on first install).
       const hadController = Boolean(navigator.serviceWorker.controller);
       let reloaded = false;
@@ -87,7 +89,7 @@ export function PwaManager({ build }: { build: string }) {
       document.removeEventListener("visibilitychange", check);
       window.removeEventListener("wc-consent", onConsent);
     };
-  }, [build]);
+  }, [build, account]);
 
   /** Clears this site's caches and the service worker's copy, then loads the new version. */
   const reloadFresh = async () => {

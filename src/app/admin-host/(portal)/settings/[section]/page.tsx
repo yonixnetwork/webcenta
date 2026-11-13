@@ -157,7 +157,7 @@ async function QueueHealth() {
     <Card className="space-y-2 text-sm">
       <h2 className="font-semibold">Queue health</h2>
       <p>Last run: {lastRun ? `${formatDate(lastRun.startedAt)} (${lastRun.runner})` : "never"}{stale && <span className="text-warning"> — no run in the last 15 minutes: check the cron job in hPanel.</span>}</p>
-      <p>{pending} pending · {failed} failed (queued in the last 24 h) · {dead} needing attention. Details in <Link href="/jobs" className="text-brand hover:underline">Jobs & email</Link>.</p>
+      <p>{pending} pending · {failed} failed (queued in the last 24 h) · {dead} needing attention. Details in <Link href="/jobs" className="text-brand hover:underline">Scheduler</Link>.</p>
       <p className="text-subtle">Hostinger cron command (every 5 minutes): <code className="break-all">curl -fsS -X POST -H &quot;Authorization: Bearer &lt;cron secret&gt;&quot; {(process.env.PUBLIC_ORIGIN || "https://webcenta.com").replace(/\/$/, "")}/api/cron/tick</code></p>
     </Card>
   );

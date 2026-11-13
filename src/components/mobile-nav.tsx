@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bookmark, Gamepad2, House, LayoutGrid, Search } from "lucide-react";
+import { Gamepad2, House, LayoutGrid, Search } from "lucide-react";
 import { cn } from "./ui/cn";
 
-// Categories are reached from the chips at the top of every browsing page, so they have no tab.
+// Exactly four destinations. Categories are reached from the chips at the top of every browsing
+// page; saved apps from the account menu (Profile → Saved apps).
 const TABS = [
-  { href: "/", label: "Today", icon: House, match: (p: string) => p === "/" },
+  { href: "/", label: "Home", icon: House, match: (p: string) => p === "/" },
   { href: "/c/games", label: "Games", icon: Gamepad2, match: (p: string) => p.startsWith("/c/games") },
   { href: "/apps", label: "Apps", icon: LayoutGrid, match: (p: string) => p.startsWith("/apps") || p.startsWith("/categories") || (p.startsWith("/c/") && !p.startsWith("/c/games")) },
-  { href: "/account/favorites", label: "Saved", icon: Bookmark, match: (p: string) => p.startsWith("/account/favorites") || p.startsWith("/account/collections") },
   { href: "/search", label: "Search", icon: Search, match: (p: string) => p.startsWith("/search") },
 ];
 

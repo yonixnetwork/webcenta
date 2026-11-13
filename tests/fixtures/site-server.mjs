@@ -34,6 +34,10 @@ const site = https({ key: readFileSync(new URL("site.key", dir)), cert: readFile
   if (s.mode === "redirect-private") { res.writeHead(302, { location: "http://169.254.169.254/latest/meta-data/" }); return res.end(); }
   if (s.mode === "redirect-evil") { res.writeHead(302, { location: "https://evil-site.localhost/landing" }); return res.end(); }
   if (s.mode === "down") { res.writeHead(503); return res.end("down"); }
+  if (/^\/webcenta-domain-verification-[0-9a-f]{16}\.html$/.test(path)) {
+    res.writeHead(s.verification ? 200 : 404, { "content-type": "text/html" });
+    return res.end(s.verification ? `<!doctype html><html><body>webcenta-domain-verification: ${s.verification}</body></html>` : "not found");
+  }
   if (path === "/.well-known/webcenta-verification.txt") {
     res.writeHead(s.verification ? 200 : 404, { "content-type": "text/plain" });
     return res.end(s.verification || "not found");

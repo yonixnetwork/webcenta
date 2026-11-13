@@ -575,6 +575,40 @@ export async function retryJobAction(jobId: string) {
   refresh();
 }
 
+/** Admin → Scheduler → Run now: runs the real job and reports its actual outcome. */
+export async function runJobNowAction(_s: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const a = await assertAdmin("jobs.view");
+    const type = z.string().min(1).max(80).parse(f.get("type"));
+    const { runJobNow } = await import("@/server/jobs/runner");
+    const r = await runJobNow(type, a.id);
+    await audit({ actorType: "ADMIN", adminId: a.id, action: "job.run-now", targetType: "Job", targetId: r.jobId, metadata: { type, ok: r.ok, durationMs: r.durationMs } });
+    refresh();
+    const res = r.result ? ` Result: ${JSON.stringify(r.result).slice(0, 200)}.` : "";
+    return r.ok ? ok(`${type} finished in ${r.durationMs} ms (job ${r.jobId.slice(-8)}).${res}`) : fail(`${type} failed: ${r.error ?? "unknown error"}`);
+  } catch (e) { return err(e); }
+}
+
+/** Runs one full scheduler tick from the admin portal (same code path as the cron job). */
+export async function runTickNowAction(): Promise<ActionState> {
+  try {
+    const a = await assertAdmin("jobs.view");
+    const { runTick } = await import("@/server/jobs/runner");
+    const r = await runTick(Math.min(20_000, (await getSection("jobs")).num("tickBudgetMs") || 20_000), "admin");
+    await audit({ actorType: "ADMIN", adminId: a.id, action: "job.tick-now", metadata: { ...r } });
+    refresh();
+    return r.skipped ? fail("Another scheduler run is in progress; nothing was started.") : ok(`Scheduler run finished: ${r.processed} job(s) done, ${r.failed} failed, ${r.enqueued} scheduled, in ${r.durationMs} ms.`);
+  } catch (e) { return err(e); }
+}
+
+export async function setJobEnabledAction(type: string, enabled: boolean) {
+  const a = await assertAdmin("jobs.view");
+  const { setJobEnabled } = await import("@/server/jobs/runner");
+  await setJobEnabled(type, enabled, a.id);
+  await audit({ actorType: "ADMIN", adminId: a.id, action: enabled ? "job.enable" : "job.disable", metadata: { type } });
+  refresh();
+}
+
 // ---------------- Push notifications ----------------
 /** Sends a push notification to every subscribed browser (signed in or not). */
 export async function sendPushAction(_s: ActionState, f: FormData): Promise<ActionState> {
@@ -589,11 +623,13 @@ export async function sendPushAction(_s: ActionState, f: FormData): Promise<Acti
     if (!subscribers) return fail("No browser has turned on notifications yet.");
     const c = await db.pushCampaign.create({ data: { title, body, url, createdByAdminId: a.id } });
     await audit({ actorType: "ADMIN", adminId: a.id, action: "push.send", targetType: "PushCampaign", targetId: c.id, metadata: { title, url, subscribers } });
-    // First batch now; the rest continue on the scheduled job.
+    // Send right away for up to ~10 seconds (small audiences finish here); the scheduler continues the rest.
     const { runCampaignBatch } = await import("@/server/push/push");
-    await runCampaignBatch(c.id).catch(() => undefined);
+    const until = Date.now() + 10_000;
+    while (Date.now() < until) if (await runCampaignBatch(c.id).catch(() => true)) break;
+    const done = await db.pushCampaign.findUniqueOrThrow({ where: { id: c.id }, select: { status: true, delivered: true, failed: true } });
     refresh();
-    return ok(`Sending to ${subscribers} device${subscribers === 1 ? "" : "s"}.`);
+    return ok(`${done.status === "SENT" ? "Sent" : "Sending"} to ${subscribers} device${subscribers === 1 ? "" : "s"}: ${done.delivered} accepted by push services, ${done.failed} failed so far${done.status === "SENT" ? "" : "; the scheduler sends the rest"}. Accepted does not prove a device displayed it.`);
   } catch (e) { return err(e); }
 }
 
@@ -607,49 +643,61 @@ export async function queueImportsAction(_s: ActionState, f: FormData): Promise<
     const categorySlug = z.string().trim().min(1).max(191).parse(str(f, "category"));
     const name = urls.length === 1 ? str(f, "name").trim().slice(0, 120) || null : null;
     const { queueImports, importCandidate, urlHash } = await import("@/server/importer/importer");
-    const added = await queueImports(db, urls.map((url) => ({ url, categorySlug, name, source: "admin", priority: 10, adminId: a.id })));
-    await audit({ actorType: "ADMIN", adminId: a.id, action: "imports.queue", metadata: { count: added, categorySlug } });
-    if (f.get("now") === "1" && urls.length === 1) {
-      const { normalizeWebsiteUrl } = await import("@/lib/url");
-      const u = normalizeWebsiteUrl(urls[0]!);
-      const c = u ? await db.importCandidate.findUnique({ where: { urlHash: urlHash(u.toString()) } }) : null;
+    const { findDuplicate } = await import("@/server/importer/dedupe");
+    const { normalizeWebsiteUrl } = await import("@/lib/url");
+    // Sort every address into: invalid, already listed, already queued, or new.
+    const invalid: string[] = [], listed: string[] = [], fresh: string[] = [];
+    for (const raw of urls) {
+      const u = normalizeWebsiteUrl(raw);
+      if (!u) { invalid.push(raw); continue; }
+      const d = await findDuplicate(u.hostname);
+      if (d?.kind === "listing") listed.push(`${u.hostname} (listed as "${d.name}")`);
+      else fresh.push(u.toString());
+    }
+    const added = fresh.length ? await queueImports(db, fresh.map((url) => ({ url, categorySlug, name, source: "admin", priority: 10, adminId: a.id }))) : 0;
+    const queued = fresh.length - added;
+    await audit({ actorType: "ADMIN", adminId: a.id, action: "imports.queue", metadata: { count: added, categorySlug, invalid: invalid.length, listed: listed.length, queued } });
+    if (f.get("now") === "1" && fresh.length === 1) {
+      const c = await db.importCandidate.findUnique({ where: { urlHash: urlHash(fresh[0]!) } });
       if (c) {
+        if (c.status === "IMPORTED") { refresh(); return fail("This website was already imported. See the table below."); }
+        await db.importCandidate.update({ where: { id: c.id }, data: { status: "QUEUED", attempts: 0, createdByAdminId: a.id } });
         const r = await importCandidate(c.id);
         refresh();
-        return r.status === "IMPORTED" ? ok("Imported. The security checks run within a few minutes; see Submissions.") : fail(`Not imported: ${r.reason}`);
+        return r.status === "IMPORTED" ? ok(`Imported (job #${c.id.slice(-8)}). The security checks run on the next scheduler run (within 5 minutes), or use "Run security checks" below.`) : fail(`Not imported (job #${c.id.slice(-8)})${r.stage ? `, stage ${r.stage}` : ""}: ${r.reason}`);
       }
     }
     refresh();
-    return ok(added ? `${added} web app(s) added to the queue.` : "Those addresses are already in the queue or invalid.");
+    const parts = [added ? `${added} added to the queue` : "", queued ? `${queued} already in the queue` : "", listed.length ? `${listed.length} already listed: ${listed.slice(0, 5).join(", ")}` : "", invalid.length ? `${invalid.length} invalid: ${invalid.slice(0, 5).join(", ")}` : ""].filter(Boolean);
+    return added ? ok(`${parts.join(" · ")}.`) : fail(`Nothing added. ${parts.join(" · ")}.`);
   } catch (e) { return err(e); }
 }
 
-export async function importActionFor(id: string, op: "now" | "retry" | "skip") {
-  const a = await assertAdmin("imports.manage");
-  if (op === "skip") await db.importCandidate.update({ where: { id }, data: { status: "SKIPPED", processedAt: new Date() } });
-  else {
-    await db.importCandidate.update({ where: { id }, data: { status: "QUEUED", attempts: 0, lastError: null, createdByAdminId: a.id } });
-    if (op === "now") { const { importCandidate } = await import("@/server/importer/importer"); await importCandidate(id); }
-  }
-  await audit({ actorType: "ADMIN", adminId: a.id, action: `imports.${op}`, targetType: "ImportCandidate", targetId: id });
-  refresh();
-}
 
-/** Bulk actions on Admin → Import web apps (selected rows, or every eligible pending import). */
+/** Bulk and per-row actions on Admin → Import web apps (selected rows, or every eligible pending import). */
 export async function bulkImportsAction(_s: ActionState, f: FormData): Promise<ActionState> {
   try {
     const a = await assertAdmin("imports.manage");
-    const op = z.enum(["publish", "publish-all", "reject", "archive", "category", "import", "exclude", "review"]).parse(f.get("op"));
-    const ids = f.getAll("ids").map(String).filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 500);
-    if (op !== "publish-all" && !ids.length) return fail("Select at least one row.");
+    const raw = String(f.get("op") ?? "");
+    // Per-row buttons submit "op:<id>" (e.g. "import-one:0190…") so they share this form's feedback.
+    const [opName, rowId] = raw.includes(":") ? raw.split(":", 2) as [string, string] : [raw, ""];
+    const op = z.enum(["publish", "publish-all", "reject", "archive", "category", "import", "exclude", "review", "retry", "retry-all", "checks", "import-one", "retry-one", "checks-one"]).parse(opName);
+    const valid = (x: string) => /^[0-9a-f-]{36}$/i.test(x);
+    const ids = rowId ? [rowId].filter(valid) : f.getAll("ids").map(String).filter(valid).slice(0, 500);
+    if (!["publish-all", "retry-all"].includes(op) && !ids.length) return fail("Select at least one row.");
     const bulk = await import("@/server/importer/bulk");
     const r = op === "publish" ? await bulk.bulkPublish(a.id, ids)
       : op === "publish-all" ? await bulk.bulkPublish(a.id, "all")
       : op === "reject" || op === "archive" ? await bulk.bulkReject(a.id, ids, op)
-      : op === "category" ? await bulk.bulkCategory(a.id, ids, z.string().min(1).parse(f.get("categoryId")))
+      : op === "category" ? await bulk.bulkCategory(a.id, ids, z.string().min(1, "Choose a category to move to.").parse(f.get("categoryId")))
+      : op === "retry" || op === "retry-one" ? await bulk.bulkRetry(a.id, ids)
+      : op === "retry-all" ? await bulk.bulkRetry(a.id, "all")
+      : op === "checks" || op === "checks-one" ? await bulk.bulkChecks(a.id, ids)
+      : op === "import-one" ? await bulk.bulkQueue(a.id, ids, "import")
       : await bulk.bulkQueue(a.id, ids, op);
     refresh();
-    const skipped = r.skipped.length ? ` Skipped ${r.skipped.length}: ${r.skipped.slice(0, 5).map((s) => `${s.name} (${s.reason})`).join("; ")}${r.skipped.length > 5 ? "…" : ""}` : "";
-    return r.done || !r.skipped.length ? ok(`Done: ${r.done}.${skipped}`) : fail(`Nothing changed.${skipped}`);
+    const verb: Record<string, string> = { publish: "Published", "publish-all": "Published", reject: "Rejected", archive: "Archived", category: "Moved", import: "Imported", "import-one": "Imported", exclude: "Excluded", review: "Marked for review", retry: "Queued again", "retry-one": "Queued again", "retry-all": "Queued again", checks: "Checked", "checks-one": "Checked" };
+    const skipped = r.skipped.length ? ` Not changed (${r.skipped.length}): ${r.skipped.slice(0, 6).map((s) => `${s.name}: ${s.reason}`).join("; ")}${r.skipped.length > 6 ? "…" : ""}` : "";
+    return r.done ? ok(`${verb[op]}: ${r.done}.${skipped}`) : fail(`Nothing changed.${skipped || " No selected row was in a state this action applies to."}`);
   } catch (e) { return err(e); }
 }

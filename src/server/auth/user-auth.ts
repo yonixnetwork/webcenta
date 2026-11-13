@@ -114,7 +114,7 @@ function buildAuth(o: AuthOptions, surface: AuthSurface) {
       onPasswordReset: async ({ user }) => {
         await db.authEvent.create({ data: { userId: user.id, type: "PASSWORD_RESET_COMPLETED" } });
         const { notify } = await import("@/server/community/notifications");
-        await notify(user.id, { type: "SECURITY_NOTICE", title: "Your password was changed", body: "If this wasn't you, reset your password now and contact support.", linkPath: "/account#security", email: false }).catch(() => undefined);
+        await notify(user.id, { type: "SECURITY_NOTICE", title: "Your password was changed", body: "If this wasn't you, reset your password now and contact support.", linkPath: "/account/security", email: false }).catch(() => undefined);
       },
     },
     emailVerification: {

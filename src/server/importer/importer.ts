@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { db } from "@/server/db";
 import { normalizeWebsiteUrl } from "@/lib/url";
 import { safeFetch } from "@/server/scanner/safe-fetch";
-import { registrableDomain } from "@/server/scanner/domains";
+import { findDuplicate } from "./dedupe";
 import { storeImageBytes } from "@/server/storage/uploads";
 import { createEditorialListing } from "@/server/listings/workflow";
 import { getSection } from "@/server/settings/store";
@@ -55,35 +55,55 @@ async function importAdmin(preferred: string | null): Promise<string | null> {
   return a?.id ?? null;
 }
 
-export type ImportOutcome = { status: "IMPORTED"; listingId: string } | { status: "SKIPPED" | "FAILED" | "RETRY" | "WAITING"; reason: string };
+export type ImportOutcome = { status: "IMPORTED"; listingId: string } | { status: "SKIPPED" | "FAILED" | "RETRY" | "WAITING"; reason: string; stage?: string; category?: string };
+
+/** Stage of the import pipeline where a candidate stopped, and a short error category. */
+export type ImportStage = "fetch" | "duplicate" | "category" | "listing" | "admin";
+
+/** Classifies a fetch failure so an administrator can tell a dead website from a temporary error. */
+export function fetchCategory(status: number, message: string | undefined): { category: string; retryable: boolean } {
+  if (/blocked|private|not allowed|forbidden address|resolve/i.test(message ?? "")) return { category: "blocked-address", retryable: false };
+  if (/timeout|timed out/i.test(message ?? "")) return { category: "timeout", retryable: true };
+  if (status === 404 || status === 410) return { category: "not-found", retryable: false };
+  if (status === 401 || status === 403) return { category: "access-denied", retryable: true };
+  if (status === 429 || status >= 500) return { category: "website-error", retryable: true };
+  if (status >= 400) return { category: "http-error", retryable: false };
+  return { category: "network", retryable: true };
+}
 
 export async function importCandidate(id: string): Promise<ImportOutcome> {
   const c = await db.importCandidate.findUnique({ where: { id } });
   if (!c || c.status === "IMPORTED") return { status: "SKIPPED", reason: "Already imported" };
   const adminId = await importAdmin(c.createdByAdminId);
-  if (!adminId) return { status: "WAITING", reason: "No administrator account exists yet" };
-  const fail = async (status: "SKIPPED" | "FAILED" | "RETRY", reason: string): Promise<ImportOutcome> => {
+  if (!adminId) return { status: "WAITING", reason: "No administrator account exists yet", stage: "admin", category: "no-admin" };
+  const fail = async (status: "SKIPPED" | "FAILED" | "RETRY", reason: string, stage: ImportStage, category: string, retryable = status === "RETRY"): Promise<ImportOutcome> => {
     const attempts = c.attempts + 1;
     const final = status === "RETRY" ? (attempts >= MAX_ATTEMPTS ? "FAILED" : "QUEUED") : status;
-    await db.importCandidate.update({ where: { id }, data: { status: final, attempts, lastError: reason.slice(0, 500), processedAt: new Date() } });
-    return { status: final === "QUEUED" ? "RETRY" : final, reason };
+    await db.importCandidate.update({ where: { id }, data: { status: final, attempts, lastError: reason.slice(0, 500), failedStage: stage, errorCategory: category, retryable, processedAt: new Date() } });
+    return { status: final === "QUEUED" ? "RETRY" : final, reason, stage, category };
   };
-  await db.importCandidate.update({ where: { id }, data: { status: "IMPORTING" } });
+  // Claim the candidate atomically: a second click or an overlapping scheduler run gets nothing,
+  // so the same website is never imported twice in parallel.
+  const claimed = await db.importCandidate.updateMany({ where: { id, status: { in: ["QUEUED", "FAILED", "SKIPPED"] } }, data: { status: "IMPORTING", processedAt: new Date() } });
+  if (claimed.count === 0) return { status: "SKIPPED", reason: "This import is already being processed" };
 
-  const reg = registrableDomain(c.domain);
-  const existing = await db.listing.findFirst({ where: { OR: [{ domain: c.domain }, { domain: reg }, { domain: `www.${reg}` }], status: { not: "REMOVED" }, deletedAt: null }, select: { id: true } });
-  if (existing) return fail("SKIPPED", "A listing for this website already exists");
+  const dup = await findDuplicate(c.domain, c.id);
+  if (dup && (dup.kind === "listing" || dup.status !== "QUEUED")) return fail("SKIPPED", dup.kind === "listing" ? `Already listed as "${dup.name}" (${dup.status.toLowerCase()})` : `Already imported or importing as "${dup.name}"`, "duplicate", "duplicate", false);
 
   const cat = await db.category.findFirst({ where: { slug: c.categorySlug ?? "other", isEnabled: true, mergedIntoId: null }, include: { parent: true } })
     ?? await db.category.findFirst({ where: { slug: "other" }, include: { parent: true } });
-  if (!cat) return fail("FAILED", `Category ${c.categorySlug} not found`);
+  if (!cat) return fail("FAILED", `Category ${c.categorySlug} not found`, "category", "category-missing", false);
 
   const settings = await getSection("imports");
   const useMshots = settings.str("screenshots") !== "site";
   if (useMshots) void safeFetch(mshotsUrl(c.url), { accept: IMAGE }).catch(() => undefined); // start the capture early
 
   const page = await safeFetch(c.url);
-  if (!page.ok || !page.body) return fail("RETRY", page.error?.message ?? `The website answered HTTP ${page.status}`);
+  if (!page.ok || !page.body) {
+    const fc = fetchCategory(page.status, page.error?.message);
+    const reason = page.error?.message ? `Could not load the website: ${page.error.message}` : `The website answered HTTP ${page.status}`;
+    return fc.retryable ? fail("RETRY", reason, "fetch", fc.category) : fail("FAILED", reason, "fetch", fc.category, false);
+  }
   const base = page.finalUrl || c.url;
   const meta = parseSiteHtml(page.body, base);
   let manifest = null;
@@ -119,10 +139,10 @@ export async function importCandidate(id: string): Promise<ImportOutcome> {
       source: `Automatic import of ${c.url}${c.source === "catalogue" ? " (Webcenta catalogue)" : ""}`,
       evidence: "Name, description, logo and images taken from the website's own metadata and web app manifest." + (useMshots ? " Screenshot captured with WordPress.com mShots." : "") + (c.note ? ` Note: ${c.note}` : ""),
     });
-    await db.importCandidate.update({ where: { id }, data: { status: "IMPORTED", listingId: listing.id, attempts: c.attempts + 1, lastError: null, processedAt: new Date() } });
+    await db.importCandidate.update({ where: { id }, data: { status: "IMPORTED", listingId: listing.id, attempts: c.attempts + 1, lastError: null, failedStage: null, errorCategory: null, retryable: false, processedAt: new Date() } });
     return { status: "IMPORTED", listingId: listing.id };
   } catch (e) {
-    return fail("FAILED", e instanceof Error ? e.message : String(e));
+    return fail("FAILED", `The listing could not be created: ${e instanceof Error ? e.message : String(e)}`, "listing", "invalid-details", false);
   }
 }
 
@@ -138,7 +158,8 @@ export async function runImports(now = new Date()): Promise<number> {
   if (lastAt && now.getTime() - lastAt < every * 60_000 - 30_000) return 0;
   await db.systemSetting.upsert({ where: { key: LAST_RUN }, create: { key: LAST_RUN, value: { at: now.toISOString() } }, update: { value: { at: now.toISOString() } } });
   // Recover candidates left IMPORTING by an interrupted run.
-  await db.importCandidate.updateMany({ where: { status: "IMPORTING", processedAt: null, createdAt: { lt: new Date(now.getTime() - 30 * 60_000) } }, data: { status: "QUEUED" } });
+  const stale = new Date(now.getTime() - 30 * 60_000);
+  await db.importCandidate.updateMany({ where: { status: "IMPORTING", OR: [{ processedAt: null, createdAt: { lt: stale } }, { processedAt: { lt: stale } }] }, data: { status: "QUEUED" } });
   const next = await db.importCandidate.findMany({ where: { status: "QUEUED", ...(s.bool("catalogueSource") ? {} : { source: { not: "catalogue" } }) }, orderBy: [{ priority: "desc" }, { createdAt: "asc" }], take: Math.min(20, Math.max(1, s.num("perRun") || 4)), select: { id: true } });
   let imported = 0;
   for (const n of next) {

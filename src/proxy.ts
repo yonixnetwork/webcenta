@@ -73,6 +73,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL("/__not-found", request.url), { status: 404 });
   }
 
+  // Ad frames (public site only) carry their own Content Security Policy; see src/app/ads/frame.
+  if (surface === "public" && /^\/ads\/frame\/[a-z0-9]+$/.test(url.pathname)) return NextResponse.next();
+  if (url.pathname.startsWith("/ads/")) return NextResponse.rewrite(new URL("/__not-found", request.url), { status: 404 });
+
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   // Analytics/advertising sources are added only on the public site (never the admin or developer portals).
   const extras = surface !== "public" ? { script: [], connect: [], img: [], frame: [] } : await cspExtras(url.pathname).catch(() => ({ script: [], connect: [], img: [], frame: [] }));

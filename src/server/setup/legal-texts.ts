@@ -77,7 +77,7 @@ Our legal bases are performing our agreement with you, our legitimate interest i
 We do not sell personal data. We share it only with:
 - our hosting provider (Hostinger), which stores the website, the database and our email;
 - Google or GitHub, if you choose to sign in with them;
-- Google Analytics or Google AdSense, only if they are enabled and you accept analytics or advertising cookies;
+- Google Analytics, Google AdSense or Adsterra, only if they are enabled and you accept analytics or advertising cookies;
 - authorities, when the law requires it.
 
 ## How long we keep it
@@ -111,7 +111,7 @@ The web app also stores a copy of some pages in your browser so it works offline
 
 ## Optional cookies (only with your permission)
 - **Analytics (Google Analytics):** how pages are used, if enabled by Webcenta.
-- **Advertising (Google AdSense):** shows ads and measures them, if enabled by Webcenta.
+- **Advertising (Google AdSense or Adsterra):** shows ads and measures them, if enabled by Webcenta. Adsterra ads run in an isolated frame that cannot read Webcenta's own cookies.
 
 Our own visit statistics do not use cookies.
 
@@ -254,7 +254,7 @@ Listing on Webcenta is free. Read the full [Developer Agreement](/legal/develope
     summary: "How ads and sponsored placements appear on Webcenta.",
     body: `**Sponsored placements.** If a developer pays for a placement, it is always labelled **"Sponsored"**. Paying never changes organic rankings or search order, and never skips moderation or security checks. Sponsored placements are not offered at the moment.
 
-**Ads.** Webcenta may show ads from Google AdSense on browsing pages, never on app detail pages, sign-in pages or your account. Advertising cookies are used only if you accept them in **Cookie settings** (see the [Cookie Policy](/legal/cookies)).
+**Ads.** Webcenta may show ads from Google AdSense or Adsterra on browsing pages and below an app's details, always labelled \"Advertisement\" and never on sign-in or registration pages or in your account. Ads are never styled as app listings, and Webcenta does not use pop-under, redirect or other intrusive ad formats. Advertising cookies are used only if you accept them in **Cookie settings** (see the [Cookie Policy](/legal/cookies)).
 
 **Rankings.** Rankings and recommendations are based on relevance and activity on Webcenta (views, visits, ratings and, when you allow it, your own interests). You can turn personalisation off in your account.
 

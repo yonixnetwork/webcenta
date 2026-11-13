@@ -12,7 +12,9 @@ cpSync(".next/static", ".next/standalone/.next/static", { recursive: true });
 cpSync("public", ".next/standalone/public", { recursive: true });
 // Migrations, so first-time setup and Admin → Settings → Database can apply them.
 cpSync("prisma/migrations", ".next/standalone/prisma/migrations", { recursive: true });
-console.log("prepare-standalone: copied .next/static, public/ and prisma/migrations into .next/standalone");
+// The Hostinger cron entry point (docs/production-repair/cron-setup.md).
+cpSync("scripts/cron-tick.mjs", ".next/standalone/cron-tick.mjs");
+console.log("prepare-standalone: copied .next/static, public/, prisma/migrations and cron-tick.mjs into .next/standalone");
 
 /**
  * Environment snapshot. Hostinger runs the app under LiteSpeed (Passenger), which

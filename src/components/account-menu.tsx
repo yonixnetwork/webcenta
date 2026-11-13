@@ -9,8 +9,8 @@ import { authClient } from "@/lib/auth-client";
 import { cn } from "./ui/cn";
 
 const ITEMS = [
-  { href: "/account", label: "Profile & account settings", icon: UserRound },
-  { href: "/account#security", label: "Security", icon: ShieldCheck },
+  { href: "/account/profile", label: "Profile & account settings", icon: UserRound },
+  { href: "/account/security", label: "Security", icon: ShieldCheck },
   { href: "/account/favorites", label: "Saved apps", icon: Bookmark },
   { href: "/account/collections", label: "Collections", icon: FolderHeart },
   { href: "/account/reviews", label: "My reviews", icon: MessageSquareText },

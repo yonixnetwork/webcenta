@@ -127,52 +127,62 @@ export async function processSubmission(revisionId: string) {
   if (rev.status !== "SUBMITTED") return { skipped: true as const };
   const input = listingInputSchema.parse(rev.data);
   const firstVersion = !rev.listing.publishedAt;
-  await db.listingRevision.update({ where: { id: rev.id }, data: { status: "AUTOMATED_CHECKS" } });
-  if (firstVersion) await db.listing.update({ where: { id: rev.listingId }, data: { status: "AUTOMATED_CHECKS" } });
+  // Only one runner checks a revision (the scheduler and an administrator's "Run checks now").
+  const claimed = await db.listingRevision.updateMany({ where: { id: rev.id, status: "SUBMITTED" }, data: { status: "AUTOMATED_CHECKS" } });
+  if (claimed.count !== 1) return { skipped: true as const };
+  try {
+    if (firstVersion) await db.listing.update({ where: { id: rev.listingId }, data: { status: "AUTOMATED_CHECKS" } });
 
-  const refs = await validateRefs(input, { orgId: rev.listing.developerId ?? undefined, adminId: rev.listing.developerId ? undefined : "editorial" });
-  const { scan, outcomes } = await scanListing(rev.listingId, "SUBMISSION", { revisionId });
-  const intelFail = outcomes.some((o) => o.check.startsWith("THREAT_INTEL") && o.verdict === "FAIL");
-  const policy = await db.monitoringPolicy.findUnique({ where: { riskTier: refs.riskTier } });
-  const org = rev.listing.developerId ? await db.developerOrg.findUnique({ where: { id: rev.listing.developerId } }) : null;
-  const openReports = await db.report.count({ where: { listingId: rev.listingId, status: { in: ["OPEN", "IN_REVIEW"] } } });
-  // Automatic imports follow the risk-based publishing policy (Settings → Automatic web app imports);
-  // developers' submissions the established rules (organisation older than a week, every check passed).
-  const candidate = org ? null : await db.importCandidate.findFirst({ where: { listingId: rev.listingId }, select: { id: true, reviewRequired: true } });
-  let auto: boolean;
-  if (candidate) {
-    const s = await getSection("imports");
-    const cats = await db.category.findMany({ where: { id: { in: refs.categoryIds } }, select: { slug: true, parent: { select: { slug: true } } } });
-    const d = importDecision(
-      { autoPublish: s.bool("autoPublish"), maxRiskScore: s.num("maxRiskScore"), eligibleCategories: slugList(s.str("eligibleCategories")), reviewCategories: slugList(s.str("reviewCategories")) },
-      { outcomes, categorySlugs: cats.flatMap((c) => [c.slug, c.parent?.slug].filter((x): x is string => Boolean(x))), manualReview: refs.manualReview, complianceRequired: refs.complianceRequired,
-        tierAllowsAuto: Boolean(policy?.allowAutoApproval), reviewRequired: candidate.reviewRequired, openReports, hasLogo: Boolean(input.logoAssetId), descriptionLength: input.description.length },
-    );
-    auto = d.publish && !intelFail;
-    await audit({ actorType: "SYSTEM", action: auto ? "imports.auto-publish" : "imports.review-required", targetType: "Listing", targetId: rev.listingId, metadata: { riskScore: d.score, reasons: d.reasons, scanId: scan.id } });
-  } else {
-    const established = org ? Date.now() - org.createdAt.getTime() > 7 * 86_400_000 : false;
-    auto = !intelFail && qualifiesForAutoApproval(outcomes) && Boolean(policy?.allowAutoApproval) && !refs.manualReview && !refs.complianceRequired && established && openReports === 0;
-  }
-  await db.listing.update({ where: { id: rev.listingId }, data: { riskTier: refs.riskTier } });
+    const refs = await validateRefs(input, { orgId: rev.listing.developerId ?? undefined, adminId: rev.listing.developerId ? undefined : "editorial" });
+    const { scan, outcomes } = await scanListing(rev.listingId, "SUBMISSION", { revisionId });
+    const intelFail = outcomes.some((o) => o.check.startsWith("THREAT_INTEL") && o.verdict === "FAIL");
+    const policy = await db.monitoringPolicy.findUnique({ where: { riskTier: refs.riskTier } });
+    const org = rev.listing.developerId ? await db.developerOrg.findUnique({ where: { id: rev.listing.developerId } }) : null;
+    const openReports = await db.report.count({ where: { listingId: rev.listingId, status: { in: ["OPEN", "IN_REVIEW"] } } });
+    // Automatic imports follow the risk-based publishing policy (Settings → Automatic web app imports);
+    // developers' submissions the established rules (organisation older than a week, every check passed).
+    const candidate = org ? null : await db.importCandidate.findFirst({ where: { listingId: rev.listingId }, select: { id: true, reviewRequired: true } });
+    let auto: boolean;
+    if (candidate) {
+      const s = await getSection("imports");
+      const cats = await db.category.findMany({ where: { id: { in: refs.categoryIds } }, select: { slug: true, parent: { select: { slug: true } } } });
+      const d = importDecision(
+        { autoPublish: s.bool("autoPublish"), maxRiskScore: s.num("maxRiskScore"), eligibleCategories: slugList(s.str("eligibleCategories")), reviewCategories: slugList(s.str("reviewCategories")) },
+        { outcomes, categorySlugs: cats.flatMap((c) => [c.slug, c.parent?.slug].filter((x): x is string => Boolean(x))), manualReview: refs.manualReview, complianceRequired: refs.complianceRequired,
+          tierAllowsAuto: Boolean(policy?.allowAutoApproval), reviewRequired: candidate.reviewRequired, openReports, hasLogo: Boolean(input.logoAssetId), descriptionLength: input.description.length },
+      );
+      auto = d.publish && !intelFail;
+      await audit({ actorType: "SYSTEM", action: auto ? "imports.auto-publish" : "imports.review-required", targetType: "Listing", targetId: rev.listingId, metadata: { riskScore: d.score, reasons: d.reasons, scanId: scan.id } });
+    } else {
+      const established = org ? Date.now() - org.createdAt.getTime() > 7 * 86_400_000 : false;
+      auto = !intelFail && qualifiesForAutoApproval(outcomes) && Boolean(policy?.allowAutoApproval) && !refs.manualReview && !refs.complianceRequired && established && openReports === 0;
+    }
+    await db.listing.update({ where: { id: rev.listingId }, data: { riskTier: refs.riskTier } });
 
-  if (intelFail) {
-    await db.securityAlert.create({ data: { listingId: rev.listingId, scanId: scan.id, severity: "CRITICAL", title: "Submission matched a threat-intelligence source", details: outcomes.filter((o) => o.verdict === "FAIL").map((o) => o.summary).join("; ") } });
-    await notifyAdmins("Submission flagged by threat intelligence", `${input.name} (${input.websiteUrl}) matched a threat-intelligence source. Review and confirm rejection.`, `/submissions/${revisionId}`);
+    if (intelFail) {
+      await db.securityAlert.create({ data: { listingId: rev.listingId, scanId: scan.id, severity: "CRITICAL", title: "Submission matched a threat-intelligence source", details: outcomes.filter((o) => o.verdict === "FAIL").map((o) => o.summary).join("; ") } });
+      await notifyAdmins("Submission flagged by threat intelligence", `${input.name} (${input.websiteUrl}) matched a threat-intelligence source. Review and confirm rejection.`, `/submissions/${revisionId}`);
+    }
+    if (auto) {
+      await approveRevision(revisionId, { type: "SYSTEM" }, { publish: true, notes: "Automatically approved: all automated checks passed." });
+      return { decision: "AUTO_APPROVED" as const, scanId: scan.id };
+    }
+    await db.listingRevision.update({ where: { id: rev.id }, data: { status: "UNDER_REVIEW" } });
+    if (firstVersion) {
+      await db.listing.update({ where: { id: rev.listingId }, data: { status: "UNDER_REVIEW" } });
+      await statusChange(rev.listingId, "AUTOMATED_CHECKS", "UNDER_REVIEW", { type: "SYSTEM" }, `Automated checks: ${worst(outcomes.map((o) => o.verdict))}`);
+    }
+    if (rev.listing.developerId) {
+      await notifyOrg(rev.listing.developerId, { type: "LISTING_STATUS", title: `${input.name} is under review`, body: "Automated checks are complete. A Webcenta moderator will review your submission.", linkPath: `/developer/listings/${rev.listingId}`, email: false });
+    }
+    return { decision: "MANUAL_REVIEW" as const, scanId: scan.id };
+  } catch (e) {
+    // Put the revision back so the job's retry (or "Run checks now") can check it again,
+    // instead of leaving it stuck in "automated checks" forever.
+    await db.listingRevision.updateMany({ where: { id: rev.id, status: "AUTOMATED_CHECKS" }, data: { status: "SUBMITTED" } });
+    if (firstVersion) await db.listing.updateMany({ where: { id: rev.listingId, status: "AUTOMATED_CHECKS" }, data: { status: "SUBMITTED" } });
+    throw e;
   }
-  if (auto) {
-    await approveRevision(revisionId, { type: "SYSTEM" }, { publish: true, notes: "Automatically approved: all automated checks passed." });
-    return { decision: "AUTO_APPROVED" as const, scanId: scan.id };
-  }
-  await db.listingRevision.update({ where: { id: rev.id }, data: { status: "UNDER_REVIEW" } });
-  if (firstVersion) {
-    await db.listing.update({ where: { id: rev.listingId }, data: { status: "UNDER_REVIEW" } });
-    await statusChange(rev.listingId, "AUTOMATED_CHECKS", "UNDER_REVIEW", { type: "SYSTEM" }, `Automated checks: ${worst(outcomes.map((o) => o.verdict))}`);
-  }
-  if (rev.listing.developerId) {
-    await notifyOrg(rev.listing.developerId, { type: "LISTING_STATUS", title: `${input.name} is under review`, body: "Automated checks are complete. A Webcenta moderator will review your submission.", linkPath: `/developer/listings/${rev.listingId}`, email: false });
-  }
-  return { decision: "MANUAL_REVIEW" as const, scanId: scan.id };
 }
 
 async function upsertTags(names: string[], tx: Prisma.TransactionClient) {
@@ -200,6 +210,11 @@ export async function approveRevision(revisionId: string, actor: Actor, opts: { 
   const newStatus: ListingStatus = wasPublished || opts.publish ? "PUBLISHED" : "APPROVED";
 
   await db.$transaction(async (tx) => {
+    // Claim the decision inside the transaction: if two administrators (or a bulk action and the
+    // automatic checks) approve the same revision at once, only one succeeds and the listing is
+    // published exactly once.
+    const claimed = await tx.listingRevision.updateMany({ where: { id: rev.id, status: { in: ["SUBMITTED", "AUTOMATED_CHECKS", "UNDER_REVIEW"] } }, data: { status: "APPROVED" } });
+    if (claimed.count !== 1) throw new WorkflowError("This revision has already been decided");
     const tagIds = await upsertTags(input.tags, tx);
     await tx.listingCategory.deleteMany({ where: { listingId: rev.listingId } });
     await tx.listingCategory.createMany({ data: refs.categoryIds.map((categoryId) => ({ listingId: rev.listingId, categoryId, isPrimary: categoryId === input.primaryCategoryId })) });

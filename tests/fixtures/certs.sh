@@ -3,7 +3,7 @@
 # Output: tests/fixtures/.certs/{ca.pem,ca.key,site.pem,site.key} (git-ignored).
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)/.certs"
-HOSTS="good-app journey-app phish-app evil-site evil-redirect down-app private-redirect download-app importme"
+HOSTS="good-app journey-app phish-app evil-site evil-redirect down-app private-redirect download-app importme bulk-a bulk-b bulk-down verify-site"
 # Reuse the certificate only while it covers the same hosts.
 [ -f "$DIR/site.pem" ] && [ "$(cat "$DIR/hosts" 2>/dev/null)" = "$HOSTS" ] && exit 0
 mkdir -p "$DIR"; cd "$DIR"

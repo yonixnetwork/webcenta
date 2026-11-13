@@ -27,11 +27,15 @@ model Job {
   maxAttempts Int       @default(5)
   lockedAt    DateTime? @db.DateTime(3)
   lockedBy    String?
-  lastError   String? @db.Text
+  lastError   String?   @db.Text
   /// Prevents duplicate enqueues (e.g. "scan.listing:<id>:<window>").
   dedupeKey   String?   @unique
   createdAt   DateTime  @default(now()) @db.DateTime(3)
   completedAt DateTime? @db.DateTime(3)
+  /// When the last attempt started, how long it took and what it reported (Admin → Scheduler).
+  startedAt   DateTime? @db.DateTime(3)
+  durationMs  Int?
+  result      Json?
 
   @@index([status, runAt, priority])
   @@index([type, status])
@@ -45,7 +49,13 @@ model JobRun {
   finishedAt DateTime? @db.DateTime(3)
   processed  Int       @default(0)
   failed     Int       @default(0)
-  error      String? @db.Text
+  error      String?   @db.Text
+  /// "cron" (Hostinger scheduled task), "admin" (Run now) or "cli".
+  trigger    String    @default("cron") @db.VarChar(20)
+  enqueued   Int       @default(0)
+  recovered  Int       @default(0)
+  /// Another run held the scheduler lock, so this one did nothing.
+  skipped    Boolean   @default(false)
 
   @@index([startedAt])
 }

@@ -34,7 +34,7 @@ export default async function PortalLayout({ children }: { children: React.React
     { href: "/settings", label: "Settings", perm: "settings.manage" },
     { href: "/admins", label: "Administrators", perm: "admins.manage" },
     { href: "/audit", label: "Audit log", perm: "audit.view" },
-    { href: "/jobs", label: "Jobs & email", perm: "jobs.view" },
+    { href: "/jobs", label: "Scheduler", perm: "jobs.view" },
   ];
   const items = all.filter((i) => !i.perm || can(admin.role, i.perm));
   return (

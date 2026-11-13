@@ -97,11 +97,11 @@ export async function startDomainAction(_s: ActionState, form: FormData): Promis
   try {
     const ctx = await requireDev("EDITOR");
     if (!normalizeDomain(String(form.get("domain") ?? ""))) return fail("Enter a valid public domain, e.g. app.example.com");
-    const method = z.enum(["DNS_TXT", "HTML_META", "WELL_KNOWN_FILE"]).parse(form.get("method"));
+    const method = z.enum(["DNS_TXT", "HTML_FILE", "HTML_META", "WELL_KNOWN_FILE"]).parse(form.get("method"));
     if (!(await developerPolicy()).methods.includes(method)) return fail("That verification method is not available. Choose another one.");
     await startVerification(ctx.org.id, String(form.get("domain")), method);
     refreshDev();
-    return { ok: true, message: "Follow the instructions below, then click “Check now”." };
+    return { ok: true, message: "Your verification code is ready. Follow the steps below, then press “Check verification”." };
   } catch (e) { return fail(errMsg(e)); }
 }
 

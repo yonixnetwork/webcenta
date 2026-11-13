@@ -36,7 +36,7 @@ export default async function PublicLayout({ children }: { children: React.React
       <main id="main" className="mx-auto min-h-[60vh] max-w-7xl px-4 pb-10 pt-4 sm:px-6 sm:pt-6">{children}</main>
       <SiteFooter name={site.name} contactEmail={site.contactEmail} socialLinks={site.socialLinks} />
       <MobileNav />
-      <PwaManager build={buildId()} />
+      <PwaManager build={buildId()} account={user?.id ?? ""} />
       <ThirdPartyScripts />
       <CookieConsent decided={consentDecided} />
     </>

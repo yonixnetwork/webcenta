@@ -6,7 +6,8 @@ import { DataTable, StatusPill, td } from "@/components/portal/table";
 import { formatDate } from "@/lib/labels";
 import { db } from "@/server/db";
 import { requireAdmin } from "@/server/admin/auth";
-import { bulkImportsAction, importActionFor, queueImportsAction } from "@/server/actions/admin";
+import { bulkImportsAction, queueImportsAction } from "@/server/actions/admin";
+import { eligibleCount } from "@/server/importer/bulk";
 import { BulkForm } from "@/components/portal/bulk-form";
 import { getSection } from "@/server/settings/store";
 import { getAllCategoriesTree } from "@/server/catalog/admin-categories";
@@ -17,11 +18,12 @@ export default async function ImportsAdmin({ searchParams }: { searchParams: Pro
   await requireAdmin("imports.manage");
   const status = (await searchParams).status;
   const filter = ["QUEUED", "IMPORTING", "IMPORTED", "FAILED", "SKIPPED"].includes(status ?? "") ? status : undefined;
-  const [counts, rows, tree, s] = await Promise.all([
+  const [counts, rows, tree, s, eligible] = await Promise.all([
     db.importCandidate.groupBy({ by: ["status"], _count: { _all: true } }),
     db.importCandidate.findMany({ where: filter ? { status: filter as never } : {}, orderBy: [{ processedAt: "desc" }, { priority: "desc" }, { createdAt: "asc" }], take: 200 }),
     getAllCategoriesTree(),
     getSection("imports"),
+    eligibleCount(),
   ]);
   const n = (k: string) => counts.find((c) => c.status === k)?._count._all ?? 0;
   // Review state of imported listings (status, latest scan) for the table.
@@ -68,7 +70,7 @@ export default async function ImportsAdmin({ searchParams }: { searchParams: Pro
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="now" value="1" className="size-4" />Import a single address immediately instead of waiting for the schedule</label>
         </ActionForm>
       </Card>
-      <BulkForm action={bulkImportsAction} categories={flatCats}>
+      <BulkForm action={bulkImportsAction} categories={flatCats} eligible={eligible} failed={n("FAILED")}>
         <DataTable head={["", "Website", "Category", "Source", "Import", "Listing", "Checks", ""]} empty={rows.length === 0}>
           {rows.map((r) => {
             const l = r.listingId ? byId.get(r.listingId) : undefined;
@@ -80,15 +82,25 @@ export default async function ImportsAdmin({ searchParams }: { searchParams: Pro
                 <td className={td}><span className="font-medium">{r.name ?? r.domain}</span><br /><span className="text-xs text-subtle">{r.url}</span>{r.reviewRequired && <><br /><span className="text-xs font-semibold text-warning">Review required</span></>}</td>
                 <td className={td}>{r.categorySlug}</td>
                 <td className={td}>{r.source}</td>
-                <td className={td}><StatusPill status={r.status} />{r.lastError && <p className="mt-1 max-w-56 text-xs text-muted">{r.lastError}</p>}</td>
-                <td className={td}>{l ? <><StatusPill status={l.status} /><br />{pendingRev ? <Link href={`/submissions/${pendingRev.id}`} className="text-xs text-brand underline">Preview & review</Link> : <Link href={`/listings/${l.id}`} className="text-xs text-brand underline">Open</Link>}{" · "}<Link href={`/listings/${l.id}/edit`} className="text-xs text-brand underline">Edit</Link></> : <span className="text-xs text-subtle">{r.processedAt ? formatDate(r.processedAt) : "—"}</span>}</td>
-                <td className={td}>{scan ? <span className="text-xs">{scan.overallVerdict} · risk {scan.riskScore ?? "?"}</span> : <span className="text-xs text-subtle">—</span>}</td>
                 <td className={td}>
-                  {r.status !== "IMPORTED" && (
-                    <span className="flex gap-1">
-                      <button formAction={importActionFor.bind(null, r.id, "now")} className={buttonClass("secondary", "sm")}>Import now</button>
-                    </span>
+                  <StatusPill status={r.status} />
+                  <p className="mt-1 font-mono text-[11px] text-subtle" title="Import job ID">#{r.id.slice(-8)}</p>
+                  {r.lastError && (
+                    <details className="mt-1 max-w-64 text-xs" data-testid="import-error">
+                      <summary className="cursor-pointer text-danger">{r.failedStage ? `Failed at ${r.failedStage}` : "Error"}{r.errorCategory ? ` · ${r.errorCategory}` : ""}</summary>
+                      <p className="mt-1 text-muted">{r.lastError}</p>
+                      <p className="text-subtle">{r.retryable ? "Can be retried" : "Retrying will not help until the cause is fixed"} · attempts {r.attempts} · {r.processedAt ? formatDate(r.processedAt) : ""}</p>
+                    </details>
                   )}
+                </td>
+                <td className={td}>{l ? <><StatusPill status={l.status} /><br />{pendingRev ? <Link href={`/submissions/${pendingRev.id}`} className="text-xs text-brand underline">Preview & review</Link> : <Link href={`/listings/${l.id}`} className="text-xs text-brand underline">Open</Link>}{" · "}<Link href={`/listings/${l.id}/edit`} className="text-xs text-brand underline">Edit</Link></> : <span className="text-xs text-subtle">{r.processedAt ? formatDate(r.processedAt) : "—"}</span>}</td>
+                <td className={td}>{scan ? <span className="text-xs">{scan.overallVerdict} · risk {scan.riskScore ?? "?"}</span> : l ? <span className="text-xs text-warning">not checked yet</span> : <span className="text-xs text-subtle">—</span>}</td>
+                <td className={td}>
+                  <span className="flex flex-col gap-1">
+                    {(r.status === "QUEUED" || r.status === "FAILED" || r.status === "SKIPPED") && <button type="submit" name="op" value={`import-one:${r.id}`} className={buttonClass("secondary", "sm")}>Import now</button>}
+                    {(r.status === "FAILED" || r.status === "SKIPPED") && <button type="submit" name="op" value={`retry-one:${r.id}`} className={buttonClass("ghost", "sm")}>Queue again</button>}
+                    {l && !scan && pendingRev && <button type="submit" name="op" value={`checks-one:${r.id}`} className={buttonClass("ghost", "sm")}>Run checks</button>}
+                  </span>
                 </td>
               </tr>
             );

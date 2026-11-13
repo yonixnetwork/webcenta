@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Ad } from "@/components/ads/ad";
 import { notFound } from "next/navigation";
 import { ArrowUpRight, BadgeCheck, CalendarCheck, ChevronRight, Globe, ShieldCheck, ShieldQuestion, Star, TriangleAlert, UserRound } from "lucide-react";
 import { AppIcon } from "@/components/app-icon";
@@ -201,6 +202,9 @@ export default async function AppPage({ params, searchParams }: Props) {
             </section>
           )}
 
+          {/* Separated from the app's own content by its label and spacing; never next to the Visit button. */}
+          <Ad placement="listing" className="border-y border-border py-4" />
+
           <ReviewsSection listing={listing} user={user} isMember={Boolean(membership)}
             canReply={Boolean(membership && membership.role !== "ANALYST")}
             sort={sp.sort === "newest" ? "newest" : "helpful"} page={Math.max(1, Number(sp.rpage) || 1)} />
@@ -255,6 +259,7 @@ export default async function AppPage({ params, searchParams }: Props) {
           </section>
 
           <ReportForm action={reportAction} reasons={LISTING_REPORT_REASONS} />
+          <Ad placement="desktop-sidebar" className="sticky top-24" />
         </aside>
       </div>
 

@@ -77,7 +77,10 @@ export async function cspExtras(pathname: string): Promise<CspExtras & { mediaOr
     x.connect.push("https://*.google-analytics.com", "https://*.analytics.google.com", "https://*.googletagmanager.com");
     x.img.push("https://*.google-analytics.com", "https://*.googletagmanager.com");
   }
-  if (adsense!.ready && adsense!.bool("autoAds") && isAdPage(pathname)) {
+  // AdSense: Auto ads on general pages, and approved AdSense units in the ad placements.
+  const { adsenseUnitsActive } = await import("@/server/ads/placements");
+  const units = adsense!.ready && (isAdPage(pathname) || /^\/(apps|app\/[a-z0-9-]+)\/?$/.test(pathname)) && (await adsenseUnitsActive().catch(() => false));
+  if (adsense!.ready && ((adsense!.bool("autoAds") && isAdPage(pathname)) || units)) {
     x.script.push("https://pagead2.googlesyndication.com", "https://*.adtrafficquality.google");
     x.connect.push("https://pagead2.googlesyndication.com", "https://*.google.com", "https://*.doubleclick.net", "https://*.adtrafficquality.google");
     x.img.push("https:");

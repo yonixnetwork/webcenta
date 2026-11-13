@@ -159,13 +159,13 @@ model Listing {
   // --- Public content (the currently approved version) ---
   name        String
   tagline     String? @db.Text
-  description String @db.Text
+  description String  @db.Text
   /// Short feature bullet points (searchable). JSON array of strings.
-  features    Json     @default("[]")
+  features    Json    @default("[]")
   /// Official website. Outbound clicks always go to this stored value via /go/:slug.
-  websiteUrl  String @db.Text
+  websiteUrl  String  @db.Text
   /// Registrable/host domain extracted from websiteUrl, lower-case (e.g. "example.com").
-  domain      String @db.VarChar(255)
+  domain      String  @db.VarChar(255)
 
   privacyPolicyUrl String? @db.Text
   termsUrl         String? @db.Text
@@ -175,7 +175,7 @@ model Listing {
   developerId   String?
   /// Original publisher name — always shown; mandatory for editorial listings.
   publisherName String
-  publisherUrl  String? @db.Text
+  publisherUrl  String?   @db.Text
   claimedAt     DateTime? @db.DateTime(3)
 
   // --- Classification ---
@@ -184,9 +184,9 @@ model Listing {
   /// Unique outbound clicks through Webcenta (sum of daily uniques, bots and the listing's own
   /// developers excluded). Shown publicly only as milestones (500+, 1K+…).
   visitCount         Int          @default(0)
-  pricingDetails     String? @db.Text
+  pricingDetails     String?      @db.Text
   isOpenSource       Boolean      @default(false)
-  sourceCodeUrl      String? @db.Text
+  sourceCodeUrl      String?      @db.Text
   /// JSON array of Platform values.
   platforms          Json         @default("[\"WEB\"]")
   isBrowserBased     Boolean      @default(true)
@@ -213,10 +213,14 @@ model Listing {
   trendingScore   Float @default(0)
 
   // --- Editorial ---
-  isEditorsPick     Boolean @default(false)
+  isEditorsPick     Boolean   @default(false)
   /// Where the editor learned of the site and what evidence was checked.
-  editorialSource   String? @db.Text
-  editorialEvidence String? @db.Text
+  editorialSource   String?   @db.Text
+  editorialEvidence String?   @db.Text
+  /// Description enrichment (scheduled job): when it last looked at this listing and the outcome
+  /// ("proposed", "unchanged", "no-better-text", "fetch-failed", "skipped-developer").
+  enrichedAt        DateTime? @db.DateTime(3)
+  enrichmentResult  String?   @db.VarChar(40)
 
   publishedAt      DateTime? @db.DateTime(3)
   /// Last time public content materially changed (drives "Recently updated").
@@ -328,7 +332,7 @@ model ListingMedia {
   assetId   String
   kind      MediaKind
   sortOrder Int       @default(0)
-  altText   String? @db.Text
+  altText   String?   @db.Text
 
   listing Listing    @relation(fields: [listingId], references: [id], onDelete: Cascade)
   asset   MediaAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
@@ -346,13 +350,13 @@ model ListingRevision {
   /// Full proposed content snapshot, validated by the app's schema (zod).
   data           Json
   /// Reviewer-visible notes from the submitter.
-  submitterNotes String? @db.Text
+  submitterNotes String?        @db.Text
   submittedById  String?
   submittedAt    DateTime?      @db.DateTime(3)
   reviewedById   String?
   reviewedAt     DateTime?      @db.DateTime(3)
   /// Reason shown to the developer (rejection / info request).
-  decisionNotes  String? @db.Text
+  decisionNotes  String?        @db.Text
   createdAt      DateTime       @default(now()) @db.DateTime(3)
   updatedAt      DateTime       @updatedAt @db.DateTime(3)
 
@@ -373,7 +377,7 @@ model ListingStatusChange {
   toStatus   ListingStatus
   actorType  ActorType
   actorId    String?
-  reason     String? @db.Text
+  reason     String?        @db.Text
   createdAt  DateTime       @default(now()) @db.DateTime(3)
 
   listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
@@ -403,7 +407,7 @@ model GeoRestriction {
   listingId        String?
   categoryId       String?
   countryCode      String   @db.Char(2)
-  reason           String @db.Text
+  reason           String   @db.Text
   createdByAdminId String?
   createdAt        DateTime @default(now()) @db.DateTime(3)
 
