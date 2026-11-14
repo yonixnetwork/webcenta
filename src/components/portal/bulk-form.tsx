@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { startTransition as startFormTransition } from "react";
 import { buttonClass } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { inputClass } from "@/components/ui/form";
@@ -31,16 +32,20 @@ export function BulkForm({ action, categories, eligible, failed, children }: { a
   const boxes = () => [...(formRef.current?.querySelectorAll<HTMLInputElement>('input[name="ids"]') ?? [])];
   const recount = () => setSelected(boxes().filter((b) => b.checked).length);
   // After an action the table re-renders with new rows: clear the selection.
-  useEffect(() => { boxes().forEach((b) => { b.checked = false; }); queueMicrotask(() => setSelected(0)); }, [state]);
+  useEffect(() => { if (state.ok) { boxes().forEach((b) => { b.checked = false; }); queueMicrotask(() => setSelected(0)); } }, [state]);
   const setAll = (on: boolean) => { boxes().forEach((b) => { b.checked = on; }); recount(); };
   const btn = (op: string, label: string, tone: "primary" | "secondary" | "ghost" = "secondary", needsSelection = true) => (
     <button type="submit" name="op" value={op} disabled={pending || (needsSelection && selected === 0)} className={buttonClass(tone, "sm")}>{label}</button>
   );
   return (
-    <form ref={formRef} action={formAction} className="space-y-3" onChange={recount} onSubmit={(e) => {
+    <form ref={formRef} className="space-y-3" onChange={recount} onSubmit={(e) => {
       const op = ((e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value ?? "";
       const ask = CONFIRM[op.split(":")[0]!];
-      if (ask && !window.confirm(ask(selected, eligible))) e.preventDefault();
+      e.preventDefault();
+      if (ask && !window.confirm(ask(selected, eligible))) return;
+      // Not React's form action: the selection and the reason stay if the server asks for a confirmation code.
+      const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+      startFormTransition(() => formAction(data));
     }}>
       <div className="sticky top-0 z-10 space-y-2 rounded-2xl border border-border bg-surface p-3 shadow-card">
         <div className="flex flex-wrap items-center gap-2 text-sm">

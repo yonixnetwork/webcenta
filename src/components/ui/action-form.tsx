@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { startTransition, useActionState, useEffect, useRef } from "react";
 import { buttonClass } from "./button";
 import { cn } from "./cn";
 import { StepUpInput } from "./step-up-input";
@@ -22,12 +22,20 @@ export function ActionForm({ action, children, submitLabel, pendingLabel = "Savi
   hideOnSuccess?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, { ok: false, message: "" });
+  const ref = useRef<HTMLFormElement>(null);
+  // Clear the form only after success: when the server asks for a correction (or an authenticator
+  // confirmation), what the person typed stays in place.
+  useEffect(() => { if (state.ok) ref.current?.reset(); }, [state]);
   useEffect(() => {
     if (state.redirectTo && state.redirectTo.startsWith("/") && !state.redirectTo.startsWith("//")) window.location.assign(state.redirectTo);
   }, [state.redirectTo]);
   if (hideOnSuccess && state.ok) return <p role="status" className="rounded-xl bg-success-soft px-3 py-2 text-sm text-success">{state.message}</p>;
   return (
-    <form action={formAction} className={cn("space-y-4", className)}>
+    <form ref={ref} className={cn("space-y-4", className)} onSubmit={(e) => {
+      e.preventDefault();
+      const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+      startTransition(() => formAction(data));
+    }}>
       {children}
       <StepUpInput show={state.stepUp} />
       {state.message && (

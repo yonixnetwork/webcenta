@@ -590,6 +590,18 @@ export async function retryJobAction(jobId: string) {
   refresh();
 }
 
+/** Admin → Security → Activity: sign an administrator out everywhere (incident response). */
+export async function revokeAdminSessionsAction(adminId: string): Promise<ActionState> {
+  try {
+    const a = await assertAdmin("admins.manage");
+    await requireStepUp(a, null, "admin.sessions.revoke");
+    await revokeAllAdminSessions(adminId);
+    await audit({ actorType: "ADMIN", adminId: a.id, action: "admin.sessions.revoke", targetType: "AdminUser", targetId: adminId });
+    refresh();
+    return ok(adminId === a.id ? "All your sessions were revoked, including this one. Sign in again." : "All sessions of that administrator were revoked.");
+  } catch (e) { return err(e); }
+}
+
 /** Confirms the administrator's identity for sensitive actions for the next 10 minutes. */
 export async function confirmIdentityAction(_s: ActionState, f: FormData): Promise<ActionState> {
   try {

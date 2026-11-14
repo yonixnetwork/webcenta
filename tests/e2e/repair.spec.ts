@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { ADMIN, BASE, CRON_SECRET, DEVHOST, closeDb, devSignIn, freshTotp, markTotpUsed, provisionAdmin, registerUser, setSite, sql, totp } from "./helpers";
+import { ADMIN, BASE, CRON_SECRET, DEVHOST, adRules, closeDb, loadedAds, devSignIn, freshTotp, markTotpUsed, provisionAdmin, registerUser, setSite, sql, totp } from "./helpers";
 
 /**
  * Production repair: the real scheduler entry point, import → checks → bulk publishing, push
@@ -162,8 +162,8 @@ test("push: delivery attempts are recorded honestly and the admin report explain
   await expect(report.getByText("Push attempts")).toBeVisible();
   await expect(report.getByText("Accepted by push services")).toBeVisible();
   await shot(admin, "admin-push-diagnostics-1440");
-  const tried = await request.post(`${BASE}/api/push/test`, { data: { endpoint } });
-  expect((await tried.json()).ok).toBe(false);
+  // The user-facing test endpoint no longer exists (testing is an admin tool).
+  expect((await request.post(`${BASE}/api/push/test`, { data: { endpoint } })).status()).toBe(404);
 });
 
 test("ads: the six Adsterra units are served exactly, each in its own sandboxed frame", async ({ request }) => {
@@ -209,8 +209,8 @@ test("ads: placements load only where they fit, are labelled, and never on sign-
   expect(sandbox).toContain("allow-scripts");
   expect(sandbox).not.toContain("allow-same-origin");
   expect(sandbox).not.toContain("allow-top-navigation");
-  await page.locator('[data-ad-placement="home-display"]').scrollIntoViewIfNeeded();
-  await expect(page.locator('[data-ad-placement="home-display"] iframe')).toHaveAttribute("src", "/ads/frame/300x250");
+  // The placement manager: never more than the homepage maximum, always spaced, never overlapping.
+  expect(adRules(await loadedAds(page), 3)).toEqual([]);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
   await shot(page, "ads-home-1440");
   await page.goto(`${BASE}/search?q=notes`);
@@ -218,9 +218,15 @@ test("ads: placements load only where they fit, are labelled, and never on sign-
   await expect(page.locator('[data-ad-placement="desktop-leaderboard"] iframe')).toHaveAttribute("src", "/ads/frame/728x90");
   await expect(page.locator('[data-ad-placement="mobile-compact"] iframe')).toHaveCount(0);
   await page.goto(`${BASE}/app/sample-lumen-notes`);
-  await page.locator('[data-ad-placement="listing"]').scrollIntoViewIfNeeded();
-  await expect(page.locator('[data-ad-placement="listing"] iframe')).toHaveAttribute("src", "/ads/frame/300x250");
-  await expect(page.locator('[data-ad-placement="desktop-sidebar"] iframe')).toHaveAttribute("src", "/ads/frame/160x600");
+  // The compact sponsored unit sits in the closing "Visit official website" box, labelled.
+  const visit = page.locator("section", { has: page.getByRole("heading", { name: /Ready to try/ }) });
+  await visit.scrollIntoViewIfNeeded();
+  await expect(visit.locator('[data-ad-placement="listing-native"] iframe')).toHaveAttribute("src", "/ads/frame/native");
+  await expect(visit.locator('[data-ad-placement="listing-native"]').getByText("Advertisement")).toBeVisible();
+  await expect(visit.getByRole("link", { name: /Visit official website/ })).toBeVisible();
+  const appAds = await loadedAds(page);
+  expect(adRules(appAds, 3)).toEqual([]);
+  expect(appAds.map((a) => a.placement)).toContain("listing-native");
   await shot(page, "ads-app-1440");
   for (const p of ["/signin", "/signup"]) { await page.goto(`${BASE}${p}`); await expect(page.locator("[data-ad-placement]")).toHaveCount(0); }
   await desk.close();
@@ -240,6 +246,9 @@ test("ads: placements load only where they fit, are labelled, and never on sign-
   await shot(m, "ads-search-390");
   await m.goto(`${BASE}/app/sample-lumen-notes`);
   await expect(m.locator('[data-ad-placement="desktop-sidebar"] iframe')).toHaveCount(0);
+  expect(adRules(await loadedAds(m), 2)).toEqual([]); // phones: at most 2 ads
+  await m.goto(`${BASE}/`);
+  expect(adRules(await loadedAds(m), 2)).toEqual([]);
   expect(await overflow(m)).toBeLessThanOrEqual(1);
   await phone.close();
 

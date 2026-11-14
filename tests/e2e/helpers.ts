@@ -167,3 +167,30 @@ export async function signOut(page: Page) {
   await page.getByTestId("account-menu").getByRole("button", { name: "Sign out" }).click();
   await page.getByRole("banner").getByRole("link", { name: "Sign in" }).waitFor();
 }
+
+/**
+ * The ads that actually loaded on the page (an iframe was created), after scrolling through the
+ * whole page so lazy placements get their chance. Positions are document coordinates.
+ */
+export async function loadedAds(page: Page) {
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  for (let y = 0; y < height; y += 500) { await page.evaluate((yy) => window.scrollTo(0, yy), y); await page.waitForTimeout(60); }
+  await page.waitForTimeout(300);
+  return page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-ad-placement]")]
+    .filter((el) => el.querySelector("iframe, ins"))
+    .map((el) => { const r = el.getBoundingClientRect(); return { placement: el.dataset.adPlacement!, top: r.top + window.scrollY, bottom: r.bottom + window.scrollY, left: r.left, right: r.right }; }));
+}
+
+/** Checks the placement manager's rules on what loaded: count, spacing, no overlap. */
+export function adRules(ads: Array<{ placement: string; top: number; bottom: number; left: number; right: number }>, max: number, minSpacing = 700) {
+  const problems: string[] = [];
+  if (ads.length > max) problems.push(`${ads.length} ads loaded (max ${max})`);
+  if (new Set(ads.map((a) => a.placement)).size !== ads.length) problems.push("a placement loaded twice");
+  for (let i = 0; i < ads.length; i++) for (let j = i + 1; j < ads.length; j++) {
+    const a = ads[i]!, b = ads[j]!;
+    if (Math.abs(a.top - b.top) < minSpacing - 1) problems.push(`${a.placement} and ${b.placement} are ${Math.round(Math.abs(a.top - b.top))}px apart`);
+    const overlap = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    if (overlap) problems.push(`${a.placement} overlaps ${b.placement}`);
+  }
+  return problems;
+}

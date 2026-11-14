@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { startTransition as startFormTransition } from "react";
 import { buttonClass } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { inputClass } from "@/components/ui/form";
@@ -29,10 +30,14 @@ export function SubmissionsBulkForm({ action, eligible, children }: { action: (s
     <button type="submit" name="op" value={op} disabled={pending || (needsSelection && selected === 0)} className={buttonClass(tone, "sm")}>{label}</button>
   );
   return (
-    <form ref={ref} action={formAction} className="space-y-3" onChange={recount} onSubmit={(e) => {
+    <form ref={ref} className="space-y-3" onChange={recount} onSubmit={(e) => {
       const op = ((e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value ?? "";
       const ask = CONFIRM[op];
-      if (ask && !window.confirm(ask(selected, eligible))) e.preventDefault();
+      e.preventDefault();
+      if (ask && !window.confirm(ask(selected, eligible))) return;
+      // Not React's form action: the selection and the reason stay if the server asks for a confirmation code.
+      const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+      startFormTransition(() => formAction(data));
     }}>
       <div className="sticky top-0 z-10 space-y-2 rounded-2xl border border-border bg-surface p-3 shadow-card">
         <div className="flex flex-wrap items-center gap-2 text-sm">

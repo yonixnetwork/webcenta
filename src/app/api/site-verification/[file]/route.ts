@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
  * Search engine ownership files (Admin → Settings → Search engines & IndexNow). The proxy rewrites
  * /google<hex>.html and /BingSiteAuth.xml here; only the exact configured file exists.
  */
-export async function GET(request: Request) {
-  const f = new URL(request.url).searchParams.get("f") ?? "";
+export async function GET(_request: Request, { params }: { params: Promise<{ file: string }> }) {
+  const f = decodeURIComponent((await params).file ?? "");
   const w = await getSection("webmaster");
   if (f === "BingSiteAuth.xml") {
     const code = w.str("bingAuthCode");

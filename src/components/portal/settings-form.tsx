@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { startTransition as startFormTransition } from "react";
 import { StepUpInput } from "@/components/ui/step-up-input";
 import { buttonClass } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
@@ -53,7 +54,13 @@ export function SettingsForm({ action, fields, toggle, enabled, readOnly, sectio
   const visible = (f: SettingsFieldView) => !f.when || live[f.when.key] === f.when.equals;
 
   return (
-    <form action={formAction} className="space-y-5" autoComplete="off">
+    <form className="space-y-5" autoComplete="off" onSubmit={(e) => {
+      // Submitted without React's automatic reset, so typed values (including secrets) survive a
+      // validation error or an authenticator confirmation request.
+      e.preventDefault();
+      const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+      startFormTransition(() => formAction(data));
+    }}>
       {toggle && (
         <label className="flex items-center gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm font-medium">
           <input type="hidden" name="b:__enabled" value="1" />

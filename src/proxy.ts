@@ -75,7 +75,7 @@ export async function proxy(request: NextRequest) {
 
   // Search engine ownership files (Google HTML file, Bing XML file), public site only.
   if (surface === "public" && (/^\/google[0-9a-f]{8,32}\.html$/.test(url.pathname) || url.pathname === "/BingSiteAuth.xml")) {
-    return NextResponse.rewrite(new URL(`/api/site-verification?f=${encodeURIComponent(url.pathname.slice(1))}`, request.url));
+    return NextResponse.rewrite(new URL(`/api/site-verification/${encodeURIComponent(url.pathname.slice(1))}`, request.url));
   }
   // Ad frames (public site only) carry their own Content Security Policy; see src/app/ads/frame.
   if (surface === "public" && /^\/ads\/frame\/[a-z0-9]+$/.test(url.pathname)) return NextResponse.next();
