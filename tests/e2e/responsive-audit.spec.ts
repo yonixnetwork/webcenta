@@ -18,7 +18,7 @@ const VIEWPORTS = [
 const SHOT_WIDTHS = new Set([320, 390, 768, 1440]);
 const PUBLIC: Array<[string, string]> = [["home", "/"], ["games", "/c/games"], ["apps", "/apps"], ["search", "/search?q=notes"], ["app", "/app/sample-lumen-notes"], ["signin", "/signin"], ["signup", "/signup"]];
 const ACCOUNT: Array<[string, string]> = [["account", "/account"], ["profile", "/account/profile"], ["security", "/account/security"], ["saved", "/account/favorites"], ["collections", "/account/collections"], ["reviews", "/account/reviews"], ["notifications", "/account/notifications"], ["recently-viewed", "/account/history"], ["privacy", "/account/privacy"]];
-const dir = "docs/production-repair/screenshots/responsive";
+const dir = process.env.RESPONSIVE_AUDIT_DIR ?? "docs/production-repair/screenshots/responsive";
 
 async function inspect(page: Page) {
   return page.evaluate(() => {
@@ -62,7 +62,7 @@ test("every page at every viewport", async ({ browser }) => {
     await ctx.close();
   }
   const problems = results.filter((r) => (r.status as number) >= 400 || (r.overflow as number) > 1 || (r.wide as string[]).length || !r.navInside || (r.consoleErrors as string[]).length);
-  writeFileSync("docs/production-repair/responsive-audit.json", `${JSON.stringify({ generatedAt: new Date().toISOString(), engine: "Chromium (Playwright device emulation)", checks: results.length, problems }, null, 2)}\n`);
+  writeFileSync(`${process.env.RESPONSIVE_AUDIT_DIR ? `${process.env.RESPONSIVE_AUDIT_DIR}/..` : "docs/production-repair"}/responsive-audit.json`, `${JSON.stringify({ generatedAt: new Date().toISOString(), engine: "Chromium (Playwright device emulation)", checks: results.length, problems }, null, 2)}\n`);
   console.log(`${results.length} page/viewport checks, ${problems.length} with problems`);
   for (const p of problems) console.log(JSON.stringify(p));
 });
