@@ -28,6 +28,9 @@ export async function POST(request: NextRequest) {
   const header = request.headers.get("authorization");
   if (!secrets.some((s) => matches(header, s))) {
     console.warn("[webcenta] cron tick refused: missing or wrong Authorization header");
+    const { recordSecurityEvent } = await import("@/server/security/events");
+    const { clientIp, networkSettings } = await import("@/server/viewer");
+    await recordSecurityEvent("cron.unauthorized", clientIp(request.headers, (await networkSettings()).trustedProxyHops) ?? "unknown", { severity: "warning" });
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   try {

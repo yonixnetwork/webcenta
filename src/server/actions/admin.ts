@@ -10,6 +10,7 @@ import { audit } from "@/server/audit";
 import { adminLogout, adminPasswordLogin, adminVerifyMfa, assertAdmin, revokeAllAdminSessions } from "@/server/admin/auth";
 import { acceptInvitation, createInvitation } from "@/server/admin/invitations";
 import { ROLE_RANK } from "@/server/admin/permissions";
+import { requireStepUp } from "@/server/admin/step-up";
 import { adminEditListing, approveRevision, createEditorialListing, decideClaim, decideRevision, processSubmission, publishListing, setListingStatus, WorkflowError } from "@/server/listings/workflow";
 import { formToListingInput } from "@/server/listings/input";
 import { monitorListing } from "@/server/scanner/monitor";
@@ -23,13 +24,14 @@ import { sendEmail } from "@/server/email/send";
 import { actionEmail } from "@/server/email/templates";
 import { DEFAULT_WEIGHTS } from "@/server/analytics/ranking";
 
-export interface ActionState { ok: boolean; message: string; redirectTo?: string }
+export interface ActionState { ok: boolean; message: string; redirectTo?: string; stepUp?: boolean }
 const ok = (message: string): ActionState => ({ ok: true, message });
 const fail = (message: string): ActionState => ({ ok: false, message });
 const refresh = () => revalidatePath("/", "layout");
 function err(e: unknown): ActionState {
   if (e instanceof ZodError) return fail(e.issues.map((i) => `${i.path.join(".") || "form"}: ${i.message}`).slice(0, 4).join(" · "));
   if (e instanceof WorkflowError || e instanceof UploadError) return fail(e.message);
+  if (e instanceof Error && e.name === "StepUpError") return { ok: false, message: e.message, stepUp: true };
   if (e instanceof Error && e.message === "FORBIDDEN") return fail("You do not have permission for this action.");
   if (e instanceof Error && e.message === "UNAUTHENTICATED") return fail("Your session expired. Sign in again.");
   if (e instanceof Error && /invitation|password|authenticator|exists|name/.test(e.message)) return fail(e.message);
@@ -40,6 +42,12 @@ const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
 // ---------------- Authentication ----------------
 export async function adminLoginAction(_s: ActionState, f: FormData): Promise<ActionState> {
+  // Per address, across all accounts (password spraying); each account also locks after 5 failures.
+  const { headers } = await import("next/headers");
+  const { clientIp, networkSettings } = await import("@/server/viewer");
+  const { rateLimit } = await import("@/server/rate-limit");
+  const ip = clientIp(await headers(), (await networkSettings()).trustedProxyHops) ?? "unknown";
+  if (!(await rateLimit(`admin-login:${ip}`, 20, 900))) return fail("Too many sign-in attempts from this network. Try again in 15 minutes.");
   const r = await adminPasswordLogin(str(f, "email"), String(f.get("password") ?? ""));
   if (!r.ok) return fail(r.error);
   return { ok: true, message: "", redirectTo: "/login/mfa" };
@@ -92,6 +100,7 @@ export async function rerunChecksAction(revisionId: string): Promise<ActionState
 export async function setListingStatusAction(listingId: string, to: "SUSPENDED" | "REMOVED" | "PUBLISHED", _s: ActionState, f: FormData): Promise<ActionState> {
   try {
     const a = await assertAdmin("listings.moderate");
+    if (to !== "PUBLISHED") await requireStepUp(a, str(f, "stepUpCode"), `listing.${to.toLowerCase()}`);
     await setListingStatus(listingId, to, { type: "ADMIN", adminId: a.id }, str(f, "reason"));
     refresh();
     return ok(to === "PUBLISHED" ? "Listing reinstated." : `Listing ${to.toLowerCase()}.`);
@@ -407,6 +416,7 @@ export async function alertAction(alertId: string, _s: ActionState, f: FormData)
 export async function updatePolicyAction(tier: "LOW" | "MEDIUM" | "HIGH" | "PROHIBITED", _s: ActionState, f: FormData): Promise<ActionState> {
   try {
     const a = await assertAdmin("settings.manage");
+    await requireStepUp(a, str(f, "stepUpCode"), "security.policy");
     const d = { scanIntervalHours: z.coerce.number().int().min(1).max(24 * 30).parse(f.get("scanIntervalHours")), autoRestrictAtSeverity: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).parse(f.get("autoRestrictAtSeverity")), allowAutoApproval: f.get("allowAutoApproval") === "on" && tier === "LOW" };
     await db.monitoringPolicy.upsert({ where: { riskTier: tier }, create: { riskTier: tier, ...d }, update: d });
     await audit({ actorType: "ADMIN", adminId: a.id, action: "security.policy.update", targetType: "MonitoringPolicy", targetId: tier, metadata: d });
@@ -417,6 +427,7 @@ export async function updatePolicyAction(tier: "LOW" | "MEDIUM" | "HIGH" | "PROH
 export async function updateBlocklistAction(_s: ActionState, f: FormData): Promise<ActionState> {
   try {
     const a = await assertAdmin("security.manage");
+    await requireStepUp(a, str(f, "stepUpCode"), "security.blocklist");
     const list = [...new Set(str(f, "domains").split(/[\s,]+/).map((d) => d.toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "")).filter((d) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d)))];
     await db.systemSetting.upsert({ where: { key: "security.domainBlocklist" }, create: { key: "security.domainBlocklist", value: list, updatedByAdminId: a.id, description: "Known-bad domains (scanner FAIL)" }, update: { value: list, updatedByAdminId: a.id } });
     await audit({ actorType: "ADMIN", adminId: a.id, action: "security.blocklist.update", metadata: { count: list.length } });
@@ -533,6 +544,7 @@ export async function publishLegalPolicyAction(id: string) {
 export async function inviteAdminAction(_s: ActionState, f: FormData): Promise<ActionState> {
   try {
     const a = await assertAdmin("admins.manage");
+    await requireStepUp(a, str(f, "stepUpCode"), "admin.invite");
     const role = z.enum(["SUPER_ADMIN", "ADMIN", "MODERATOR", "SUPPORT_AGENT", "ANALYTICS_VIEWER"]).parse(f.get("role"));
     if (ROLE_RANK[role] > ROLE_RANK[a.role]) return fail("You cannot grant a role higher than your own.");
     const email = z.string().trim().email().parse(f.get("email"));
@@ -544,6 +556,7 @@ export async function inviteAdminAction(_s: ActionState, f: FormData): Promise<A
 export async function changeAdminRoleAction(adminId: string, _s: ActionState, f: FormData): Promise<ActionState> {
   try {
     const a = await assertAdmin("admins.manage");
+    await requireStepUp(a, str(f, "stepUpCode"), "admin.role");
     const role = z.enum(["SUPER_ADMIN", "ADMIN", "MODERATOR", "SUPPORT_AGENT", "ANALYTICS_VIEWER"]).parse(f.get("role"));
     const target = await db.adminUser.findUniqueOrThrow({ where: { id: adminId } });
     if (ROLE_RANK[role] > ROLE_RANK[a.role]) return fail("You cannot grant a role higher than your own.");
@@ -559,6 +572,8 @@ export async function setAdminStatusAction(adminId: string, to: "ACTIVE" | "SUSP
   try {
     const a = await assertAdmin("admins.manage");
     if (adminId === a.id) return fail("You cannot change your own status.");
+    // No form here: the confirmation must be recent (Admin → Administrators → Confirm identity).
+    await requireStepUp(a, null, "admin.status");
     const target = await db.adminUser.findUniqueOrThrow({ where: { id: adminId } });
     if (target.role === "SUPER_ADMIN" && to !== "ACTIVE" && (await db.adminUser.count({ where: { role: "SUPER_ADMIN", status: "ACTIVE" } })) <= 1) return fail("The last active Super Administrator cannot be suspended.");
     await db.adminUser.update({ where: { id: adminId }, data: { status: to } });
@@ -573,6 +588,32 @@ export async function retryJobAction(jobId: string) {
   await db.job.update({ where: { id: jobId }, data: { status: "PENDING", attempts: 0, runAt: new Date(), lastError: null } });
   await audit({ actorType: "ADMIN", adminId: a.id, action: "job.retry", targetType: "Job", targetId: jobId });
   refresh();
+}
+
+/** Admin → Security → Activity: sign an administrator out everywhere (incident response). */
+export async function revokeAdminSessionsAction(adminId: string): Promise<ActionState> {
+  try {
+    const a = await assertAdmin("admins.manage");
+    await requireStepUp(a, null, "admin.sessions.revoke");
+    await revokeAllAdminSessions(adminId);
+    await audit({ actorType: "ADMIN", adminId: a.id, action: "admin.sessions.revoke", targetType: "AdminUser", targetId: adminId });
+    refresh();
+    return ok(adminId === a.id ? "All your sessions were revoked, including this one. Sign in again." : "All sessions of that administrator were revoked.");
+  } catch (e) { return err(e); }
+}
+
+/** Confirms the administrator's identity for sensitive actions for the next 10 minutes. */
+export async function confirmIdentityAction(_s: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const { getAdmin } = await import("@/server/admin/auth");
+    const a = await getAdmin();
+    if (!a) throw new Error("UNAUTHENTICATED");
+    const { requireStepUp: confirm, STEP_UP_MINUTES } = await import("@/server/admin/step-up");
+    const code = str(f, "stepUpCode") || str(f, "code");
+    if (!code) return fail("Enter the 6-digit code from your authenticator app.");
+    await confirm(a, code, "confirm-identity");
+    return ok(`Confirmed. Sensitive actions are allowed for ${STEP_UP_MINUTES} minutes on this device.`);
+  } catch (e) { return err(e); }
 }
 
 /** Admin → Scheduler → Run now: runs the real job and reports its actual outcome. */
@@ -610,6 +651,31 @@ export async function setJobEnabledAction(type: string, enabled: boolean) {
 }
 
 // ---------------- Push notifications ----------------
+/**
+ * Admin → Push notifications → Test push: one notification to one chosen device. Never sent to
+ * everyone; the result is the push service's real answer, recorded as a TEST delivery and audited
+ * (subscription id only, never the endpoint or keys).
+ */
+export async function testPushAction(_s: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const a = await assertAdmin("push.send");
+    const { rateLimit } = await import("@/server/rate-limit");
+    if (!(await rateLimit(`admin-push-test:${a.id}`, 20, 600))) return fail("Too many test pushes. Wait a few minutes.");
+    const subscriptionId = z.string().min(1, "Choose a device.").max(64).parse(str(f, "subscriptionId"));
+    const title = z.string().trim().min(3).max(120).parse(str(f, "title") || "Webcenta test notification");
+    const body = z.string().trim().min(3).max(400).parse(str(f, "body") || "This is a test notification from the Webcenta team.");
+    const url = z.string().trim().max(500).regex(/^\/(?!\/)[^\s]*$/, "Use a Webcenta path, for example /account/notifications").parse(str(f, "url") || "/account/notifications");
+    const { sendTestPushTo } = await import("@/server/push/push");
+    const r = await sendTestPushTo(subscriptionId, { title, body, url });
+    if (!r.found) return fail("That device is no longer subscribed.");
+    await audit({ actorType: "ADMIN", adminId: a.id, action: "push.test", targetType: "PushSubscription", targetId: subscriptionId, metadata: { outcome: r.outcome, statusCode: r.statusCode, category: r.category, platform: r.platform } });
+    refresh();
+    return r.accepted
+      ? ok(`Test sent to 1 device (${r.platform ?? "unknown"}): accepted by the push service (HTTP ${r.statusCode ?? 201}). Acceptance does not prove the device displayed it.`)
+      : fail(`Test not accepted (${r.outcome.toLowerCase()}${r.category ? `, ${r.category}` : ""}${r.statusCode ? `, HTTP ${r.statusCode}` : ""}).${r.outcome === "EXPIRED" ? " The subscription was removed; the user must turn notifications on again." : ""}`);
+  } catch (e) { return err(e); }
+}
+
 /** Sends a push notification to every subscribed browser (signed in or not). */
 export async function sendPushAction(_s: ActionState, f: FormData): Promise<ActionState> {
   try {
@@ -638,6 +704,8 @@ export async function sendPushAction(_s: ActionState, f: FormData): Promise<Acti
 export async function queueImportsAction(_s: ActionState, f: FormData): Promise<ActionState> {
   try {
     const a = await assertAdmin("imports.manage");
+    const { rateLimit } = await import("@/server/rate-limit");
+    if (!(await rateLimit(`admin-import:${a.id}`, 30, 600))) return fail("Too many import requests. Wait a few minutes.");
     const urls = str(f, "urls").split(/[\s,]+/).map((u) => u.trim()).filter(Boolean).slice(0, 200);
     if (!urls.length) return fail("Enter at least one website address.");
     const categorySlug = z.string().trim().min(1).max(191).parse(str(f, "category"));
@@ -674,10 +742,34 @@ export async function queueImportsAction(_s: ActionState, f: FormData): Promise<
 }
 
 
+/** Bulk moderation on Admin → Submissions (each record still gets the full individual checks). */
+export async function bulkSubmissionsAction(_s: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const a = await assertAdmin("listings.moderate");
+    const { rateLimit } = await import("@/server/rate-limit");
+    if (!(await rateLimit(`admin-bulk:${a.id}`, 60, 600))) return fail("Too many bulk actions. Wait a few minutes.");
+    const op = z.enum(["approve", "approve-all", "reject", "info", "suspend"]).parse(f.get("op"));
+    const valid = (x: string) => /^[0-9a-f-]{36}$/i.test(x);
+    const mod = await import("@/server/listings/bulk-moderation");
+    const ids = op === "approve-all" ? await mod.eligibleRevisionIds() : f.getAll("ids").map(String).filter(valid).slice(0, 500);
+    if (!ids.length) return fail(op === "approve-all" ? "No submission is eligible for bulk approval right now." : "Select at least one submission.");
+    const notes = str(f, "notes");
+    if (op !== "approve" && op !== "approve-all" && notes.length < 10) return fail("Write a reason (at least 10 characters); it is sent to the developers.");
+    if (op === "reject" || op === "suspend") await requireStepUp(a, str(f, "stepUpCode"), `submissions.bulk-${op}`);
+    const r = await mod.bulkModerate(a.id, op === "approve-all" ? "approve" : op, ids, notes);
+    refresh();
+    const verb = { approve: "Approved and published", "approve-all": "Approved and published", reject: "Rejected", info: "Asked for more information", suspend: "Suspended" }[op];
+    const skipped = r.skipped.length ? ` Not changed (${r.skipped.length}): ${r.skipped.slice(0, 8).map((x) => `${x.name}: ${x.reason}`).join("; ")}${r.skipped.length > 8 ? "…" : ""}` : "";
+    return r.done ? ok(`${verb}: ${r.done}.${skipped}`) : fail(`Nothing changed.${skipped}`);
+  } catch (e) { return err(e); }
+}
+
 /** Bulk and per-row actions on Admin → Import web apps (selected rows, or every eligible pending import). */
 export async function bulkImportsAction(_s: ActionState, f: FormData): Promise<ActionState> {
   try {
     const a = await assertAdmin("imports.manage");
+    const { rateLimit } = await import("@/server/rate-limit");
+    if (!(await rateLimit(`admin-bulk:${a.id}`, 60, 600))) return fail("Too many bulk actions. Wait a few minutes.");
     const raw = String(f.get("op") ?? "");
     // Per-row buttons submit "op:<id>" (e.g. "import-one:0190…") so they share this form's feedback.
     const [opName, rowId] = raw.includes(":") ? raw.split(":", 2) as [string, string] : [raw, ""];
@@ -685,6 +777,7 @@ export async function bulkImportsAction(_s: ActionState, f: FormData): Promise<A
     const valid = (x: string) => /^[0-9a-f-]{36}$/i.test(x);
     const ids = rowId ? [rowId].filter(valid) : f.getAll("ids").map(String).filter(valid).slice(0, 500);
     if (!["publish-all", "retry-all"].includes(op) && !ids.length) return fail("Select at least one row.");
+    if (op === "reject" || op === "archive") await requireStepUp(a, str(f, "stepUpCode"), `imports.bulk-${op}`);
     const bulk = await import("@/server/importer/bulk");
     const r = op === "publish" ? await bulk.bulkPublish(a.id, ids)
       : op === "publish-all" ? await bulk.bulkPublish(a.id, "all")

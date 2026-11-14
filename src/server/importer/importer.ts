@@ -88,6 +88,7 @@ export async function importCandidate(id: string): Promise<ImportOutcome> {
   if (claimed.count === 0) return { status: "SKIPPED", reason: "This import is already being processed" };
 
   const dup = await findDuplicate(c.domain, c.id);
+  if (dup?.kind === "listing") await db.importCandidate.update({ where: { id }, data: { duplicateOfListingId: dup.id } });
   if (dup && (dup.kind === "listing" || dup.status !== "QUEUED")) return fail("SKIPPED", dup.kind === "listing" ? `Already listed as "${dup.name}" (${dup.status.toLowerCase()})` : `Already imported or importing as "${dup.name}"`, "duplicate", "duplicate", false);
 
   const cat = await db.category.findFirst({ where: { slug: c.categorySlug ?? "other", isEnabled: true, mergedIntoId: null }, include: { parent: true } })

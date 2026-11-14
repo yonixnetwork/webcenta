@@ -7,6 +7,7 @@ import { audit } from "@/server/audit";
 import { DUMMY_HASH, decrypt, newToken, sha256, verifyPassword, verifyTotp } from "./crypto";
 import { can, type Permission } from "./permissions";
 import { adminOrigin } from "@/lib/hosts";
+import { recordSecurityEvent } from "@/server/security/events";
 
 /**
  * Administrator sessions — independent of public user accounts.
@@ -24,7 +25,9 @@ export function adminCookieName() {
 
 async function reqMeta() {
   const h = await headers();
-  return { ip: h.get("cf-connecting-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null, ua: h.get("user-agent")?.slice(0, 300) ?? null };
+  // The address the trusted proxies saw (Admin → Settings → Security), never a client-supplied first X-Forwarded-For entry.
+  const { clientIp, networkSettings } = await import("@/server/viewer");
+  return { ip: clientIp(h, (await networkSettings()).trustedProxyHops), ua: h.get("user-agent")?.slice(0, 300) ?? null };
 }
 
 async function setCookie(token: string) {
@@ -44,10 +47,12 @@ export async function adminPasswordLogin(emailRaw: string, password: string): Pr
   if (!admin) {
     await verifyPassword(password, DUMMY_HASH);
     await db.adminLoginEvent.create({ data: { emailAttempted: email.slice(0, 254), success: false, failureReason: "unknown_email", ipAddress: ip, userAgent: ua } });
+    await recordSecurityEvent("admin.login.failed", ip ?? "unknown", { severity: "warning", detail: "unknown email" });
     return generic;
   }
   if (admin.lockedUntil && admin.lockedUntil > new Date()) {
     await db.adminLoginEvent.create({ data: { adminId: admin.id, emailAttempted: email, success: false, failureReason: "locked", ipAddress: ip, userAgent: ua } });
+    await recordSecurityEvent("admin.login.locked", admin.id, { severity: "critical", detail: `sign-in attempt on a locked account from ${ip ?? "unknown"}` });
     return { ok: false, error: `Too many failed attempts. Try again after ${admin.lockedUntil.toISOString().slice(11, 16)} UTC.` };
   }
   const valid = await verifyPassword(password, admin.passwordHash);
@@ -55,6 +60,7 @@ export async function adminPasswordLogin(emailRaw: string, password: string): Pr
     const failures = admin.failedLoginCount + 1;
     await db.adminUser.update({ where: { id: admin.id }, data: { failedLoginCount: failures, ...(failures >= MAX_FAILURES ? { lockedUntil: new Date(Date.now() + LOCK_MINUTES * 60_000), failedLoginCount: 0 } : {}) } });
     await db.adminLoginEvent.create({ data: { adminId: admin.id, emailAttempted: email, success: false, failureReason: !valid ? "bad_password" : `status_${admin.status.toLowerCase()}`, ipAddress: ip, userAgent: ua } });
+    await recordSecurityEvent(failures >= MAX_FAILURES ? "admin.login.locked" : "admin.login.failed", failures >= MAX_FAILURES ? admin.id : ip ?? "unknown", { severity: failures >= MAX_FAILURES ? "critical" : "warning", detail: failures >= MAX_FAILURES ? `locked for ${LOCK_MINUTES} min after ${MAX_FAILURES} failures` : "wrong password" });
     return generic;
   }
   const token = newToken();
@@ -88,15 +94,42 @@ export async function adminVerifyMfa(code: string): Promise<{ ok: boolean; error
     await db.adminUser.update({ where: { id: s.adminId }, data: failures >= MAX_FAILURES ? { failedLoginCount: 0, lockedUntil: new Date(Date.now() + LOCK_MINUTES * 60_000) } : { failedLoginCount: failures } });
     if (failures >= MAX_FAILURES) await db.adminSession.update({ where: { id: s.id }, data: { revokedAt: new Date() } });
     await db.adminLoginEvent.create({ data: { adminId: s.adminId, emailAttempted: s.admin.email, success: false, failureReason: "bad_totp", ipAddress: ip, userAgent: ua } });
+    await recordSecurityEvent(failures >= MAX_FAILURES ? "admin.login.locked" : "admin.login.failed", failures >= MAX_FAILURES ? s.adminId : ip ?? "unknown", { severity: failures >= MAX_FAILURES ? "critical" : "warning", detail: "wrong authenticator code" });
     return { ok: false, error: "Invalid or already used code." };
   }
   await db.$transaction([
-    db.adminSession.update({ where: { id: s.id }, data: { mfaVerifiedAt: new Date(), lastSeenAt: new Date() } }),
+    // Signing in counts as a recent confirmation for sensitive actions (step-up) on this session.
+    db.adminSession.update({ where: { id: s.id }, data: { mfaVerifiedAt: new Date(), lastSeenAt: new Date(), stepUpAt: new Date() } }),
     db.adminUser.update({ where: { id: s.adminId }, data: { totpLastStep: step, failedLoginCount: 0, lastLoginAt: new Date() } }),
     db.adminLoginEvent.create({ data: { adminId: s.adminId, emailAttempted: s.admin.email, success: true, ipAddress: ip, userAgent: ua } }),
   ]);
   await audit({ actorType: "ADMIN", adminId: s.adminId, action: "admin.login", ipAddress: ip, userAgent: ua });
+  await alertIfNewDevice(s.adminId, s.admin.email, ip, ua).catch(() => undefined);
   return { ok: true };
+}
+
+/** Network prefix used to recognise "the same place": /24 for IPv4, /48 for IPv6. */
+const netPrefix = (ip: string | null) => (!ip ? "" : ip.includes(":") ? ip.split(":").slice(0, 3).join(":") : ip.split(".").slice(0, 3).join("."));
+
+/**
+ * A successful sign-in from a browser and network not seen for this administrator in 90 days
+ * emails them (and is recorded), so a stolen password + code is noticed. The first sign-in ever
+ * is not an alert.
+ */
+async function alertIfNewDevice(adminId: string, email: string, ip: string | null, ua: string | null) {
+  const previous = await db.adminLoginEvent.findMany({ where: { adminId, success: true, createdAt: { gte: new Date(Date.now() - 90 * 86_400_000) } }, orderBy: { createdAt: "desc" }, take: 50, select: { ipAddress: true, userAgent: true } });
+  const others = previous.slice(1); // the first row is this sign-in
+  if (!others.length) return;
+  if (others.some((p) => p.userAgent === ua && netPrefix(p.ipAddress) === netPrefix(ip))) return;
+  await recordSecurityEvent("admin.login.new-device", adminId, { severity: "warning", detail: `${ip ?? "unknown address"} · ${(ua ?? "unknown browser").slice(0, 120)}` });
+  const { sendEmail } = await import("@/server/email/send");
+  const { actionEmail } = await import("@/server/email/templates");
+  const m = actionEmail({
+    title: "New sign-in to your Webcenta admin account",
+    intro: `Your administrator account signed in from a new browser or network at ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC (address ${ip ?? "unknown"}, browser ${(ua ?? "unknown").slice(0, 80)}). If this was you, no action is needed. If not, sign in, revoke all sessions and change your password at once, and tell another Super Administrator.`,
+    actionLabel: "Review sessions", url: `${adminOrigin()}/security`,
+  });
+  await sendEmail({ to: email, subject: "[Webcenta Admin] New sign-in to your account", template: "admin-new-device", ...m });
 }
 
 export interface CurrentAdmin { id: string; email: string; name: string; role: AdminRole; sessionId: string }
@@ -120,6 +153,7 @@ export async function requireAdmin(perm?: Permission): Promise<CurrentAdmin> {
   if (perm && !can(a.role, perm)) {
     // Page-level denial: record it, then render the 403 page (real 403 status).
     await audit({ actorType: "ADMIN", adminId: a.id, action: "admin.permission.denied", metadata: { permission: perm, surface: "page" } });
+    await recordSecurityEvent("admin.permission.denied", a.id, { severity: "warning", detail: perm });
     forbidden();
   }
   return a;
@@ -131,6 +165,7 @@ export async function assertAdmin(perm: Permission): Promise<CurrentAdmin> {
   if (!a) throw new Error("UNAUTHENTICATED");
   if (!can(a.role, perm)) {
     await audit({ actorType: "ADMIN", adminId: a.id, action: "admin.permission.denied", metadata: { perm } });
+    await recordSecurityEvent("admin.permission.denied", a.id, { severity: "warning", detail: perm });
     throw new Error("FORBIDDEN");
   }
   return a;

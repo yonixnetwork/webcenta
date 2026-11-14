@@ -9,7 +9,7 @@ import { getSection } from "@/server/settings/store";
  * back from AdSense to Adsterra only when the AdSense unit is unfilled or its script is blocked.
  */
 export type AdUnit = "native" | "300x250" | "728x90" | "468x60" | "320x50" | "160x600";
-export type PlacementId = "home-native" | "home-display" | "listing" | "mobile-compact" | "desktop-leaderboard" | "desktop-sidebar" | "desktop-small";
+export type PlacementId = "home-native" | "home-display" | "listing" | "listing-native" | "mobile-compact" | "desktop-leaderboard" | "desktop-sidebar" | "desktop-small";
 
 export interface PlacementDef {
   id: PlacementId;
@@ -35,6 +35,7 @@ export const PLACEMENTS: Record<PlacementId, PlacementDef> = {
   "home-native": { id: "home-native", unit: "native", toggle: "homeNative", adsenseSlotKey: "adsenseSlotHomeNative", minWidth: 0 },
   "home-display": { id: "home-display", unit: "300x250", toggle: "homeDisplay", adsenseSlotKey: "adsenseSlotHomeDisplay", minWidth: 0 },
   listing: { id: "listing", unit: "300x250", toggle: "listing", adsenseSlotKey: "adsenseSlotListing", minWidth: 0 },
+  "listing-native": { id: "listing-native", unit: "native", toggle: "listingNative", adsenseSlotKey: "adsenseSlotListingNative", minWidth: 0 },
   // One responsive banner position: 320 × 50 on phones, 468 × 60 on tablets, 728 × 90 on desktops.
   "mobile-compact": { id: "mobile-compact", unit: "320x50", toggle: "mobileCompact", adsenseSlotKey: "adsenseSlotMobile", minWidth: 0, maxWidth: 499 },
   "desktop-leaderboard": { id: "desktop-leaderboard", unit: "728x90", toggle: "desktopLeaderboard", adsenseSlotKey: "adsenseSlotLeaderboard", minWidth: 1024 },

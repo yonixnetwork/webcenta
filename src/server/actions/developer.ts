@@ -152,7 +152,7 @@ export async function submitListingAction(listingId: string, _s: ActionState, fo
     await devListing(ctx, listingId);
     const rev = await db.listingRevision.findFirst({ where: { listingId, status: "DRAFT" }, orderBy: { revisionNumber: "desc" } });
     if (!rev) return fail("There is no draft to submit.");
-    await submitRevision(rev.id, { type: "DEVELOPER", userId: ctx.user.id }, String(form.get("notes") ?? "").slice(0, 1000) || undefined);
+    await submitRevision(rev.id, { type: "DEVELOPER", userId: ctx.user.id }, String(form.get("notes") ?? "").slice(0, 1000) || undefined, String(form.get("changeSummary") ?? "").slice(0, 300) || undefined);
     // Run automated checks right after responding; the cron job is the fallback.
     after(() => processSubmission(rev.id).then(() => db.job.updateMany({ where: { dedupeKey: `submission.check:${rev.id}`, status: "PENDING" }, data: { status: "SUCCEEDED", completedAt: new Date() } })).catch(() => undefined));
     refreshDev();

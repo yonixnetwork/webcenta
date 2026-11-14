@@ -10,7 +10,7 @@ import { importCandidate } from "./importer";
  */
 export interface BulkResult { done: number; skipped: Array<{ name: string; reason: string }> }
 
-interface Pending { listingId: string; revisionId: string; name: string; scanVerdict: string | null; compliance: boolean }
+interface Pending { listingId: string; revisionId: string; name: string; scanVerdict: string | null; compliance: boolean; duplicateOf: string | null }
 
 /** Imported listings waiting for review, with what bulk publishing needs to know. */
 async function pendingFor(candidateIds?: string[]): Promise<Pending[]> {
@@ -18,13 +18,17 @@ async function pendingFor(candidateIds?: string[]): Promise<Pending[]> {
   const listings = await db.listing.findMany({
     where: { id: { in: cands.map((c) => c.listingId!) }, deletedAt: null },
     select: {
-      id: true, name: true,
+      id: true, name: true, domain: true,
       revisions: { where: { status: { in: ["SUBMITTED", "AUTOMATED_CHECKS", "UNDER_REVIEW"] } }, orderBy: { revisionNumber: "desc" }, take: 1, select: { id: true } },
       scans: { where: { status: "COMPLETED" }, orderBy: { createdAt: "desc" }, take: 1, select: { overallVerdict: true } },
       categories: { select: { category: { select: { requiresComplianceDocs: true, parent: { select: { requiresComplianceDocs: true } } } } } },
     },
   });
+  const { otherListingFor } = await import("./dedupe");
+  const dups = new Map<string, string | null>();
+  for (const l of listings) dups.set(l.id, (await otherListingFor(l.id, l.domain))?.name ?? null);
   return listings.filter((l) => l.revisions[0]).map((l) => ({
+    duplicateOf: dups.get(l.id) ?? null,
     listingId: l.id, revisionId: l.revisions[0]!.id, name: l.name, scanVerdict: l.scans[0]?.overallVerdict ?? null,
     compliance: l.categories.some((c) => c.category.requiresComplianceDocs || c.category.parent?.requiresComplianceDocs),
   }));
@@ -35,6 +39,7 @@ function ineligible(p: Pending): string | null {
   if (!p.scanVerdict) return "security checks have not finished";
   if (p.scanVerdict === "FAIL") return "a security check failed";
   if (p.compliance) return "the category needs licence evidence: review it individually";
+  if (p.duplicateOf) return `duplicate of the existing listing "${p.duplicateOf}"`;
   return null;
 }
 
@@ -146,4 +151,9 @@ export async function bulkChecks(adminId: string, candidateIds: string[]): Promi
 /** How many pending imports bulk publishing would publish now (for the confirmation). */
 export async function eligibleCount(): Promise<number> {
   return (await pendingFor()).filter((p) => !ineligible(p)).length;
+}
+
+/** Listing ids of imports that bulk publishing would publish now (rows marked "eligible"). */
+export async function eligibleListingIds(): Promise<Set<string>> {
+  return new Set((await pendingFor()).filter((p) => !ineligible(p)).map((p) => p.listingId));
 }

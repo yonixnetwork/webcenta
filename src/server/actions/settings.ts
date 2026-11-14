@@ -9,7 +9,7 @@ import { getSection, recordTest, saveSection, SettingsError } from "@/server/set
 import { runTest } from "@/server/settings/testers";
 import { applyPendingMigrations } from "@/server/setup/migrate";
 
-export interface SettingsActionState { ok: boolean; message: string }
+export interface SettingsActionState { ok: boolean; message: string; stepUp?: boolean }
 
 const APPLY_NOTE = {
   immediate: "It takes effect within a few seconds, without a restart.",
@@ -19,6 +19,7 @@ const APPLY_NOTE = {
 
 function fail(e: unknown): SettingsActionState {
   if (e instanceof SettingsError) return { ok: false, message: e.message };
+  if (e instanceof Error && e.name === "StepUpError") return { ok: false, message: e.message, stepUp: true };
   if (e instanceof Error && e.message === "FORBIDDEN") return { ok: false, message: "Only a Super Administrator can change this section." };
   if (e instanceof Error && e.message === "UNAUTHENTICATED") return { ok: false, message: "Your session expired. Sign in again." };
   // Never log form data (it may contain secrets); only the error type.
@@ -36,6 +37,11 @@ export async function saveSettingsAction(sectionId: string, _s: SettingsActionSt
     const def = sectionById(sectionId);
     if (!def || def.statusOnly) return { ok: false, message: "Unknown section." };
     const admin = await assertAdmin(def.permission);
+    // Credentials (integrations, payments) and security settings need a fresh authenticator code.
+    if (def.permission === "integrations.manage" || def.id === "security") {
+      const { requireStepUp } = await import("@/server/admin/step-up");
+      await requireStepUp(admin, String(f.get("stepUpCode") ?? ""), `settings.${def.id}`);
+    }
     const values: Record<string, string> = {};
     const secrets: Record<string, string> = {};
     const clearSecrets: string[] = [];

@@ -187,11 +187,14 @@ export async function continueCampaigns(budgetMs = 15_000): Promise<{ campaigns:
   return { campaigns: open.length, finished };
 }
 
-/** Sends a test notification to one subscription (Account → Notifications → Send a test). */
-export async function sendTestPush(endpoint: string) {
-  const sub = await db.pushSubscription.findUnique({ where: { endpointHash: endpointHash(endpoint) }, select: { id: true, endpoint: true, p256dh: true, auth: true, userId: true, platform: true } });
+/**
+ * Admin → Push notifications → Test push: one notification to ONE chosen subscription. It never
+ * fans out (the subscription is addressed by id) and returns the push service's real answer.
+ */
+export async function sendTestPushTo(subscriptionId: string, msg: PushMessage) {
+  const sub = await db.pushSubscription.findUnique({ where: { id: subscriptionId }, select: { id: true, endpoint: true, p256dh: true, auth: true, userId: true, platform: true } });
   if (!sub) return { found: false as const };
-  const r = await sendBatch([sub], { title: "Webcenta test notification", body: "Notifications work on this device.", url: "/account/notifications", tag: "wc-test" }, { kind: "TEST" });
-  const last = await db.pushDelivery.findFirst({ where: { subscriptionId: sub.id }, orderBy: { createdAt: "desc" }, select: { outcome: true, statusCode: true, category: true } });
-  return { found: true as const, accepted: r.delivered === 1, outcome: last?.outcome ?? (r.delivered ? "ACCEPTED" : "FAILED"), statusCode: last?.statusCode ?? null, category: last?.category ?? null };
+  await sendBatch([sub], { ...msg, tag: "wc-test" }, { kind: "TEST", userId: sub.userId ?? undefined });
+  const last = await db.pushDelivery.findFirst({ where: { subscriptionId: sub.id, kind: "TEST" }, orderBy: { createdAt: "desc" }, select: { outcome: true, statusCode: true, category: true } });
+  return { found: true as const, accepted: last?.outcome === "ACCEPTED", outcome: last?.outcome ?? "FAILED", statusCode: last?.statusCode ?? null, category: last?.category ?? null, platform: sub.platform };
 }

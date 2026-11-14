@@ -80,6 +80,16 @@ Object.assign(handlers, {
     const { skipQueuedDuplicates } = await import("@/server/importer/dedupe");
     return skipQueuedDuplicates();
   },
+  /** Emails administrators about meaningful security events (Admin → Security → Activity). */
+  "security.alerts": async () => {
+    const { sendSecurityAlerts } = await import("@/server/security/events");
+    return sendSecurityAlerts();
+  },
+  /** Removes old duplicate and permanently failed import records (logged). */
+  "imports.cleanup": async () => {
+    const { cleanupImports } = await import("@/server/importer/cleanup");
+    return cleanupImports();
+  },
   /** Proposes fuller descriptions for imported listings whose description is too short. */
   "imports.enrich": async () => {
     const { enrichDescriptions } = await import("@/server/importer/enrich");
@@ -92,7 +102,8 @@ Object.assign(handlers, {
   },
   "notify.app-updated": async (payload: unknown) => {
     const { notifySavedAppUpdated } = await import("@/server/community/notifications");
-    await notifySavedAppUpdated((payload as { listingId: string }).listingId);
+    const p = payload as { listingId: string; revisionId?: string };
+    return notifySavedAppUpdated(p.listingId, p.revisionId);
   },
   "notify.reminders": async () => {
     const { sendInactivityReminders } = await import("@/server/community/notifications");
@@ -107,6 +118,7 @@ Object.assign(handlers, {
     await db.authEvent.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 180 * 86_400_000) } } });
     await db.emailMessage.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 90 * 86_400_000) } } });
     await db.pushDelivery.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 60 * 86_400_000) } } });
+    await db.securityEvent.deleteMany({ where: { hour: { lt: new Date(Date.now() - 90 * 86_400_000) } } });
   },
 } satisfies Record<string, JobHandler>);
 
@@ -120,7 +132,9 @@ export const recurringJobs: Array<{ type: keyof typeof handlers & string; everyM
   { type: "push.campaigns", everyMinutes: 5, label: "Push announcements", what: "Continues sending announcement batches (100 devices per batch)." },
   { type: "imports.run", everyMinutes: 10, label: "Import web apps", what: "Imports the next queued web apps (Settings → Automatic web app imports sets how often and how many)." },
   { type: "imports.dedupe", everyMinutes: 60, label: "Duplicate detection", what: "Skips queued imports whose website is already listed or queued under another address." },
+  { type: "imports.cleanup", everyMinutes: 24 * 60, label: "Import clean-up", what: "Deletes duplicate and permanently failed import records after the retention period (logged; never listings)." },
   { type: "imports.enrich", everyMinutes: 60, label: "Description enrichment", what: "Proposes fuller descriptions (from each app's own website) for imported listings, for review." },
+  { type: "security.alerts", everyMinutes: 15, label: "Security alerts", what: "Emails administrators about lockouts, new-device admin sign-ins, floods of failed sign-ins and similar events." },
   { type: "stats.rollup", everyMinutes: 15, label: "Analytics roll-up", what: "Aggregates views and visits per day and refreshes visit counters." },
   { type: "monitor.enqueue", everyMinutes: 15, label: "Security re-checks", what: "Queues periodic security scans of listings that are due." },
   { type: "ranking.recompute", everyMinutes: 60, label: "Rankings", what: "Recomputes trending and popularity scores." },

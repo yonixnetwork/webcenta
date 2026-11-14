@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, BellOff, Send } from "lucide-react";
-import { currentSubscription, disablePush, enablePush, isIos, isStandalone, pushSupported, sendTestPush } from "@/lib/push-client";
+import { Bell, BellOff } from "lucide-react";
+import { currentSubscription, disablePush, enablePush, isIos, isStandalone, pushSupported } from "@/lib/push-client";
 import { buttonClass } from "./ui/button";
 
 type State = "loading" | "on" | "off" | "denied" | "unsupported" | "ios-install";
 
-/** "Push notifications on this device" switch (Account → Notifications), with a test button. */
+/** "Push notifications on this device" switch (Account → Notifications). Test sends are an admin tool (Admin → Push). */
 export function PushToggle() {
   const [state, setState] = useState<State>("loading");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -41,19 +41,13 @@ export function PushToggle() {
           try {
             if (state === "on") { await disablePush(); setState("off"); return; }
             const r = await enablePush();
-            if (r === "on") { setState("on"); setMsg({ ok: true, text: "Notifications are on for this device. Send a test to check that they arrive." }); }
+            if (r === "on") { setState("on"); setMsg({ ok: true, text: "Notifications are on for this device." }); }
             else if (r === "denied") setState(Notification.permission === "denied" ? "denied" : "off");
             else setMsg({ ok: false, text: "Could not turn on notifications. Please try again." });
           } finally { setBusy(false); }
         }}>
           {state === "on" ? <><BellOff className="mr-1.5 inline size-4" aria-hidden />Turn off notifications on this device</> : <><Bell className="mr-1.5 inline size-4" aria-hidden />Turn on notifications on this device</>}
         </button>
-        {state === "on" && (
-          <button type="button" disabled={busy} className={buttonClass("ghost", "sm")} onClick={async () => {
-            setBusy(true); setMsg(null);
-            try { const r = await sendTestPush(); setMsg({ ok: r.ok, text: r.message }); } finally { setBusy(false); }
-          }}><Send className="mr-1.5 inline size-4" aria-hidden />Send a test notification</button>
-        )}
       </div>
       {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "text-sm text-success" : "text-sm text-danger"}>{msg.text}</p>}
     </div>

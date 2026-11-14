@@ -18,9 +18,11 @@ import { importDecision, slugList } from "@/server/importer/policy";
 export class WorkflowError extends Error {}
 
 /** Queues the user notifications for a published/updated app (one job per app per hour). */
-async function queueAppNotification(listingId: string, type: "notify.new-app" | "notify.app-updated") {
+async function queueAppNotification(listingId: string, type: "notify.new-app" | "notify.app-updated", revisionId?: string) {
   const hour = new Date().toISOString().slice(0, 13);
-  await db.job.create({ data: { type, payload: { listingId }, dedupeKey: `${type}:${listingId}:${hour}` } }).catch(() => undefined);
+  // One job per update (revision): approving it twice or a retry never notifies twice.
+  const dedupeKey = revisionId ? `${type}:${revisionId}` : `${type}:${listingId}:${hour}`;
+  await db.job.create({ data: { type, payload: { listingId, ...(revisionId ? { revisionId } : {}) }, dedupeKey } }).catch(() => undefined);
 }
 export interface Actor { type: ActorType; userId?: string; adminId?: string }
 
@@ -96,7 +98,7 @@ export async function saveRevision(listingId: string, raw: unknown, actor: Actor
 }
 
 /** Submits a draft revision. It enters automated checks; it is never published directly. */
-export async function submitRevision(revisionId: string, actor: Actor, notes?: string) {
+export async function submitRevision(revisionId: string, actor: Actor, notes?: string, changeSummary?: string) {
   const rev = await db.listingRevision.findUniqueOrThrow({ where: { id: revisionId }, include: { listing: true } });
   if (rev.status !== "DRAFT") throw new WorkflowError("Only drafts can be submitted");
   const input = listingInputSchema.parse(rev.data);
@@ -107,7 +109,7 @@ export async function submitRevision(revisionId: string, actor: Actor, notes?: s
     if (!(await orgOwnsDomain(org.id, host))) throw new WorkflowError(`Verify ownership of ${host} (Developer portal → Domains) before submitting.`);
   }
   await db.$transaction(async (tx) => {
-    await tx.listingRevision.update({ where: { id: rev.id }, data: { status: "SUBMITTED", submittedAt: new Date(), submitterNotes: notes ?? null } });
+    await tx.listingRevision.update({ where: { id: rev.id }, data: { status: "SUBMITTED", submittedAt: new Date(), submitterNotes: notes ?? null, changeSummary: changeSummary?.trim().slice(0, 300) || null } });
     if (!rev.listing.publishedAt && rev.listing.status !== "SUBMITTED") {
       await tx.listing.update({ where: { id: rev.listingId }, data: { status: "SUBMITTED" } });
       await statusChange(rev.listingId, rev.listing.status, "SUBMITTED", actor, undefined, tx);
@@ -151,7 +153,10 @@ export async function processSubmission(revisionId: string) {
         { outcomes, categorySlugs: cats.flatMap((c) => [c.slug, c.parent?.slug].filter((x): x is string => Boolean(x))), manualReview: refs.manualReview, complianceRequired: refs.complianceRequired,
           tierAllowsAuto: Boolean(policy?.allowAutoApproval), reviewRequired: candidate.reviewRequired, openReports, hasLogo: Boolean(input.logoAssetId), descriptionLength: input.description.length },
       );
-      auto = d.publish && !intelFail;
+      const { otherListingFor } = await import("@/server/importer/dedupe");
+    const duplicate = await otherListingFor(rev.listingId, rev.listing.domain);
+    if (duplicate) d.reasons.push(`duplicate of the existing listing "${duplicate.name}"`);
+    auto = d.publish && !intelFail && !duplicate;
       await audit({ actorType: "SYSTEM", action: auto ? "imports.auto-publish" : "imports.review-required", targetType: "Listing", targetId: rev.listingId, metadata: { riskScore: d.score, reasons: d.reasons, scanId: scan.id } });
     } else {
       const established = org ? Date.now() - org.createdAt.getTime() > 7 * 86_400_000 : false;
@@ -161,7 +166,9 @@ export async function processSubmission(revisionId: string) {
 
     if (intelFail) {
       await db.securityAlert.create({ data: { listingId: rev.listingId, scanId: scan.id, severity: "CRITICAL", title: "Submission matched a threat-intelligence source", details: outcomes.filter((o) => o.verdict === "FAIL").map((o) => o.summary).join("; ") } });
-      await notifyAdmins("Submission flagged by threat intelligence", `${input.name} (${input.websiteUrl}) matched a threat-intelligence source. Review and confirm rejection.`, `/submissions/${revisionId}`);
+      const { recordSecurityEvent } = await import("@/server/security/events");
+    await recordSecurityEvent("import.suspicious", rev.listing.domain, { severity: "critical", detail: `threat intelligence match: ${input.name}` });
+    await notifyAdmins("Submission flagged by threat intelligence", `${input.name} (${input.websiteUrl}) matched a threat-intelligence source. Review and confirm rejection.`, `/submissions/${revisionId}`);
     }
     if (auto) {
       await approveRevision(revisionId, { type: "SYSTEM" }, { publish: true, notes: "Automatically approved: all automated checks passed." });
@@ -208,6 +215,18 @@ export async function approveRevision(revisionId: string, actor: Actor, opts: { 
   const now = new Date();
   const wasPublished = rev.listing.status === "PUBLISHED";
   const newStatus: ListingStatus = wasPublished || opts.publish ? "PUBLISHED" : "APPROVED";
+  // Previous state → new state, recorded on the revision (and used to decide whether to notify).
+  const { changedFields } = await import("./changes");
+  const current = await db.listing.findUniqueOrThrow({ where: { id: rev.listingId }, select: { media: { orderBy: { sortOrder: "asc" }, select: { assetId: true, kind: true } }, tags: { select: { tag: { select: { name: true } } } } } });
+  const changed = wasPublished ? changedFields({
+    name: rev.listing.name, tagline: rev.listing.tagline, description: rev.listing.description, features: Array.isArray(rev.listing.features) ? (rev.listing.features as string[]) : [],
+    websiteUrl: rev.listing.websiteUrl, pricingModel: rev.listing.pricingModel, pricingDetails: rev.listing.pricingDetails, platforms: Array.isArray(rev.listing.platforms) ? (rev.listing.platforms as string[]) : [],
+    ageRating: rev.listing.ageRating, logoAssetId: current.media.find((m) => m.kind === "LOGO")?.assetId ?? null, screenshotAssetIds: current.media.filter((m) => m.kind === "SCREENSHOT").map((m) => m.assetId),
+    tags: current.tags.map((t) => t.tag.name), languages: Array.isArray(rev.listing.languages) ? (rev.listing.languages as string[]) : [], supportedCountries: Array.isArray(rev.listing.supportedCountries) ? (rev.listing.supportedCountries as string[]) : [],
+  }, {
+    name: input.name, tagline: input.tagline ?? null, description: input.description, features: input.features, websiteUrl: url.toString(), pricingModel: input.pricingModel, pricingDetails: input.pricingDetails ?? null,
+    platforms: input.platforms, ageRating: input.ageRating, logoAssetId: input.logoAssetId ?? null, screenshotAssetIds: input.screenshotAssetIds, tags: input.tags, languages: input.languages, supportedCountries: input.supportedCountries,
+  }) : [];
 
   await db.$transaction(async (tx) => {
     // Claim the decision inside the transaction: if two administrators (or a bulk action and the
@@ -243,7 +262,7 @@ export async function approveRevision(revisionId: string, actor: Actor, opts: { 
         contentUpdatedAt: now, nextScanAt: await nextScanDate(refs.riskTier, now),
       },
     });
-    await tx.listingRevision.update({ where: { id: rev.id }, data: { status: "APPROVED", reviewedById: actor.adminId ?? null, reviewedAt: now, decisionNotes: opts.notes ?? null } });
+    await tx.listingRevision.update({ where: { id: rev.id }, data: { status: "APPROVED", reviewedById: actor.adminId ?? null, reviewedAt: now, decisionNotes: opts.notes ?? null, ...(wasPublished ? { changedFields: changed } : {}) } });
     await tx.listingRevision.updateMany({ where: { listingId: rev.listingId, id: { not: rev.id }, status: { in: ["DRAFT", "SUBMITTED"] } }, data: { status: "WITHDRAWN" } });
     await statusChange(rev.listingId, rev.listing.status, newStatus, actor, opts.notes, tx);
     if (actor.adminId) await tx.moderationAction.create({ data: { adminId: actor.adminId, action: newStatus === "PUBLISHED" ? "LISTING_PUBLISH" : "LISTING_APPROVE", targetType: "Listing", targetId: rev.listingId, reason: opts.notes ?? "Approved" } });
@@ -251,7 +270,10 @@ export async function approveRevision(revisionId: string, actor: Actor, opts: { 
   });
   invalidateCategoryCache();
   if (newStatus === "PUBLISHED") await queueIndexNow([rev.listing.slug]).catch(() => undefined);
-  if (newStatus === "PUBLISHED") await queueAppNotification(rev.listingId, wasPublished ? "notify.app-updated" : "notify.new-app");
+  if (newStatus === "PUBLISHED" && !wasPublished) await queueAppNotification(rev.listingId, "notify.new-app");
+  // Users who saved the app hear about meaningful updates only (not tags or other metadata).
+  const { isMeaningful } = await import("./changes");
+  if (wasPublished && isMeaningful(changed)) await queueAppNotification(rev.listingId, "notify.app-updated", rev.id);
   if (rev.listing.developerId) {
     await notifyOrg(rev.listing.developerId, {
       type: "LISTING_STATUS",
@@ -318,6 +340,8 @@ export async function setListingStatus(listingId: string, to: "SUSPENDED" | "REM
     await audit({ actorType: actor.type, adminId: actor.adminId, action: `listing.${to === "PUBLISHED" ? "restore" : to.toLowerCase()}`, targetType: "Listing", targetId: listingId, metadata: { reason, from: l.status } }, tx);
   });
   invalidateCategoryCache();
+  // Tell IndexNow search engines the public page changed (it now returns 404, or is back).
+  if (l.publishedAt) await queueIndexNow([l.slug]).catch(() => undefined);
   if (l.developerId) {
     await notifyOrg(l.developerId, { type: "MODERATION_NOTICE", title: to === "PUBLISHED" ? `${l.name} has been reinstated` : `${l.name} has been ${to === "SUSPENDED" ? "suspended" : "removed"}`, body: reason, linkPath: `/developer/listings/${listingId}` });
   }

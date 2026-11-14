@@ -6,18 +6,22 @@ import { DataTable, StatusPill, td } from "@/components/portal/table";
 import { formatDate } from "@/lib/labels";
 import { db } from "@/server/db";
 import { requireAdmin } from "@/server/admin/auth";
-import { sendPushAction } from "@/server/actions/admin";
+import { sendPushAction, testPushAction } from "@/server/actions/admin";
 import { getSection } from "@/server/settings/store";
 import { pushDiagnostics } from "@/server/push/diagnostics";
 
 export const metadata = { title: "Push notifications" };
 
 const weekAgo = () => new Date(Date.now() - 7 * 86_400_000);
-const KIND_LABEL: Record<string, string> = { CAMPAIGN: "Announcement", EVENT: "Notification", REMINDER: "Reminder" };
+const KIND_LABEL: Record<string, string> = { CAMPAIGN: "Announcement (promotional)", EVENT: "User notification", REMINDER: "Reminder", TEST: "Test (admin)" };
 
-export default async function PushAdmin({ searchParams }: { searchParams: Promise<{ kind?: string }> }) {
+export default async function PushAdmin({ searchParams }: { searchParams: Promise<{ kind?: string; recipient?: string }> }) {
   await requireAdmin("push.send");
-  const kind = (await searchParams).kind;
+  const sp = await searchParams;
+  const kind = sp.kind;
+  // Test push: the devices of one chosen user (by email). Endpoints and keys are never shown.
+  const recipientEmail = (sp.recipient ?? "").trim().toLowerCase().slice(0, 254);
+  const recipient = recipientEmail ? await db.user.findUnique({ where: { email: recipientEmail }, select: { id: true, name: true, email: true, pushNotifications: true, pushSubscriptions: { orderBy: { updatedAt: "desc" }, select: { id: true, platform: true, standalone: true, lastSyncedAt: true, lastSuccessAt: true, failureCount: true } } } }) : null;
   const since = weekAgo();
   const [subscribers, signedIn, log, week, cfg, d] = await Promise.all([
     db.pushSubscription.count({ where: { failureCount: { lt: 5 } } }),
@@ -41,7 +45,7 @@ export default async function PushAdmin({ searchParams }: { searchParams: Promis
         <ul className="mt-3 grid gap-2 sm:grid-cols-3">
           {(["CAMPAIGN", "EVENT", "REMINDER"] as const).map((k) => {
             const w = week.find((x) => x.kind === k);
-            return <li key={k} className="rounded-xl border border-border p-3 text-sm"><strong>{KIND_LABEL[k]}s, last 7 days</strong><br />{w?._count._all ?? 0} sent · {w?._sum.delivered ?? 0} accepted · {w?._sum.failed ?? 0} failed</li>;
+            return <li key={k} className="rounded-xl border border-border p-3 text-sm"><strong>{KIND_LABEL[k]}, last 7 days</strong><br />{w?._count._all ?? 0} sent · {w?._sum.delivered ?? 0} accepted · {w?._sum.failed ?? 0} failed</li>;
           })}
         </ul>
       </Card>
@@ -58,8 +62,9 @@ export default async function PushAdmin({ searchParams }: { searchParams: Promis
           {stat("Devices not eligible", d.notEligible, `${d.unhealthy} failing repeatedly · ${d.optedOut} opted out`)}
           {stat("Last accepted delivery", d.lastAcceptedAt ? formatDate(d.lastAcceptedAt) : "never", d.lastAttemptAt ? `Last attempt ${formatDate(d.lastAttemptAt)}` : undefined)}
         </ul>
-        <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+        <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div><p className="font-semibold">Error categories</p>{d.categories.length ? <ul className="text-muted">{d.categories.map((c) => <li key={c.category}>{c.category}: {c.count}</li>)}</ul> : <p className="text-muted">No failures.</p>}</div>
+          <div><p className="font-semibold">By type</p>{d.kinds.length ? <ul className="text-muted">{d.kinds.map((k) => <li key={k.kind}>{KIND_LABEL[k.kind] ?? k.kind}: {k.accepted} accepted · {k.failed} failed</li>)}</ul> : <p className="text-muted">No attempts yet.</p>}</div>
           <div><p className="font-semibold">By device type</p>{d.platforms.length ? <ul className="text-muted">{d.platforms.map((p) => <li key={p.platform}>{p.platform}: {p.accepted} accepted · {p.failed} failed · {p.expired} expired</li>)}</ul> : <p className="text-muted">No attempts yet.</p>}</div>
           <div><p className="font-semibold">Subscribed devices</p><ul className="text-muted">{d.subscriptionsByPlatform.map((p) => <li key={p.platform}>{p.platform}: {p.count}</li>)}<li>iPhone/iPad Home Screen apps: {d.iosStandalone}</li></ul></div>
         </div>
@@ -70,6 +75,32 @@ export default async function PushAdmin({ searchParams }: { searchParams: Promis
             </DataTable>
           </details>
         )}
+      </Card>
+      <Card>
+        <h2 className="mb-1 font-semibold" id="test-push">Test push notification</h2>
+        <p className="mb-3 text-sm text-muted">Sends one test notification to <strong>one device</strong> of the user you choose. It is never sent to anyone else, it does not appear in anyone&apos;s notification centre, and it is logged as a test.</p>
+        <form method="get" action="/push" className="mb-3 flex flex-wrap items-end gap-2">
+          <Field label="Test recipient (account email)"><input name="recipient" type="email" required defaultValue={recipientEmail} className={inputClass} placeholder="you@example.com" /></Field>
+          <button className="rounded-xl border border-border px-3 py-2 text-sm font-semibold hover:border-brand">Find devices</button>
+        </form>
+        {recipientEmail && !recipient && <p className="text-sm text-danger">No account with that email.</p>}
+        {recipient && (recipient.pushSubscriptions.length === 0
+          ? <p className="text-sm text-muted">{recipient.name} has no device with notifications turned on. Ask them to open Account → Notifications on the device and turn notifications on (on iPhone/iPad, from the Home Screen app).</p>
+          : (
+            <ActionForm action={testPushAction} submitLabel="Send test to this device" pendingLabel="Sending…" variant="secondary">
+              <Field label={`Device of ${recipient.name}`}>
+                <select name="subscriptionId" required className={inputClass}>
+                  {recipient.pushSubscriptions.map((s) => <option key={s.id} value={s.id}>{s.platform ?? "unknown"}{s.standalone ? " (installed app)" : ""} · confirmed {s.lastSyncedAt ? formatDate(s.lastSyncedAt) : "—"} · last accepted {s.lastSuccessAt ? formatDate(s.lastSuccessAt) : "never"}{s.failureCount ? ` · ${s.failureCount} failure(s)` : ""}</option>)}
+                </select>
+              </Field>
+              {!recipient.pushNotifications && <p className="text-sm text-warning">This user turned push copies off; a test is still allowed so you can diagnose the device.</p>}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Test title"><input name="title" maxLength={120} defaultValue="Webcenta test notification" className={inputClass} /></Field>
+                <Field label="Destination" hint="A Webcenta page."><input name="url" maxLength={500} defaultValue="/account/notifications" className={inputClass} /></Field>
+              </div>
+              <Field label="Test message"><textarea name="body" rows={2} maxLength={400} defaultValue="This is a test notification from the Webcenta team." className={inputClass} /></Field>
+            </ActionForm>
+          ))}
       </Card>
       <Card>
         <h2 className="mb-3 font-semibold">Send an announcement</h2>
@@ -92,9 +123,9 @@ export default async function PushAdmin({ searchParams }: { searchParams: Promis
       </Card>
       <nav aria-label="Filter log" className="flex flex-wrap gap-2 text-sm">
         <Link href="/push" className="rounded-full border border-border px-3 py-1">All</Link>
-        {Object.entries(KIND_LABEL).map(([k, l]) => <Link key={k} href={`/push?kind=${k}`} className="rounded-full border border-border px-3 py-1">{l}s</Link>)}
+        {(["CAMPAIGN", "EVENT", "REMINDER"] as const).map((k) => <Link key={k} href={`/push?kind=${k}`} className="rounded-full border border-border px-3 py-1">{KIND_LABEL[k]}</Link>)}
       </nav>
-      <p className="text-xs text-subtle">&ldquo;Accepted&rdquo; means the browser&apos;s push service accepted the message; it does not prove the device displayed it.</p>
+      <p className="text-xs text-subtle">Test pushes are listed in the delivery report above (kind &ldquo;test&rdquo;), never here. &ldquo;Accepted&rdquo; means the browser&apos;s push service accepted the message; it does not prove the device displayed it.</p>
       <DataTable head={["Sent", "Type", "Title", "Status", "Accepted", "Failed"]} empty={log.length === 0}>
         {log.map((c) => <tr key={c.id}><td className={td}>{formatDate(c.createdAt)}</td><td className={td}>{KIND_LABEL[c.kind] ?? c.kind}</td><td className={td}>{c.title}</td><td className={td}><StatusPill status={c.status} /></td><td className={td}>{c.delivered} / {c.recipients}</td><td className={td}>{c.failed}</td></tr>)}
       </DataTable>

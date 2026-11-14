@@ -81,6 +81,8 @@ model AdminSession {
   ipAddress     String?
   userAgent     String? @db.Text
   revokedAt     DateTime? @db.DateTime(3)
+  /// Last time the administrator re-confirmed with an authenticator code (sensitive actions).
+  stepUpAt      DateTime? @db.DateTime(3)
   createdAt     DateTime  @default(now()) @db.DateTime(3)
 
   admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)

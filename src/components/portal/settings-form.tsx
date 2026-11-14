@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { startTransition as startFormTransition } from "react";
+import { StepUpInput } from "@/components/ui/step-up-input";
 import { buttonClass } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { inputClass } from "@/components/ui/form";
@@ -26,7 +28,7 @@ export interface SettingsFieldView {
   source: "saved" | "env" | "default" | "none";
 }
 
-interface State { ok: boolean; message: string }
+interface State { ok: boolean; message: string; stepUp?: boolean }
 type Action = (s: State, f: FormData) => Promise<State>;
 
 const SOURCE_LABEL = { saved: "Saved here", env: "From the hosting environment", default: "Default", none: "Not set" } as const;
@@ -52,7 +54,13 @@ export function SettingsForm({ action, fields, toggle, enabled, readOnly, sectio
   const visible = (f: SettingsFieldView) => !f.when || live[f.when.key] === f.when.equals;
 
   return (
-    <form action={formAction} className="space-y-5" autoComplete="off">
+    <form className="space-y-5" autoComplete="off" onSubmit={(e) => {
+      // Submitted without React's automatic reset, so typed values (including secrets) survive a
+      // validation error or an authenticator confirmation request.
+      e.preventDefault();
+      const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+      startFormTransition(() => formAction(data));
+    }}>
       {toggle && (
         <label className="flex items-center gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm font-medium">
           <input type="hidden" name="b:__enabled" value="1" />
@@ -130,6 +138,7 @@ export function SettingsForm({ action, fields, toggle, enabled, readOnly, sectio
           );
         })}
       </fieldset>
+      <StepUpInput show={state.stepUp} />
       <Result state={state} />
       {!readOnly && <button type="submit" disabled={pending} className={buttonClass("primary", "md")}>{pending ? "Saving…" : "Save"}</button>}
       <p className="text-xs text-subtle">Empty fields use the hosting environment value or the default shown. Secrets are encrypted before they are stored and are never displayed again.</p>

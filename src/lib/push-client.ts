@@ -98,12 +98,3 @@ export async function disablePush(): Promise<void> {
   await fetch("/api/push", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => undefined);
   await sub.unsubscribe().catch(() => undefined);
 }
-
-/** Asks the server to send a test notification to this browser only. */
-export async function sendTestPush(): Promise<{ ok: boolean; message: string }> {
-  const sub = await currentSubscription();
-  if (!sub) return { ok: false, message: "Notifications are not turned on in this browser." };
-  const r = await fetch("/api/push/test", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => null);
-  const j = (await r?.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
-  return { ok: Boolean(j?.ok), message: j?.message ?? "Could not reach Webcenta. Check your connection." };
-}

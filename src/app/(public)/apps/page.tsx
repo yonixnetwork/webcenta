@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Ad } from "@/components/ads/ad";
+import { AdBanner } from "@/components/ads/ad";
 import { CategoryIcon } from "@/components/category-icon";
 import { StoreListSection } from "@/components/store-sections";
 import { EmptyState } from "@/components/states";
@@ -47,7 +47,7 @@ export default async function AppsPage() {
         <>
           <StoreListSection title="Popular apps" subtitle="Most viewed on Webcenta recently" items={popular} ranked />
           <StoreListSection title="New apps" href="/search?sort=newest" items={latest} />
-          <div className="flex justify-center"><Ad placement="mobile-compact" /><Ad placement="desktop-small" /><Ad placement="desktop-leaderboard" /></div>
+          <AdBanner page="browse" />
           {FEATURED_CATEGORIES.map((slug, i) => <StoreListSection key={slug} title={name(slug)} href={`/c/${slug}`} items={byCategory[i] ?? []} />)}
         </>
       )}

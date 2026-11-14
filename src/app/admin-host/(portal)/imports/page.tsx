@@ -7,7 +7,7 @@ import { formatDate } from "@/lib/labels";
 import { db } from "@/server/db";
 import { requireAdmin } from "@/server/admin/auth";
 import { bulkImportsAction, queueImportsAction } from "@/server/actions/admin";
-import { eligibleCount } from "@/server/importer/bulk";
+import { eligibleListingIds } from "@/server/importer/bulk";
 import { BulkForm } from "@/components/portal/bulk-form";
 import { getSection } from "@/server/settings/store";
 import { getAllCategoriesTree } from "@/server/catalog/admin-categories";
@@ -18,13 +18,15 @@ export default async function ImportsAdmin({ searchParams }: { searchParams: Pro
   await requireAdmin("imports.manage");
   const status = (await searchParams).status;
   const filter = ["QUEUED", "IMPORTING", "IMPORTED", "FAILED", "SKIPPED"].includes(status ?? "") ? status : undefined;
-  const [counts, rows, tree, s, eligible] = await Promise.all([
+  const [counts, rows, tree, s, eligibleSet, cleanups] = await Promise.all([
     db.importCandidate.groupBy({ by: ["status"], _count: { _all: true } }),
     db.importCandidate.findMany({ where: filter ? { status: filter as never } : {}, orderBy: [{ processedAt: "desc" }, { priority: "desc" }, { createdAt: "asc" }], take: 200 }),
     getAllCategoriesTree(),
     getSection("imports"),
-    eligibleCount(),
+    eligibleListingIds(),
+    db.auditLog.findMany({ where: { action: "imports.cleanup" }, orderBy: { createdAt: "desc" }, take: 10, select: { id: true, createdAt: true, metadata: true } }),
   ]);
+  const eligible = eligibleSet.size;
   const n = (k: string) => counts.find((c) => c.status === k)?._count._all ?? 0;
   // Review state of imported listings (status, latest scan) for the table.
   const listings = await db.listing.findMany({
@@ -78,7 +80,7 @@ export default async function ImportsAdmin({ searchParams }: { searchParams: Pro
             const pendingRev = l?.revisions[0] && ["SUBMITTED", "AUTOMATED_CHECKS", "UNDER_REVIEW"].includes(l.revisions[0].status) ? l.revisions[0] : undefined;
             return (
               <tr key={r.id}>
-                <td className={td}><input type="checkbox" name="ids" value={r.id} aria-label={`Select ${r.name ?? r.domain}`} className="size-4" /></td>
+                <td className={td}><input type="checkbox" name="ids" value={r.id} aria-label={`Select ${r.name ?? r.domain}`} data-eligible={r.listingId && eligibleSet.has(r.listingId) ? "1" : undefined} className="size-4" /></td>
                 <td className={td}><span className="font-medium">{r.name ?? r.domain}</span><br /><span className="text-xs text-subtle">{r.url}</span>{r.reviewRequired && <><br /><span className="text-xs font-semibold text-warning">Review required</span></>}</td>
                 <td className={td}>{r.categorySlug}</td>
                 <td className={td}>{r.source}</td>
@@ -107,6 +109,24 @@ export default async function ImportsAdmin({ searchParams }: { searchParams: Pro
           })}
         </DataTable>
       </BulkForm>
+      <Card>
+        <h2 className="mb-2 font-semibold">Clean-up history</h2>
+        <p className="mb-2 text-sm text-muted">The daily clean-up deletes duplicate and permanently failed queue entries after {s.num("cleanupRetentionDays") || 30} days. It never deletes listings, developer submissions, reviews or saved apps.</p>
+        {cleanups.length === 0 ? <p className="text-sm text-subtle">Nothing has been cleaned up yet.</p> : (
+          <ul className="space-y-1 text-sm">
+            {cleanups.map((c) => {
+              const m = (c.metadata ?? {}) as { deletedDuplicates?: number; deletedFailed?: number; deletedDeadJobs?: number; resetImporting?: number; duplicates?: Array<{ domain: string }>; failed?: Array<{ domain: string; category?: string }> };
+              return (
+                <li key={c.id}>
+                  <details><summary className="cursor-pointer">{formatDate(c.createdAt)}: {m.deletedDuplicates ?? 0} duplicate(s), {m.deletedFailed ?? 0} failed import(s), {m.deletedDeadJobs ?? 0} failed job(s) deleted; {m.resetImporting ?? 0} stuck import(s) re-queued</summary>
+                    <p className="mt-1 text-xs text-muted">Duplicates: {(m.duplicates ?? []).map((d) => d.domain).join(", ") || "—"}. Failed: {(m.failed ?? []).map((d) => `${d.domain} (${d.category ?? "error"})`).join(", ") || "—"}.</p>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
     </>
   );
 }

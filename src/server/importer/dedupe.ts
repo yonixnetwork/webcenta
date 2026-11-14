@@ -57,8 +57,16 @@ export async function skipQueuedDuplicates(limit = 5000): Promise<{ checked: num
     const d = await findDuplicate(c.domain, c.id);
     // An older queued twin keeps its place; only the later one is skipped.
     if (!d || (d.kind === "import" && d.status === "QUEUED" && (await db.importCandidate.findUnique({ where: { id: d.id }, select: { createdAt: true } }))!.createdAt > c.createdAt)) continue;
-    await db.importCandidate.update({ where: { id: c.id }, data: { status: "SKIPPED", processedAt: new Date(), failedStage: "duplicate", errorCategory: "duplicate", retryable: false, lastError: d.kind === "listing" ? `Already listed as "${d.name}" (${d.status.toLowerCase()}).` : `Already in the import queue as "${d.name}" (${d.status.toLowerCase()}).` } });
+    await db.importCandidate.update({ where: { id: c.id }, data: { status: "SKIPPED", processedAt: new Date(), failedStage: "duplicate", errorCategory: "duplicate", retryable: false, duplicateOfListingId: d.kind === "listing" ? d.id : null, lastError: d.kind === "listing" ? `Already listed as "${d.name}" (${d.status.toLowerCase()}).` : `Already in the import queue as "${d.name}" (${d.status.toLowerCase()}).` } });
     skipped++;
   }
   return { checked: queued.length, skipped };
+}
+
+/** A published or pending listing for the same website other than `listingId` (blocks publishing a duplicate). */
+export async function otherListingFor(listingId: string, host: string) {
+  return db.listing.findFirst({
+    where: { id: { not: listingId }, domain: { in: equivalentHosts(host) }, status: { in: ["PUBLISHED", "APPROVED", "SUSPENDED"] }, deletedAt: null },
+    select: { id: true, name: true, status: true },
+  });
 }

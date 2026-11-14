@@ -23,6 +23,13 @@ export async function pushDiagnostics(days = 7) {
     db.notification.count({ where: { createdAt: { gte: since } } }),
     db.pushSubscription.findMany({ where: { lastFailureAt: { not: null } }, orderBy: { lastFailureAt: "desc" }, take: 15, select: { id: true, platform: true, standalone: true, userId: true, failureCount: true, lastStatus: true, lastError: true, lastFailureAt: true, lastSuccessAt: true, lastSyncedAt: true } }),
   ]);
+  const byKindRows = await db.pushDelivery.groupBy({ by: ["kind", "outcome"], where: { createdAt: { gte: since } }, _count: { _all: true } });
+  const kinds = new Map<string, { accepted: number; failed: number }>();
+  for (const r of byKindRows) {
+    const v = kinds.get(r.kind) ?? { accepted: 0, failed: 0 };
+    if (r.outcome === "ACCEPTED") v.accepted += r._count._all; else v.failed += r._count._all;
+    kinds.set(r.kind, v);
+  }
   const count = (o: string) => byOutcome.find((x) => x.outcome === o)?._count._all ?? 0;
   const platforms = new Map<string, { accepted: number; failed: number; expired: number }>();
   for (const p of byPlatform) {
@@ -40,6 +47,8 @@ export async function pushDiagnostics(days = 7) {
     expired: count("EXPIRED"),
     categories: byCategory.map((c) => ({ category: c.category ?? "other", count: c._count._all })).sort((a, b) => b.count - a.count),
     platforms: [...platforms.entries()].map(([platform, v]) => ({ platform, ...v })),
+    /** CAMPAIGN (promotional announcement), EVENT (user notification), REMINDER, TEST (admin test). */
+    kinds: [...kinds.entries()].map(([kind, v]) => ({ kind, ...v })),
     lastAcceptedAt: lastAccepted?.createdAt ?? null,
     lastAttemptAt: lastAttempt?.createdAt ?? null,
     subscriptions: subs,

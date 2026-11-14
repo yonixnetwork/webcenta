@@ -54,6 +54,7 @@ export default async function DevListingPage({ params, searchParams }: { params:
           <h2 className="font-semibold">Ready to submit revision #{draft.revisionNumber}?</h2>
           <p className="mb-3 text-sm text-muted">Submitting starts automated security checks. A moderator reviews the result; nothing is published automatically unless every check passes and the category allows it.</p>
           <ActionForm action={submitListingAction.bind(null, id)} submitLabel="Submit for review" pendingLabel="Submitting…">
+            {l.publishedAt && <Field label="What changed? (optional, shown to people who saved your app)" hint="One or two sentences, for example “New dark mode and faster sync.” People are notified only when visible details change (not tags or languages)."><input name="changeSummary" maxLength={300} className={inputClass} /></Field>}
             <Field label="Notes for the reviewer (optional)"><textarea name="notes" rows={2} maxLength={1000} className={inputClass} /></Field>
           </ActionForm>
         </Card>
