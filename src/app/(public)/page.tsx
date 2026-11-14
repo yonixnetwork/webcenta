@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
-import { Ad } from "@/components/ads/ad";
+import { Ad, AdBanner } from "@/components/ads/ad";
+import { adPolicy, feedPositions } from "@/server/ads/manager";
 import { ChartNoAxesColumn, LayoutGrid, ShieldCheck, Sparkles } from "lucide-react";
 import { CategoryIcon } from "@/components/category-icon";
 import { AppCard } from "@/components/app-card";
@@ -31,6 +32,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const ranked = new Set(["popular", "trending", "top-rated"]);
   const chip = "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold shadow-card transition hover:border-brand/40 hover:text-brand";
 
+  const feed = rails.filter((r) => r !== featured);
+  const policy = await adPolicy();
+  const adSlots = feedPositions(feed.length, policy.max.home, policy.minSectionsBetween, ["home-native", "home-display", "banner"]);
   return (
     <div className="space-y-7 sm:space-y-12">
       {welcome && <p role="status" className="rounded-2xl bg-success-soft px-4 py-3 text-sm font-medium text-success">Your email is confirmed. Welcome to Webcenta!</p>}
@@ -76,12 +80,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           Listings appear here once they have been reviewed and published. Check back soon.
         </EmptyState>
       ) : (
-        rails.filter((r) => r !== featured).map((r, i) => (
+        feed.map((r, i) => (
           <Fragment key={r.key}>
             <StoreListSection title={r.title} subtitle={r.subtitle} href={r.href} items={r.items} sponsoredIds={r.sponsoredIds} ranked={ranked.has(r.key)} />
-            {/* Ads sit between whole sections, never inside a row of apps. */}
-            {i === 1 && <Ad placement="home-native" />}
-            {i === 3 && <Ad placement="home-display" />}
+            {/* Ads sit between whole sections, never inside a row of apps, spaced by the placement manager. */}
+            {adSlots.get(i) === "banner" ? <AdBanner page="home" /> : adSlots.get(i) ? <Ad placement={adSlots.get(i) as "home-native" | "home-display"} page="home" /> : null}
           </Fragment>
         ))
       )}

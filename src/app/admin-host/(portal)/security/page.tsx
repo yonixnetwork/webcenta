@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StepUpCard } from "@/components/portal/step-up-card";
 import { ActionForm } from "@/components/ui/action-form";
 import { Card, Field, inputClass } from "@/components/ui/form";
 import { DataTable, StatusPill, td } from "@/components/portal/table";
@@ -24,6 +25,7 @@ export default async function SecurityAdmin() {
   return (
     <>
       <h1 className="text-2xl font-extrabold tracking-tight">Security monitoring</h1>
+      <StepUpCard />
       <p className="text-sm text-muted">External threat-intelligence providers configured: <strong>{providers.length ? providers.join(", ") : "none"}</strong>. Without at least one, no submission can be auto-approved. {failed} scan(s) failed in the last 7 days.</p>
       <h2 className="text-lg font-bold">Open alerts <Link href="/security/alerts" className="ml-2 text-sm font-normal text-brand">all alerts →</Link></h2>
       <DataTable head={["Severity", "Listing", "Finding", "Status", "Auto-restricted", "Raised"]} empty={alerts.length === 0}>

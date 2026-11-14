@@ -10,7 +10,7 @@ vi.mock("web-push", async (orig) => {
 import { db } from "@/server/db";
 import { handlers, recurringJobs } from "@/server/jobs/handlers";
 import { acquireTickLock, enqueueRecurring, releaseTickLock, runJobNow, runTick, setJobEnabled } from "@/server/jobs/runner";
-import { categorize, saveSubscription, sendBatch, sendTestPush } from "@/server/push/push";
+import { categorize, saveSubscription, sendBatch, sendTestPushTo } from "@/server/push/push";
 import { pushDiagnostics } from "@/server/push/diagnostics";
 import { canonicalHost, equivalentHosts, findDuplicate, skipQueuedDuplicates } from "@/server/importer/dedupe";
 import { bulkRetry } from "@/server/importer/bulk";
@@ -168,13 +168,18 @@ describe("web push delivery", () => {
     expect(d.categories.map((c) => c.category)).toEqual(expect.arrayContaining(["expired", "service-error"]));
   });
 
-  it("a test notification goes only to the browser that asked, and reports the push service's answer", async () => {
+  it("an admin test push goes only to the one chosen subscription, and reports the push service's answer", async () => {
     sendNotification.mockReset();
     sendNotification.mockResolvedValue({ statusCode: 201 });
-    expect(await sendTestPush("https://fcm.googleapis.com/fcm/send/unknown")).toEqual({ found: false });
-    const r = await sendTestPush(sub("ok").endpoint);
-    expect(r).toMatchObject({ found: true, accepted: true, outcome: "ACCEPTED", statusCode: 201 });
-    expect(sendNotification).toHaveBeenCalledTimes(1);
+    expect(await sendTestPushTo("no-such-subscription", { title: "T", body: "B", url: "/" })).toEqual({ found: false });
+    const target = await db.pushSubscription.findFirstOrThrow({ where: { endpoint: sub("ok").endpoint } });
+    const others = await db.pushSubscription.count();
+    expect(others).toBeGreaterThan(1);
+    const r = await sendTestPushTo(target.id, { title: "Admin test", body: "Only you", url: "/account/notifications" });
+    expect(r).toMatchObject({ found: true, accepted: true, outcome: "ACCEPTED", statusCode: 201, platform: "ios" });
+    expect(sendNotification).toHaveBeenCalledTimes(1); // never fans out
+    expect((sendNotification.mock.calls[0]![0] as { endpoint: string }).endpoint).toBe(sub("ok").endpoint);
+    expect(await db.pushDelivery.count({ where: { subscriptionId: target.id, kind: "TEST" } })).toBe(1);
   });
 });
 

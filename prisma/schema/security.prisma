@@ -155,3 +155,25 @@ model MonitoringPolicy {
   allowAutoApproval      Boolean       @default(false)
   updatedAt              DateTime      @updatedAt @db.DateTime(3)
 }
+
+/// Security-relevant activity (failed sign-ins, lockouts, rate limiting, permission denials,
+/// new-device admin sign-ins, blocked requests), counted per type, source and hour so a flood
+/// produces one row, not millions. Never contains passwords, tokens or cookies. Kept 90 days.
+model SecurityEvent {
+  id          String   @id @default(uuid(7))
+  type        String   @db.VarChar(40)
+  severity    String   @default("info") @db.VarChar(10)
+  /// Source: an IP address, an account id or a rate-limit scope (no secrets).
+  source      String   @db.VarChar(191)
+  detail      String?  @db.VarChar(500)
+  hour        DateTime @db.DateTime(3)
+  count       Int      @default(1)
+  firstAt     DateTime @default(now()) @db.DateTime(3)
+  lastAt      DateTime @default(now()) @db.DateTime(3)
+  /// An alert email was sent for this row.
+  alertedAt   DateTime? @db.DateTime(3)
+
+  @@unique([type, source, hour])
+  @@index([hour])
+  @@index([type, hour])
+}

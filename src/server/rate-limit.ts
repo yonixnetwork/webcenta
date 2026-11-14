@@ -16,5 +16,11 @@ export async function rateLimit(key: string, limit: number, windowSeconds: numbe
         resetAt = CASE WHEN resetAt <= UTC_TIMESTAMP(3) THEN UTC_TIMESTAMP(3) + INTERVAL ${windowSeconds} SECOND ELSE resetAt END`,
     db.$queryRaw<Array<{ count: number }>>`SELECT count FROM RateLimitBucket WHERE \`key\` = ${key}`,
   ]);
-  return Number(rows[0]?.count ?? Infinity) <= limit;
+  const allowed = Number(rows[0]?.count ?? Infinity) <= limit;
+  // Record the first denial of each window (not every request of a flood).
+  if (!allowed && Number(rows[0]?.count) === limit + 1) {
+    const { recordSecurityEvent } = await import("@/server/security/events");
+    await recordSecurityEvent("rate.limited", key, { severity: "warning", detail: `limit ${limit} per ${windowSeconds}s` });
+  }
+  return allowed;
 }

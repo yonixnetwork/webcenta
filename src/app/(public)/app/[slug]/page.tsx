@@ -202,12 +202,23 @@ export default async function AppPage({ params, searchParams }: Props) {
             </section>
           )}
 
-          {/* Separated from the app's own content by its label and spacing; never next to the Visit button. */}
-          <Ad placement="listing" className="border-y border-border py-4" />
+          {/* Closing call to action after the app's own information. The compact sponsored unit sits
+              between them, labelled and boxed so it can never be mistaken for this app's content;
+              the button at the top of the page has no ad near it. */}
+          <section aria-labelledby="visit" className="space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-card">
+            <h2 id="visit" className="text-lg font-bold">Ready to try {listing.name}?</h2>
+            <Ad placement="listing-native" page="listing" compact className="rounded-xl border border-dashed border-border bg-surface-2/50 p-2" />
+            <div className="flex flex-col items-start gap-1">
+              <a href={`/go/${listing.slug}`} rel="nofollow" className={buttonClass("primary", "md")}>Visit official website <ArrowUpRight className="size-4" aria-hidden /></a>
+              <p className="text-xs text-subtle">Opens {domain} · you’ll see a notice before leaving Webcenta</p>
+            </div>
+          </section>
 
           <ReviewsSection listing={listing} user={user} isMember={Boolean(membership)}
             canReply={Boolean(membership && membership.role !== "ANALYST")}
             sort={sp.sort === "newest" ? "newest" : "helpful"} page={Math.max(1, Number(sp.rpage) || 1)} />
+
+          <Ad placement="listing" page="listing" className="border-t border-border pt-4" />
         </div>
 
         <aside className="space-y-6">
@@ -259,7 +270,7 @@ export default async function AppPage({ params, searchParams }: Props) {
           </section>
 
           <ReportForm action={reportAction} reasons={LISTING_REPORT_REASONS} />
-          <Ad placement="desktop-sidebar" className="sticky top-24" />
+          <Ad placement="desktop-sidebar" page="listing" className="sticky top-24" />
         </aside>
       </div>
 

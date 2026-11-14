@@ -1,3 +1,4 @@
+import { StepUpCard } from "@/components/portal/step-up-card";
 import { ActionForm } from "@/components/ui/action-form";
 import { Card, Field, inputClass } from "@/components/ui/form";
 import { DataTable, StatusPill, td } from "@/components/portal/table";
@@ -21,6 +22,7 @@ export default async function AdminsPage() {
   return (
     <>
       <h1 className="text-2xl font-extrabold tracking-tight">Administrators</h1>
+      <StepUpCard />
       <Card>
         <h2 className="mb-2 font-semibold">Invite an administrator</h2>
         <ActionForm action={inviteAdminAction} submitLabel="Send invitation">

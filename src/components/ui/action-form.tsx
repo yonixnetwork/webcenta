@@ -3,12 +3,13 @@
 import { useActionState, useEffect } from "react";
 import { buttonClass } from "./button";
 import { cn } from "./cn";
+import { StepUpInput } from "./step-up-input";
 
 /**
  * `redirectTo` performs a FULL browser navigation. Used on the admin host, where a
  * server-action redirect() would be resolved without the host rewrite in proxy.ts.
  */
-export interface FormState { ok: boolean; message: string; redirectTo?: string }
+export interface FormState { ok: boolean; message: string; redirectTo?: string; stepUp?: boolean }
 
 /** Generic form bound to a server action, with pending state and an accessible result message. */
 export function ActionForm({ action, children, submitLabel, pendingLabel = "Saving…", className, variant = "primary", hideOnSuccess = false }: {
@@ -28,6 +29,7 @@ export function ActionForm({ action, children, submitLabel, pendingLabel = "Savi
   return (
     <form action={formAction} className={cn("space-y-4", className)}>
       {children}
+      <StepUpInput show={state.stepUp} />
       {state.message && (
         <p role={state.ok ? "status" : "alert"} className={cn("rounded-xl px-3 py-2 text-sm", state.ok ? "bg-success-soft text-success" : "bg-danger-soft text-danger")}>{state.message}</p>
       )}

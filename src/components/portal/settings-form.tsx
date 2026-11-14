@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { StepUpInput } from "@/components/ui/step-up-input";
 import { buttonClass } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { inputClass } from "@/components/ui/form";
@@ -26,7 +27,7 @@ export interface SettingsFieldView {
   source: "saved" | "env" | "default" | "none";
 }
 
-interface State { ok: boolean; message: string }
+interface State { ok: boolean; message: string; stepUp?: boolean }
 type Action = (s: State, f: FormData) => Promise<State>;
 
 const SOURCE_LABEL = { saved: "Saved here", env: "From the hosting environment", default: "Default", none: "Not set" } as const;
@@ -130,6 +131,7 @@ export function SettingsForm({ action, fields, toggle, enabled, readOnly, sectio
           );
         })}
       </fieldset>
+      <StepUpInput show={state.stepUp} />
       <Result state={state} />
       {!readOnly && <button type="submit" disabled={pending} className={buttonClass("primary", "md")}>{pending ? "Saving…" : "Save"}</button>}
       <p className="text-xs text-subtle">Empty fields use the hosting environment value or the default shown. Secrets are encrypted before they are stored and are never displayed again.</p>

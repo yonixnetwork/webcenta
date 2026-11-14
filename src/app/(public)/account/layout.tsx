@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AccountBackLink, AccountNav } from "@/components/account/account-nav";
+import { AccountBackLink, AccountBreadcrumb, AccountNav } from "@/components/account/account-nav";
 import { developerOrigin } from "@/lib/hosts";
 import { requireUser } from "@/server/auth/session";
 import { unreadCount } from "@/server/community/notifications";
@@ -16,12 +16,13 @@ export default async function AccountLayout({ children }: { children: React.Reac
   const unread = await unreadCount(user.id);
   return (
     <div className="grid min-w-0 gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
-      <aside className="hidden lg:block">
+      <aside className="hidden lg:sticky lg:top-24 lg:block lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto">
         <p className="mb-3 truncate text-sm text-muted">Signed in as <strong className="text-text">{user.email}</strong></p>
         <AccountNav unread={unread} developerUrl={developerOrigin()} />
       </aside>
       <div className="min-w-0 max-w-full space-y-6 [overflow-wrap:anywhere]">
         <AccountBackLink />
+        <AccountBreadcrumb />
         {children}
       </div>
     </div>

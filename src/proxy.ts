@@ -73,6 +73,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL("/__not-found", request.url), { status: 404 });
   }
 
+  // Search engine ownership files (Google HTML file, Bing XML file), public site only.
+  if (surface === "public" && (/^\/google[0-9a-f]{8,32}\.html$/.test(url.pathname) || url.pathname === "/BingSiteAuth.xml")) {
+    return NextResponse.rewrite(new URL(`/api/site-verification?f=${encodeURIComponent(url.pathname.slice(1))}`, request.url));
+  }
   // Ad frames (public site only) carry their own Content Security Policy; see src/app/ads/frame.
   if (surface === "public" && /^\/ads\/frame\/[a-z0-9]+$/.test(url.pathname)) return NextResponse.next();
   if (url.pathname.startsWith("/ads/")) return NextResponse.rewrite(new URL("/__not-found", request.url), { status: 404 });

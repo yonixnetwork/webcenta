@@ -351,6 +351,10 @@ model ListingRevision {
   data           Json
   /// Reviewer-visible notes from the submitter.
   submitterNotes String?        @db.Text
+  /// Developer's public "what changed" summary (shown to users who saved the app).
+  changeSummary  String?        @db.VarChar(300)
+  /// Fields that differ from the previously approved version (set on approval).
+  changedFields  Json?
   submittedById  String?
   submittedAt    DateTime?      @db.DateTime(3)
   reviewedById   String?

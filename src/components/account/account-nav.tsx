@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Bookmark, ChevronLeft, ChevronRight, Clock, Code2, Flag, FolderHeart, MessageSquareText, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
+import { ArrowLeft, Bell, Bookmark, ChevronLeft, ChevronRight, Clock, Code2, Flag, FolderHeart, House, MessageSquareText, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 
 /** Every section of the account area (one screen each on phones). */
@@ -25,6 +25,7 @@ export function AccountNav({ unread, developerUrl }: { unread: number; developer
   const path = usePathname() ?? "";
   return (
     <nav aria-label="Account" className="flex flex-col gap-0.5">
+      <Link href="/" className="mb-2 flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-semibold text-brand hover:border-brand"><ArrowLeft className="size-4" aria-hidden />Back to marketplace</Link>
       {ACCOUNT_SECTIONS.map(({ href, label, icon: Icon }) => {
         const active = isActive(path, href);
         return (
@@ -71,5 +72,19 @@ export function AccountBackLink() {
     <Link href="/account" className="-ml-1 inline-flex items-center gap-1 rounded-lg px-1 py-1 text-sm font-semibold text-brand lg:hidden">
       <ChevronLeft className="size-4" aria-hidden />Account
     </Link>
+  );
+}
+
+/** Desktop: "Home › Account › Section" above the section, so the way back is always visible. */
+export function AccountBreadcrumb() {
+  const path = usePathname() ?? "";
+  const section = ACCOUNT_SECTIONS.find((s) => isActive(path, s.href));
+  return (
+    <nav aria-label="Breadcrumb" className="hidden items-center gap-1.5 text-sm text-muted lg:flex">
+      <Link href="/" className="inline-flex items-center gap-1 hover:text-brand"><House className="size-3.5" aria-hidden />Home</Link>
+      <ChevronRight className="size-3.5" aria-hidden />
+      <Link href="/account/profile" className="hover:text-brand">Account</Link>
+      {section && <><ChevronRight className="size-3.5" aria-hidden /><span aria-current="page" className="font-medium text-text">{section.label}</span></>}
+    </nav>
   );
 }

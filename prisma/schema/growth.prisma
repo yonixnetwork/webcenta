@@ -115,6 +115,8 @@ model ImportCandidate {
   failedStage      String?      @db.VarChar(40)
   errorCategory    String?      @db.VarChar(40)
   retryable        Boolean      @default(true)
+  /// The existing listing this import duplicates (set by duplicate detection; never published).
+  duplicateOfListingId String?
   createdByAdminId String?
   createdAt        DateTime     @default(now()) @db.DateTime(3)
   processedAt      DateTime?    @db.DateTime(3)

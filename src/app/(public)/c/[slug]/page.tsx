@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { CategoryIcon } from "@/components/category-icon";
-import { Ad } from "@/components/ads/ad";
+import { AdBanner } from "@/components/ads/ad";
 import { FilterBar } from "@/components/filter-bar";
 import { Pagination } from "@/components/pagination";
 import { CardGrid } from "@/components/rail";
@@ -82,7 +82,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       ) : (
         <CardGrid items={result.items} />
       )}
-      <div className="flex justify-center"><Ad placement="mobile-compact" /><Ad placement="desktop-small" /><Ad placement="desktop-leaderboard" /></div>
+      <AdBanner page="browse" />
       <Pagination basePath={`/c/${cat.slug}`} filters={filters} page={result.page} pageCount={result.pageCount} omitCategory />
     </div>
   );

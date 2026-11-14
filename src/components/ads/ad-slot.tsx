@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/components/ui/cn";
 
+/** The manager's rules, enforced against the real layout in the browser (see src/server/ads/manager.ts). */
+export interface AdGuard { minSpacingPx: number; maxMobile: number; maxPage: number; mobile: boolean; desktop: boolean }
+
 export interface AdSlotProps {
   placement: string;
   unit: string;
@@ -14,7 +17,45 @@ export interface AdSlotProps {
   adsense?: { client: string; slot: string };
   adsterra?: { unit: string; isolation: "sandboxed" | "standard" };
   className?: string;
+  guard: AdGuard;
+  /** Compact native unit (app page): smaller reserved space and height cap. */
+  compact?: boolean;
 }
+
+/**
+ * Page-wide registry of ad slots. Slots register on mount; one evaluation pass, in document order,
+ * decides which may load: one instance per placement, at least `minSpacingPx` between ads, and no
+ * more than the page/screen maximum. Rejected slots collapse before anything is requested.
+ */
+type Entry = { id: string; placement: string; el: HTMLElement; guard: AdGuard; decide: (ok: boolean) => void; decided?: boolean; ok?: boolean };
+const registry = new Map<string, Entry>();
+let pending = 0;
+function evaluate() {
+  pending = 0;
+  const entries = [...registry.values()].sort((a, b) => (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+  const phone = window.innerWidth < 768;
+  const kept: Entry[] = entries.filter((e) => e.decided && e.ok);
+  const seen = new Set(kept.map((e) => e.placement));
+  for (const e of entries) {
+    if (e.decided) continue;
+    const g = e.guard;
+    const top = e.el.getBoundingClientRect().top + window.scrollY;
+    const tooClose = kept.some((k) => Math.abs(k.el.getBoundingClientRect().top + window.scrollY - top) < g.minSpacingPx);
+    const limit = phone ? Math.min(g.maxMobile, g.maxPage) : g.maxPage;
+    // Hidden for this screen size (CSS) or outside the unit's width range: not an ad on this page.
+    const shown = e.el.getClientRects().length > 0;
+    const ok = shown && (phone ? g.mobile : g.desktop) && !seen.has(e.placement) && !tooClose && kept.length < limit;
+    e.decided = true; e.ok = ok;
+    if (ok) { kept.push(e); seen.add(e.placement); }
+    e.decide(ok);
+  }
+}
+function register(e: Entry) {
+  registry.set(e.id, e);
+  if (!pending) pending = window.setTimeout(evaluate, 0);
+  return () => { registry.delete(e.id); };
+}
+let seq = 0;
 
 /** Static class names per breakpoint (Tailwind needs literal strings): wide units never show on phones. */
 function visibility(min: number, max?: number) {
@@ -60,11 +101,21 @@ export function AdSlot(p: AdSlotProps) {
   const box = useRef<HTMLDivElement>(null);
   const started = useRef(false);
   const [provider, setProvider] = useState<"adsense" | "adsterra" | "none">(p.provider);
-  const [frameHeight, setFrameHeight] = useState(p.height);
+  const reserved = p.compact ? 160 : p.height;
+  const [frameHeight, setFrameHeight] = useState(reserved);
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [instance] = useState(() => `ad-${++seq}`);
+
+  // Register with the page-wide guard; it decides once whether this slot may load.
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    return register({ id: instance, placement: p.placement, el, guard: p.guard, decide: (ok) => setAllowed(ok) });
+  }, [instance, p.placement, p.guard]);
 
   useEffect(() => {
     const el = box.current;
-    if (!el || started.current) return;
+    if (!el || started.current || allowed !== true) return;
     const fits = () => window.innerWidth >= p.minWidth && (p.maxWidth === undefined || window.innerWidth <= p.maxWidth);
     if (!fits()) return; // never load a unit that does not fit this screen
     let cancelled = false;
@@ -72,7 +123,7 @@ export function AdSlot(p: AdSlotProps) {
     const onMessage = (e: MessageEvent) => {
       if (!frame || e.source !== frame.contentWindow) return;
       const h = Number((e.data as { webcentaAd?: boolean; height?: number })?.height);
-      if ((e.data as { webcentaAd?: boolean })?.webcentaAd && h > 0) setFrameHeight(Math.min(900, Math.max(p.unit === "native" ? 120 : p.height, h)));
+      if ((e.data as { webcentaAd?: boolean })?.webcentaAd && h > 0) setFrameHeight(Math.min(p.compact ? 360 : 900, Math.max(p.unit === "native" ? 120 : p.height, h)));
     };
 
     const mountAdsterra = () => {
@@ -128,15 +179,16 @@ export function AdSlot(p: AdSlotProps) {
       window.removeEventListener("message", onMessage);
       el.querySelector("[data-ad-host]")?.replaceChildren();
     };
-  }, [p.placement, p.provider, p.unit, p.width, p.height, p.minWidth, p.maxWidth, p.adsense, p.adsterra]);
+  }, [allowed, p.placement, p.provider, p.unit, p.width, p.height, p.minWidth, p.maxWidth, p.adsense, p.adsterra, p.compact]);
 
-  if (provider === "none") return null;
+  if (provider === "none" || allowed === false) return null;
   return (
     <aside
       ref={box}
       aria-label="Advertisement"
       data-ad-placement={p.placement}
       data-ad-provider={provider}
+      data-ad-state={allowed === null ? "pending" : "allowed"}
       className={cn(visibility(p.minWidth, p.maxWidth), "w-full max-w-full flex-col items-center gap-1 overflow-hidden", p.className)}
     >
       <span className="text-[10px] font-semibold uppercase tracking-wider text-subtle">Advertisement</span>

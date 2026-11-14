@@ -10,9 +10,9 @@ import { getSection } from "@/server/settings/store";
  * push to the user's devices. Every push a user receives is therefore also in their notification
  * centre. `push: false` keeps it in-app only.
  */
-export async function notify(userId: string, n: { type: NotificationType; title: string; body?: string; linkPath?: string; email?: boolean; push?: boolean }) {
+export async function notify(userId: string, n: { type: NotificationType; title: string; body?: string; linkPath?: string; email?: boolean; push?: boolean; data?: Record<string, string> }) {
   const linkPath = n.linkPath && isSafeRelativePath(n.linkPath) ? n.linkPath : null;
-  const notification = await db.notification.create({ data: { userId, type: n.type, title: n.title, body: n.body ?? null, linkPath } });
+  const notification = await db.notification.create({ data: { userId, type: n.type, title: n.title, body: n.body ?? null, linkPath, ...(n.data ? { data: n.data } : {}) } });
   if (n.push !== false) await pushToUser(userId, { type: n.type, title: n.title, body: n.body ?? "", url: linkPath ?? "/account/notifications" }).catch(() => undefined);
   if (n.email !== false && (await getSection("notifications")).bool("emailUserNotifications")) {
     const user = await db.user.findUnique({ where: { id: userId }, select: { email: true, emailNotifications: true, status: true } });
@@ -89,18 +89,29 @@ export async function notifyNewApp(listingId: string, limit = 500): Promise<numb
 }
 
 /** A saved app was updated: tell the users who saved it (at most once a week per app). */
-export async function notifySavedAppUpdated(listingId: string, limit = 1000): Promise<number> {
+export async function notifySavedAppUpdated(listingId: string, revisionId?: string, limit = 1000): Promise<number> {
   const cfg = await getSection("engagement");
   if (!cfg.bool("savedUpdateAlerts")) return 0;
   const l = await db.listing.findUnique({ where: { id: listingId }, select: { name: true, slug: true, status: true } });
   if (!l || l.status !== "PUBLISHED") return 0;
+  const rev = revisionId ? await db.listingRevision.findUnique({ where: { id: revisionId }, select: { id: true, changeSummary: true, changedFields: true } }) : null;
+  const { describeChanges, isMeaningful } = await import("@/server/listings/changes");
+  const fields = Array.isArray(rev?.changedFields) ? (rev!.changedFields as string[]) : [];
+  // Only real updates (not tags, languages or other metadata) reach people.
+  if (rev && !isMeaningful(fields)) return 0;
   const path = `/app/${l.slug}`;
-  const since = new Date(Date.now() - 7 * 86_400_000);
+  const since = new Date(Date.now() - 86_400_000);
   const users = await db.user.findMany({
-    where: { status: "ACTIVE", notifySavedUpdates: true, favorites: { some: { listingId } }, notifications: { none: { type: "APP_UPDATE", linkPath: path, createdAt: { gte: since } } } },
+    where: {
+      status: "ACTIVE", notifySavedUpdates: true, favorites: { some: { listingId } },
+      // At most one update notification per app per day, and never twice for the same update.
+      notifications: { none: { type: "APP_UPDATE", linkPath: path, createdAt: { gte: since } } },
+      ...(rev ? { NOT: { notifications: { some: { type: "APP_UPDATE", data: { equals: { revisionId: rev.id } } } } } } : {}),
+    },
     select: { id: true }, take: limit,
   });
-  for (const u of users) await notify(u.id, { type: "APP_UPDATE", title: `${l.name} was updated`, body: "An app you saved has new details on Webcenta.", linkPath: path, email: false });
+  const body = (rev?.changeSummary?.trim() || describeChanges(fields)).slice(0, 280);
+  for (const u of users) await notify(u.id, { type: "APP_UPDATE", title: `${l.name} was updated`, body: `An app in your saved list has been updated. ${body}`, linkPath: path, email: false, ...(rev ? { data: { revisionId: rev.id } } : {}) });
   return users.length;
 }
 
