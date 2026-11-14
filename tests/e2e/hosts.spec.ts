@@ -58,6 +58,8 @@ test("sessions are isolated: marketplace and developer portal have separate host
   // Signing out of the developer portal leaves the marketplace session intact.
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL(/developers\.localhost:3100\/(signin.*)?$/);
+  // The page is already at "/" before sign-out finishes: wait until the session cookie is gone.
+  await expect.poll(async () => (await ctx.cookies(DEVHOST)).some((c) => c.name.endsWith("wcdev.session_token")), { timeout: 10_000 }).toBe(false);
   await page.goto(`${DEVHOST}/analytics`);
   await expect(page).toHaveURL(/developers\.localhost:3100\/signin/);
   await page.goto(`${BASE}/account`);
