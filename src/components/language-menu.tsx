@@ -2,6 +2,7 @@
 
 import { Globe, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useBarePathname, useI18n } from "@/i18n/client";
 import { LOCALE_COOKIE, localeInfo, localizePath, matchLanguage } from "@/i18n/locales";
 import { saveLocaleAction } from "@/server/actions/locale";
@@ -61,7 +62,8 @@ export function LanguageMenu() {
         className="grid size-10 place-items-center rounded-xl text-muted hover:bg-surface-2 hover:text-text">
         <Globe className="size-5" aria-hidden />
       </button>
-      {open && (
+      {/* A portal: the header's backdrop-filter would otherwise become the containing block of this fixed overlay. */}
+      {open && createPortal(
         <div className="fixed inset-0 z-[60] grid place-items-end bg-black/40 sm:place-items-center" onClick={() => setOpen(false)}>
           <div ref={panel} role="dialog" aria-modal="true" aria-labelledby="lang-title" onClick={(e) => e.stopPropagation()}
             className="max-h-[80dvh] w-full overflow-y-auto rounded-t-3xl bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-pop sm:max-w-lg sm:rounded-2xl">
@@ -83,7 +85,8 @@ export function LanguageMenu() {
               })}
             </ul>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

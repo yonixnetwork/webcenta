@@ -7,6 +7,11 @@ import { db } from "@/server/db";
 import type { CurrentUser } from "@/server/auth/session";
 import { enabledSocialProviders } from "@/server/auth/user-auth";
 import { updateProfileAction } from "@/server/actions/user";
+import { LanguageSelect } from "@/components/language-menu";
+import { viewerCountry } from "@/server/viewer";
+import { countryName, currencyForCountry } from "@/i18n/format";
+import { getLocale } from "@/i18n/server";
+import { localeInfo } from "@/i18n/locales";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:gap-4"><dt className="w-40 shrink-0 text-sm text-muted">{label}</dt><dd className="min-w-0 text-sm font-medium [overflow-wrap:anywhere]">{children}</dd></div>;
@@ -14,7 +19,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 /** Profile: the details as they are, with "Edit profile" to change them. */
 export async function ProfileSection({ user }: { user: CurrentUser }) {
-  const created = await db.user.findUnique({ where: { id: user.id }, select: { createdAt: true } });
+  const [created, geo, locale] = await Promise.all([db.user.findUnique({ where: { id: user.id }, select: { createdAt: true } }), viewerCountry(), getLocale()]);
+  const currency = currencyForCountry(geo.region);
   return (
     <Card>
       <h2 className="mb-2 font-semibold">Profile</h2>
@@ -22,15 +28,17 @@ export async function ProfileSection({ user }: { user: CurrentUser }) {
         <dl className="divide-y divide-border">
           <Row label="Display name">{user.name}</Row>
           <Row label="Email">{user.email}</Row>
-          <Row label="Country">{user.preferredCountry || <span className="text-muted">Not set (detected automatically)</span>}</Row>
+          <Row label="Language">{localeInfo(user.locale ?? locale).native}</Row>
+          <Row label="Region">{user.preferredCountry ? countryName(locale, user.preferredCountry) : <span className="text-muted">Automatic{geo.detected ? ` (${countryName(locale, geo.detected)})` : " (not detected)"}</span>}{currency ? <span className="text-muted"> · {currency}</span> : null}</Row>
           <Row label="Member since">{formatDate(created?.createdAt ?? null)}</Row>
         </dl>
       }>
         <ActionForm action={updateProfileAction} submitLabel="Save profile">
           <Field label="Display name" hint="Shown next to your reviews."><input name="name" required maxLength={80} defaultValue={user.name} className={inputClass} /></Field>
           <Field label="Email"><input value={user.email} disabled className={inputClass} readOnly /></Field>
-          <Field label="Country (optional, ISO code)" hint="Used to show apps available to you when we cannot detect your country."><input name="preferredCountry" maxLength={2} defaultValue={user.preferredCountry ?? ""} className={`${inputClass} uppercase`} /></Field>
+          <Field label="Region (optional, two-letter country code)" hint="Leave empty to use the country detected from your connection. Your region is used for regional settings and recommendations. Restrictions that apply where you are still apply; choosing another region never removes them."><input name="preferredCountry" maxLength={2} defaultValue={user.preferredCountry ?? ""} className={`${inputClass} uppercase`} /></Field>
         </ActionForm>
+        <LanguageSelect className="mt-4" />
       </Reveal>
     </Card>
   );
