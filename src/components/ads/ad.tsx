@@ -3,6 +3,11 @@ import { CONSENT_COOKIE, parseConsent } from "@/lib/consent";
 import { resolvePlacement, type PlacementId } from "@/server/ads/placements";
 import { adPolicy, type AdPage } from "@/server/ads/manager";
 import { AdSlot, type AdGuard } from "./ad-slot";
+import { adsAllowedForContent, type AdContentContext } from "@/server/ads/content-policy";
+import { combineRules, countryRules } from "@/server/geo/country-policy";
+import { viewerCountry } from "@/server/viewer";
+import { getSection } from "@/server/settings/store";
+import { getT } from "@/i18n/server";
 
 async function guardFor(page: AdPage): Promise<AdGuard> {
   const p = await adPolicy();
@@ -18,12 +23,28 @@ async function consented() {
  * provider configured, the visitor accepted advertising cookies) and which provider fills it.
  * The placement manager's rules travel with it and are enforced again in the browser.
  */
-export async function Ad({ placement, page, className, compact }: { placement: PlacementId; page: AdPage; className?: string; compact?: boolean }) {
+/**
+ * Country and content rules for advertising: no ads for countries switched off in Admin →
+ * Country policies (or when the country is unknown, if the ad content policy says so), and only
+ * the providers allowed there. Restrictions of the detected and the chosen country both apply.
+ */
+export async function adEligibility(content?: AdContentContext): Promise<{ allowed: boolean; disabledProviders: string[] }> {
+  if (!(await adsAllowedForContent(content))) return { allowed: false, disabledProviders: [] };
+  const [{ detected, chosen }, policy] = await Promise.all([viewerCountry(), getSection("adPolicy")]);
+  if (!detected && policy.str("unknownCountryAds") === "deny") return { allowed: false, disabledProviders: [] };
+  const rule = combineRules(await countryRules(), [detected, chosen]);
+  return { allowed: !rule.adsDisabled, disabledProviders: rule.disabledProviders };
+}
+
+export async function Ad({ placement, page, className, compact, content }: { placement: PlacementId; page: AdPage; className?: string; compact?: boolean; content?: AdContentContext }) {
   if (!(await consented())) return null;
-  const r = await resolvePlacement(placement).catch(() => null);
+  const eligible = await adEligibility(content).catch(() => ({ allowed: false, disabledProviders: [] }));
+  if (!eligible.allowed) return null;
+  const r = await resolvePlacement(placement, { disabledProviders: eligible.disabledProviders }).catch(() => null);
   if (!r) return null;
-  const guard = await guardFor(page);
-  return <AdSlot placement={r.id} unit={r.unit} width={r.width} height={r.height} minWidth={r.minWidth} maxWidth={r.maxWidth} provider={r.provider} adsense={r.adsense} adsterra={r.adsterra} className={className} guard={guard} compact={compact} />;
+  const [guard, t] = await Promise.all([guardFor(page), getT("common")]);
+  return <AdSlot placement={r.id} unit={r.unit} width={r.width} height={r.height} minWidth={r.minWidth} maxWidth={r.maxWidth} provider={r.provider} adsense={r.adsense} adsterra={r.adsterra} className={className} guard={guard} compact={compact}
+    labels={{ ad: t("ads.label"), report: t("ads.report") }} page={page} />;
 }
 
 /**

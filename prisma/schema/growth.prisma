@@ -92,34 +92,34 @@ enum ImportStatus {
 /// A web app waiting to be imported automatically (site details, logo and screenshots are
 /// fetched from the site itself, then it goes through the normal security checks).
 model ImportCandidate {
-  id               String       @id @default(uuid(7))
+  id                   String       @id @default(uuid(7))
   /// SHA-256 of the normalised URL.
-  urlHash          String       @unique @db.Char(64)
-  url              String       @db.VarChar(2000)
-  domain           String       @db.VarChar(253)
+  urlHash              String       @unique @db.Char(64)
+  url                  String       @db.VarChar(2000)
+  domain               String       @db.VarChar(253)
   /// Category slug to file it under (a top-level or a subcategory).
-  categorySlug     String?      @db.VarChar(191)
+  categorySlug         String?      @db.VarChar(191)
   /// Optional name and summary from the person or list that suggested it.
-  name             String?      @db.VarChar(120)
-  note             String?      @db.Text
+  name                 String?      @db.VarChar(120)
+  note                 String?      @db.Text
   /// "catalogue" (Webcenta's researched list) or "admin".
-  source           String       @default("admin") @db.VarChar(40)
-  status           ImportStatus @default(QUEUED)
+  source               String       @default("admin") @db.VarChar(40)
+  status               ImportStatus @default(QUEUED)
   /// Never publish automatically: always wait for a moderator ("Send for review").
-  reviewRequired   Boolean      @default(false)
-  priority         Int          @default(0)
-  attempts         Int          @default(0)
-  listingId        String?
-  lastError        String?      @db.Text
+  reviewRequired       Boolean      @default(false)
+  priority             Int          @default(0)
+  attempts             Int          @default(0)
+  listingId            String?
+  lastError            String?      @db.Text
   /// Where the last attempt failed (fetch, metadata, duplicate, category, listing, checks) and why.
-  failedStage      String?      @db.VarChar(40)
-  errorCategory    String?      @db.VarChar(40)
-  retryable        Boolean      @default(true)
+  failedStage          String?      @db.VarChar(40)
+  errorCategory        String?      @db.VarChar(40)
+  retryable            Boolean      @default(true)
   /// The existing listing this import duplicates (set by duplicate detection; never published).
   duplicateOfListingId String?
-  createdByAdminId String?
-  createdAt        DateTime     @default(now()) @db.DateTime(3)
-  processedAt      DateTime?    @db.DateTime(3)
+  createdByAdminId     String?
+  createdAt            DateTime     @default(now()) @db.DateTime(3)
+  processedAt          DateTime?    @db.DateTime(3)
 
   @@index([status, priority, createdAt])
   @@index([domain])

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { notFound } from "next/navigation";
 import { ArrowUpRight, ExternalLink, TriangleAlert } from "lucide-react";
 import { AppIcon } from "@/components/app-icon";
@@ -30,14 +30,14 @@ export default async function GoPage({ params, searchParams }: Props) {
         <p className="mt-2 text-muted">You are about to visit <strong className="text-text">{listing.name}</strong> by {listing.publisherName} at</p>
         <p className="mt-3 inline-flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-2 font-mono text-sm"><ExternalLink className="size-4" aria-hidden />{domain}</p>
         {caution && (
-          <p role="alert" className="mt-5 flex gap-2 rounded-xl bg-warning-soft p-3 text-left text-sm text-warning">
+          <p role="alert" className="mt-5 flex gap-2 rounded-xl bg-warning-soft p-3 text-start text-sm text-warning">
             <TriangleAlert className="size-5 shrink-0" aria-hidden /> {SECURITY_LABEL[listing.securityStatus].detail}
           </p>
         )}
         {isSampleListing(listing.slug) && (
           <p className="mt-5 rounded-xl bg-warning-soft p-3 text-sm text-warning">Sample listing — the destination is a reserved “.example” address and will not load.</p>
         )}
-        <p className="mt-5 text-left text-xs leading-relaxed text-subtle">
+        <p className="mt-5 text-start text-xs leading-relaxed text-subtle">
           Webcenta does not operate or control external websites. Check the address before entering passwords or payment details.
           Automated checks reduce risk but cannot guarantee a website is safe.
         </p>

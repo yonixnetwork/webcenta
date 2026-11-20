@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/components/ui/cn";
+import { Link, useBarePathname } from "@/i18n/client";
 
 /** The manager's rules, enforced against the real layout in the browser (see src/server/ads/manager.ts). */
 export interface AdGuard { minSpacingPx: number; maxMobile: number; maxPage: number; mobile: boolean; desktop: boolean }
@@ -20,6 +21,9 @@ export interface AdSlotProps {
   guard: AdGuard;
   /** Compact native unit (app page): smaller reserved space and height cap. */
   compact?: boolean;
+  /** Translated "Advertisement" / "Report this ad". */
+  labels?: { ad: string; report: string };
+  page?: string;
 }
 
 /**
@@ -105,6 +109,7 @@ export function AdSlot(p: AdSlotProps) {
   const [frameHeight, setFrameHeight] = useState(reserved);
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [instance] = useState(() => `ad-${++seq}`);
+  const path = useBarePathname();
 
   // Register with the page-wide guard; it decides once whether this slot may load.
   useEffect(() => {
@@ -185,13 +190,16 @@ export function AdSlot(p: AdSlotProps) {
   return (
     <aside
       ref={box}
-      aria-label="Advertisement"
+      aria-label={p.labels?.ad ?? "Advertisement"}
       data-ad-placement={p.placement}
       data-ad-provider={provider}
       data-ad-state={allowed === null ? "pending" : "allowed"}
       className={cn(visibility(p.minWidth, p.maxWidth), "w-full max-w-full flex-col items-center gap-1 overflow-hidden", p.className)}
     >
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-subtle">Advertisement</span>
+      <span className="flex w-full max-w-[728px] items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-subtle" style={{ maxWidth: p.width || undefined }}>
+        <span>{p.labels?.ad ?? "Advertisement"}</span>
+        <Link href={`/report-ad?placement=${encodeURIComponent(p.placement)}&provider=${provider}&from=${encodeURIComponent(path)}`} rel="nofollow" className="font-medium normal-case tracking-normal hover:text-text hover:underline">{p.labels?.report ?? "Report this ad"}</Link>
+      </span>
       <div
         data-ad-host
         className="flex max-w-full items-start justify-center overflow-hidden rounded-xl bg-surface-2/60"

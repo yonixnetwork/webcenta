@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { SlidersHorizontal, X } from "lucide-react";
 import { PLATFORM_LABEL, PRICING_LABEL } from "@/lib/labels";
 import { PLATFORMS, PRICING, type SearchFilters } from "@/lib/search-params";
@@ -33,7 +33,7 @@ export function FilterBar({ basePath, filters, total, hideCategory = false, cate
   return (
     <form action={basePath} method="get" className="relative flex flex-wrap items-center gap-2">
       {filters.q && <input type="hidden" name="q" value={filters.q} />}
-      <p className="mr-auto text-sm text-muted" aria-live="polite"><span className="font-semibold text-text">{total}</span> {total === 1 ? "result" : "results"}</p>
+      <p className="me-auto text-sm text-muted" aria-live="polite"><span className="font-semibold text-text">{total}</span> {total === 1 ? "result" : "results"}</p>
       <label className="text-sm">
         <span className="sr-only">Sort by</span>
         <SortSelect name="sort" defaultValue={filters.sort ?? sorts[0]} className={selectClass}>
@@ -48,7 +48,7 @@ export function FilterBar({ basePath, filters, total, hideCategory = false, cate
         {/* Phones: dimmed backdrop + bottom sheet. Larger screens: a panel below the bar. */}
         <CloseFilters label="Close filters" className="fixed inset-0 z-[55] bg-black/40 sm:hidden" />
         <div data-filter-panel role="group" aria-label="Filters"
-          className="fixed inset-x-0 bottom-0 z-[60] flex max-h-[85dvh] flex-col rounded-t-3xl border border-border bg-surface shadow-pop sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-11 sm:max-h-[70vh] sm:w-[min(36rem,calc(100vw-3rem))] sm:rounded-2xl">
+          className="fixed inset-x-0 bottom-0 z-[60] flex max-h-[85dvh] flex-col rounded-t-3xl border border-border bg-surface shadow-pop sm:absolute sm:inset-x-auto sm:bottom-auto sm:end-0 sm:top-11 sm:max-h-[70vh] sm:w-[min(36rem,calc(100vw-3rem))] sm:rounded-2xl">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <p className="font-semibold">Filters</p>
             <CloseFilters label="Close" className="grid size-8 place-items-center rounded-full hover:bg-surface-2"><X className="size-4" aria-hidden /></CloseFilters>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useLocalizedRouter as useRouter } from "@/i18n/client";
 import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "./ui/cn";
 
@@ -72,7 +72,7 @@ export function SearchBox({ defaultValue = "", suggested = [], size = "md", auto
           if (term) go(`/search?q=${encodeURIComponent(term)}`);
         }}>
         <label htmlFor={`${listId}-input`} className="sr-only">Search web apps</label>
-        <Search className={cn("pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-subtle", size === "lg" ? "size-5" : "size-4")} aria-hidden />
+        <Search className={cn("pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-subtle", size === "lg" ? "size-5" : "size-4")} aria-hidden />
         <input
           id={`${listId}-input`}
           name="q"
@@ -112,7 +112,7 @@ export function SearchBox({ defaultValue = "", suggested = [], size = "md", auto
         />
         {q && (
           <button type="button" aria-label="Clear search" onClick={() => { setQ(""); setActive(-1); }}
-            className="absolute right-3 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-lg text-subtle hover:bg-surface-2 hover:text-text">
+            className="absolute end-3 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-lg text-subtle hover:bg-surface-2 hover:text-text">
             <X className="size-4" aria-hidden />
           </button>
         )}

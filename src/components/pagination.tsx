@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { filtersToQuery, type SearchFilters } from "@/lib/search-params";
 import { cn } from "./ui/cn";
 

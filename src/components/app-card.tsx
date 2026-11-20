@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { BadgeCheck, Star } from "lucide-react";
 import type { ListingCard } from "@/server/catalog/listings";
 import { PRICING_LABEL, isSampleListing } from "@/lib/labels";
@@ -33,7 +33,7 @@ export function AppCard({ app, sponsored = false, compact = false }: { app: List
         {visitMilestone(app.visitCount) && <Badge tone="outline">{visitMilestone(app.visitCount)}</Badge>}
         {app.isOpenSource && <Badge tone="brand">Open source</Badge>}
         {showRating && (
-          <span className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-muted">
+          <span className="ms-auto inline-flex items-center gap-1 text-xs font-medium text-muted">
             <Star className="size-3.5 fill-current text-amber-500" aria-hidden />
             <span className="sr-only">Rated </span>{app.ratingAverage.toFixed(1)}<span className="sr-only"> out of 5 from</span> <span className="text-subtle">({app.ratingCount}<span className="sr-only"> review{app.ratingCount === 1 ? "" : "s"}</span>)</span>
           </span>

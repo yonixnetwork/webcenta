@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "@/i18n/client";
+import { useLocalizedRouter as useRouter } from "@/i18n/client";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { MIN_SIGNUP_AGE, ageOn, parseBirthDate } from "@/lib/age";

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { EmptyState } from "@/components/states";
 import { ActionForm } from "@/components/ui/action-form";
 import { Badge } from "@/components/ui/badge";

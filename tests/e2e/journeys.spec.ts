@@ -54,7 +54,7 @@ test("1. visitor discovers an app, opens its details and visits the official web
   await expect(page.getByRole("heading", { level: 1, name: "Skyline Weather" })).toBeVisible();
   await expect(page.getByText("Trust & safety")).toBeVisible();
   const before = Number((await sql<{ n: string }>(`select count(*) n from "ListingEvent" le join "Listing" l on l.id = le."listingId" where l.slug = 'sample-skyline-weather' and le.type = 'OUTBOUND_CLICK'`))[0]!.n);
-  await page.getByRole("link", { name: /Visit website/ }).click();
+  await page.getByRole("link", { name: /Visit Official Website/i }).click();
   await expect(page.getByRole("heading", { name: "You’re leaving Webcenta" })).toBeVisible();
   await page.getByRole("button", { name: /Continue to good-app.localhost/ }).click();
   await page.waitForURL("https://good-app.localhost/");
@@ -215,7 +215,7 @@ test("5. a developer views analytics after users visit and click their applicati
     const second = p.waitForResponse((r) => r.url().includes("/api/events/view"));
     await p.reload(); // duplicate view within 30 min: must not be counted twice
     expect((await second).ok()).toBe(true);
-    await p.getByRole("link", { name: /Visit website/ }).click();
+    await p.getByRole("link", { name: /Visit Official Website/i }).click();
     await p.getByRole("button", { name: /Continue to/ }).click();
     await p.waitForURL(`https://${APP.host}/`);
     await p.context().close();

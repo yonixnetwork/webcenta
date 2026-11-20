@@ -20,6 +20,7 @@
     "build": "prisma generate && next build --webpack",
     "start": "node .next/standalone/server.js",
     "lint": "eslint .",
+    "i18n:check": "node scripts/i18n-check.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "db:seed": "tsx scripts/seed.ts",

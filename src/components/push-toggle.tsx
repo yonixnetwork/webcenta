@@ -23,7 +23,7 @@ export function PushToggle() {
   if (state === "ios-install") return (
     <div className="space-y-1 text-sm text-muted" data-testid="push-ios-install">
       <p><strong className="text-text">On iPhone and iPad, notifications only work in the Webcenta app on your Home Screen.</strong></p>
-      <ol className="list-decimal space-y-0.5 pl-5">
+      <ol className="list-decimal space-y-0.5 ps-5">
         <li>In Safari, tap <strong>Share</strong> and choose <strong>Add to Home Screen</strong>.</li>
         <li>Open Webcenta from the new Home Screen icon and sign in.</li>
         <li>Come back here and tap <strong>Turn on notifications</strong>, then allow them.</li>
@@ -46,7 +46,7 @@ export function PushToggle() {
             else setMsg({ ok: false, text: "Could not turn on notifications. Please try again." });
           } finally { setBusy(false); }
         }}>
-          {state === "on" ? <><BellOff className="mr-1.5 inline size-4" aria-hidden />Turn off notifications on this device</> : <><Bell className="mr-1.5 inline size-4" aria-hidden />Turn on notifications on this device</>}
+          {state === "on" ? <><BellOff className="me-1.5 inline size-4" aria-hidden />Turn off notifications on this device</> : <><Bell className="me-1.5 inline size-4" aria-hidden />Turn on notifications on this device</>}
         </button>
       </div>
       {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "text-sm text-success" : "text-sm text-danger"}>{msg.text}</p>}

@@ -4,7 +4,8 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { db } from "@/server/db";
 import { rateLimit } from "@/server/rate-limit";
-import { clientIp, networkSettings } from "@/server/viewer";
+import { clientIp, networkSettings, viewerCountry } from "@/server/viewer";
+import { AD_REPORT_REASONS } from "@/lib/ad-report";
 import { dailySalt, visitorHash } from "@/server/analytics/visitor";
 import { getCurrentUser } from "@/server/auth/session";
 import { notifyAdmins } from "@/server/scanner/monitor";
@@ -67,4 +68,27 @@ export async function appealAction(target: { listingId?: string; reviewId?: stri
   await audit({ actorType: "USER", actorUserId: user.id, action: "appeal.create", targetType: "Appeal", targetId: a.id });
   await notifyAdmins("New appeal", "A user submitted an appeal against a moderation decision.", "/appeals");
   return { ok: true, message: "Appeal submitted. A different moderator will review it." };
+}
+
+/**
+ * A visitor's report about an ad. Only where and when it appeared, the reason and the visitor's
+ * own description are stored, with the country code (never the IP address).
+ */
+export async function adReportAction(_s: ActionState, f: FormData): Promise<ActionState> {
+  if (f.get("website")) return { ok: true, message: "Thank you. Our team will review this ad." };
+  const parsed = z.object({
+    placement: z.string().regex(/^[a-z0-9-]{2,40}$/),
+    provider: z.enum(["adsense", "adsterra", "unknown"]),
+    from: z.string().max(300).regex(/^\/[^\s]*$/),
+    reason: z.enum(AD_REPORT_REASONS.map(([k]) => k) as [string, ...string[]]),
+    details: z.string().trim().max(1000).optional(),
+  }).safeParse({ placement: f.get("placement"), provider: f.get("provider") || "unknown", from: f.get("from") || "/", reason: f.get("reason"), details: (f.get("details") as string | null) || undefined });
+  if (!parsed.success) return { ok: false, message: "Please choose what was wrong with the ad." };
+  const h = await headers();
+  const who = visitorHash(await dailySalt(), clientIp(h, (await networkSettings()).trustedProxyHops), h.get("user-agent"), "ad-report");
+  if (!(await rateLimit(`ad-report:${who}`, 10, 3600))) return { ok: false, message: "Too many reports. Please try again later." };
+  const { detected } = await viewerCountry();
+  await db.adReport.create({ data: { placement: parsed.data.placement, provider: parsed.data.provider, pagePath: parsed.data.from.slice(0, 300), country: detected, reason: parsed.data.reason, details: parsed.data.details ?? null } });
+  await notifyAdmins("Ad reported", `A visitor reported an ad (${parsed.data.reason}) in the ${parsed.data.placement} placement.`, "/ad-reports").catch(() => undefined);
+  return { ok: true, message: "Thank you. Our team will review this ad and block it with the provider if needed." };
 }

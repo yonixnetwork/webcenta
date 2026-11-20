@@ -16,12 +16,12 @@ export function AddToCollection({ slug, collections }: { slug: string; collectio
         <FolderPlus className="size-4" aria-hidden /> Add to collection
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-2 w-72 space-y-3 rounded-2xl border border-border bg-surface p-3 shadow-pop">
+        <div className="absolute end-0 z-30 mt-2 w-72 space-y-3 rounded-2xl border border-border bg-surface p-3 shadow-pop">
           {collections.length > 0 && (
             <ul className="max-h-48 space-y-1 overflow-auto">
               {collections.map((c) => (
                 <li key={c.id}>
-                  <button type="button" disabled={pending} className="w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-surface-2"
+                  <button type="button" disabled={pending} className="w-full rounded-lg px-2 py-1.5 text-start text-sm hover:bg-surface-2"
                     onClick={() => start(async () => setMsg((await addToCollectionAction(c.id, slug)).message))}>{c.title}</button>
                 </li>
               ))}

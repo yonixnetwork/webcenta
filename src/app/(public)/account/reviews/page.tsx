@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { EmptyState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/labels";
@@ -23,7 +23,7 @@ export default async function MyReviewsPage() {
                 <span className="text-sm text-amber-500" aria-label={`${r.rating} out of 5`}>{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
                 {r.status !== "PUBLISHED" && <Badge tone="warning">{r.status === "HELD_FOR_MODERATION" ? "Awaiting moderation" : r.status.toLowerCase()}</Badge>}
                 {r.reply && <Badge tone="brand">Developer replied</Badge>}
-                <span className="ml-auto text-xs text-subtle">{formatDate(r.createdAt)}</span>
+                <span className="ms-auto text-xs text-subtle">{formatDate(r.createdAt)}</span>
               </div>
               {r.body && <p className="mt-2 line-clamp-3 text-sm text-muted">{r.body}</p>}
               {(r.status === "HIDDEN" || r.status === "REMOVED") && (

@@ -8,6 +8,14 @@
  * nothing has been saved, so existing deployments keep working.
  */
 import { validateApplePrivateKey } from "@/server/auth/apple";
+import { LOCALES } from "@/i18n/locales";
+
+/** Rejects unknown language codes in a comma-separated list. */
+function validateLocaleList(value: string): string | null {
+  const known = new Set(LOCALES.map((l) => l.code.toLowerCase()));
+  const bad = value.split(/[\s,]+/).filter(Boolean).filter((c) => !known.has(c.toLowerCase()));
+  return bad.length ? `Unknown language code${bad.length > 1 ? "s" : ""}: ${bad.slice(0, 5).join(", ")}. See Admin → Languages for the supported codes.` : null;
+}
 
 
 export type FieldType = "text" | "secret" | "url" | "email" | "number" | "boolean" | "select" | "textarea" | "color";
@@ -118,6 +126,21 @@ export const SECTIONS: SectionDef[] = [
       { key: "allowIndexing", label: "Allow search engines to index the site", help: "Turn off for a staging copy. When off, robots.txt disallows everything and pages carry noindex.", type: "boolean", default: true },
       { key: "ogImageUrl", label: "Default social preview image", help: "An https:// image (1200×630 recommended) used when a page has no image of its own.", type: "url", pattern: HTTPS_URL },
       { key: "twitterHandle", label: "X (Twitter) handle", help: "Without @, used for Twitter cards.", type: "text", pattern: { source: "^[A-Za-z0-9_]{1,15}$", message: "1–15 letters, digits or underscores, without @." } },
+    ],
+  },
+  {
+    id: "i18n",
+    group: "Application and website",
+    title: "Languages & international SEO",
+    description: "Which languages visitors can choose, which are offered to search engines (hreflang and sitemap), and language suggestions.",
+    usedBy: "The language selector, /<language>/ URLs, hreflang tags, the sitemap and the translation dashboard (Admin → Languages).",
+    permission: "settings.manage",
+    apply: "immediate",
+    fields: [
+      { key: "enabledLocales", label: "Languages visitors can choose", help: "Language codes separated by commas, e.g. es, fr, de, ja, zh-Hans, ar. English is always on. A language with incomplete translations shows English for the missing text.", type: "textarea", default: "es, fr, de, pt-BR, it, nl, ru, ja, zh-Hans, ko, ar, hi, tr, pl", max: 600, validate: validateLocaleList },
+      { key: "indexedLocales", label: "Languages offered to search engines", help: "A subset of the languages above that get hreflang tags and sitemap entries. Leave out languages whose translations have not been reviewed if you prefer not to index them yet.", type: "textarea", default: "es, fr, de, pt-BR, it, nl, ru, ja, zh-Hans, ko, ar, hi, tr, pl", max: 600, validate: validateLocaleList },
+      { key: "indexListings", label: "Index app pages in other languages", help: "App descriptions are written by developers in one language and are shown untranslated (labelled). When off, translated app pages carry noindex and are left out of the sitemap; category and home pages are still indexed.", type: "boolean", default: true },
+      { key: "suggestLanguage", label: "Suggest the browser's language", help: "Shows a small, dismissible “View Webcenta in …?” prompt. It never redirects.", type: "boolean", default: true },
     ],
   },
   {
@@ -552,6 +575,32 @@ export const SECTIONS: SectionDef[] = [
     ],
   },
   {
+    id: "adPolicy",
+    group: "Advertising",
+    title: "Ad content policy",
+    description: "Brand-safety rules for advertising: which ad categories must be blocked, where ads are switched off, and the advertisers you have blocked.",
+    usedBy: "Every ad placement. Webcenta enforces what it controls (no ads next to listings in blocked categories, no ads for countries or providers switched off in Admin → Country policies, no ads when the country is unknown if you choose so). What the creative itself shows is chosen by the provider: the categories below must also be blocked in the AdSense and Adsterra dashboards — see the checklist in Admin → Ad reports.",
+    permission: "settings.manage",
+    apply: "immediate",
+    warning: "Webcenta cannot see or filter the creative inside an ad frame. Blocking a category here removes ads from pages about that category and records your policy; the provider's own blocking controls decide which ads are served.",
+    fields: [
+      { key: "blockGambling", label: "Gambling and casinos", help: "Also hides ads on listings in gambling categories.", type: "boolean", default: true },
+      { key: "blockBetting", label: "Sports betting", help: "", type: "boolean", default: true },
+      { key: "blockAdult", label: "Adult and sexual content", help: "", type: "boolean", default: true },
+      { key: "blockDating", label: "Dating", help: "", type: "boolean", default: true },
+      { key: "blockCrypto", label: "Cryptocurrency, forex and other high-risk or unregulated financial products", help: "", type: "boolean", default: true },
+      { key: "blockDownloads", label: "Misleading download buttons and software bundles", help: "", type: "boolean", default: true },
+      { key: "blockScareware", label: "Fake system warnings, scareware and fake virus alerts", help: "", type: "boolean", default: true },
+      { key: "blockMalware", label: "Malware, phishing and fraud", help: "Always blocked; listed for the provider checklist.", type: "boolean", default: true },
+      { key: "blockWeapons", label: "Weapons, drugs, tobacco and alcohol", help: "", type: "boolean", default: true },
+      { key: "blockPolitical", label: "Political and religious advertising", help: "", type: "boolean", default: true },
+      { key: "unknownCountryAds", label: "Ads when the country is unknown", help: "Show the brand-safe default, or no ads at all, when the visitor's country cannot be detected.", type: "select", default: "allow", options: [{ value: "allow", label: "Show ads (brand-safe default)" }, { value: "deny", label: "No ads" }] },
+      { key: "blockedAdvertisers", label: "Blocked advertiser domains", help: "One domain per line. Enter the same list in AdSense (Blocking controls → Advertiser URLs) and send it to Adsterra support; Webcenta cannot block creatives itself.", type: "textarea", max: 5000 },
+      { key: "adsenseConfirmedAt", label: "AdSense blocking controls last checked (date)", help: "YYYY-MM-DD, when you last confirmed the categories above are blocked in AdSense.", type: "text", pattern: { source: "^(\\d{4}-\\d{2}-\\d{2})?$", message: "A date such as 2026-11-14." } },
+      { key: "adsterraConfirmedAt", label: "Adsterra category settings last checked (date)", help: "YYYY-MM-DD, when you last confirmed the categories above with Adsterra (dashboard or support).", type: "text", pattern: { source: "^(\\d{4}-\\d{2}-\\d{2})?$", message: "A date such as 2026-11-14." } },
+    ],
+  },
+  {
     id: "ads",
     group: "Advertising",
     title: "Ad placements",
@@ -566,7 +615,7 @@ export const SECTIONS: SectionDef[] = [
       { key: "preferredProvider", label: "Preferred provider", help: "AdSense is used only when it is enabled, your site is approved and the placement has an AdSense ad unit ID.", type: "select", default: "adsense", options: [{ value: "adsense", label: "Google AdSense when approved, otherwise Adsterra" }, { value: "adsterra", label: "Adsterra only" }] },
       { key: "adsenseApproved", label: "My AdSense site and ad units are approved", help: "Tick only after Google has approved webcenta.com in AdSense (Sites → Ready) and you created the ad units below. Entering a publisher ID alone does not mean the site is approved.", type: "boolean", default: false },
       { key: "maxAdsHome", label: "Most ads on the homepage", help: "1–4 (default 3). The homepage never shows more, however many sections it has.", type: "number", default: 3, min: 1, max: 4 },
-      { key: "maxAdsListing", label: "Most ads on an app page", help: "1–3 (default 3, including the sidebar on wide screens).", type: "number", default: 3, min: 1, max: 3 },
+      { key: "maxAdsListing", label: "Most ads on an app page", help: "1–2 (default 2, including the sidebar on wide screens). Detail pages never show more than two.", type: "number", default: 2, min: 1, max: 2 },
       { key: "maxAdsBrowse", label: "Most ads on search, category and Apps pages", help: "1–2 (default 1).", type: "number", default: 1, min: 1, max: 2 },
       { key: "maxAdsMobile", label: "Most ads on a phone screen", help: "1–3 (default 2), for screens narrower than 768 px.", type: "number", default: 2, min: 1, max: 3 },
       { key: "minSpacingPx", label: "Minimum distance between ads (px)", help: "400–2000 (default 700). An ad closer than this to another ad on the page is not loaded.", type: "number", default: 700, min: 400, max: 2000 },
@@ -576,7 +625,7 @@ export const SECTIONS: SectionDef[] = [
       { key: "homeNative", label: "Homepage native placement", help: "Native banner between homepage sections (all screens).", type: "boolean", default: true },
       { key: "homeDisplay", label: "Homepage display placement", help: "300 × 250 between homepage sections (all screens).", type: "boolean", default: true },
       { key: "listing", label: "App page placement", help: "300 × 250 at the end of an app page, after the reviews.", type: "boolean", default: true },
-      { key: "listingNative", label: "App page compact sponsored placement", help: "A compact, clearly labelled sponsored native unit after an app's details, above the closing \"Visit official website\" button. Never next to the button at the top of the page.", type: "boolean", default: true },
+      { key: "listingNative", label: "Compact sponsored native unit (reserved)", help: "Kept for compatibility. App detail pages no longer render this placement: they show at most two units (one between the details and the reviews, plus the desktop sidebar).", type: "boolean", default: false },
       { key: "mobileCompact", label: "Mobile compact placement", help: "320 × 50 on phones (narrower than 500 px) below category, search and Apps results.", type: "boolean", default: true },
       { key: "desktopLeaderboard", label: "Desktop leaderboard", help: "728 × 90 on screens at least 1024 px wide, in the same position.", type: "boolean", default: true },
       { key: "desktopSidebar", label: "Desktop sidebar", help: "160 × 600 beside app details on screens at least 1280 px wide.", type: "boolean", default: true },

@@ -1,5 +1,7 @@
+import { getT } from "@/i18n/server";
+import { seoAlternates } from "@/server/i18n/seo";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { AdBanner } from "@/components/ads/ad";
 import { CategoryIcon } from "@/components/category-icon";
 import { StoreListSection } from "@/components/store-sections";
@@ -8,11 +10,10 @@ import { getCategoryTree } from "@/server/catalog/categories";
 import { listCards } from "@/server/catalog/listings";
 import { getViewerContext } from "@/server/viewer";
 
-export const metadata: Metadata = {
-  title: "Apps — web applications and online tools",
-  description: "Browse web applications and online tools by category: AI, productivity, business, education, design, developer tools and more.",
-  alternates: { canonical: "/apps" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT("store");
+  return { title: t("meta.appsTitle"), description: t("meta.appsDescription"), ...(await seoAlternates("/apps")) };
+}
 
 /** Applications and web tools, without games (games have their own tab). */
 const NOT_GAMES = { primaryCategory: { AND: [{ slug: { not: "games" } }, { OR: [{ parentId: null }, { parent: { slug: { not: "games" } } }] }] } };

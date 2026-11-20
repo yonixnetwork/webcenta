@@ -42,7 +42,7 @@ model Review {
   /// 1–5, enforced by a CHECK constraint added in the migration.
   rating             Int
   title              String?
-  body               String? @db.Text
+  body               String?      @db.Text
   status             ReviewStatus @default(PUBLISHED)
   /// Only true when a real verification mechanism exists (e.g. a future developer
   /// integration). There is no such mechanism yet, so this stays false.
@@ -75,7 +75,7 @@ model ReviewReply {
   reviewId     String       @unique
   orgId        String
   authorUserId String?
-  body         String @db.Text
+  body         String       @db.Text
   status       ReviewStatus @default(PUBLISHED)
   editedAt     DateTime?    @db.DateTime(3)
   createdAt    DateTime     @default(now()) @db.DateTime(3)
@@ -116,7 +116,7 @@ model Collection {
   id               String               @id @default(uuid(7))
   slug             String               @unique
   title            String
-  description      String? @db.Text
+  description      String?              @db.Text
   ownerId          String?
   isEditorial      Boolean              @default(false)
   visibility       CollectionVisibility @default(PRIVATE)
@@ -136,7 +136,7 @@ model CollectionItem {
   collectionId String
   listingId    String
   sortOrder    Int      @default(0)
-  note         String? @db.Text
+  note         String?  @db.Text
   addedAt      DateTime @default(now()) @db.DateTime(3)
 
   collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
@@ -150,10 +150,10 @@ model Notification {
   id        String           @id @default(uuid(7))
   userId    String
   type      NotificationType
-  title     String @db.Text
-  body      String? @db.Text
+  title     String           @db.Text
+  body      String?          @db.Text
   /// Relative in-app path only (never an external URL).
-  linkPath  String? @db.Text
+  linkPath  String?          @db.Text
   data      Json?
   readAt    DateTime?        @db.DateTime(3)
   createdAt DateTime         @default(now()) @db.DateTime(3)

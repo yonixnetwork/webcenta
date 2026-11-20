@@ -71,16 +71,19 @@ export interface ResolvedPlacement {
 }
 
 /** Which provider fills a placement right now (null = no ad). */
-export async function resolvePlacement(id: PlacementId): Promise<ResolvedPlacement | null> {
+export async function resolvePlacement(id: PlacementId, opts: { disabledProviders?: readonly string[] } = {}): Promise<ResolvedPlacement | null> {
   const def = PLACEMENTS[id];
   const [ads, adsense] = await Promise.all([getSection("ads"), getSection("adsense")]);
   if (!ads.enabled || !ads.bool(def.toggle)) return null;
+  const off = new Set(opts.disabledProviders ?? []);
   const size = UNIT_SIZE[def.unit];
-  const ster = await adsterraUnit(def.unit);
+  // A provider switched off for the visitor's country (Admin → Country policies) is never used,
+  // not even as the fallback inside another provider's slot.
+  const ster = off.has("adsterra") ? null : await adsterraUnit(def.unit);
   const base = { id, unit: def.unit, width: size.width, height: size.height, minWidth: def.minWidth, maxWidth: def.maxWidth };
   const slot = ads.str(def.adsenseSlotKey);
   const pub = adsense.str("publisherId").replace(/^ca-/, "");
-  if (ads.str("preferredProvider") !== "adsterra" && ads.bool("adsenseApproved") && adsense.ready && /^pub-\d{10,20}$/.test(pub) && /^\d{6,20}$/.test(slot)) {
+  if (!off.has("adsense") && ads.str("preferredProvider") !== "adsterra" && ads.bool("adsenseApproved") && adsense.ready && /^pub-\d{10,20}$/.test(pub) && /^\d{6,20}$/.test(slot)) {
     return { ...base, provider: "adsense", adsense: { client: `ca-${pub}`, slot }, adsterra: ster ? { unit: ster.unit, isolation: ster.isolation } : undefined };
   }
   if (ster) return { ...base, provider: "adsterra", adsterra: { unit: ster.unit, isolation: ster.isolation } };
