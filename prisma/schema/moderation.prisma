@@ -80,12 +80,12 @@ model Report {
   /// Null for anonymous reports (allowed for listings, rate-limited).
   reporterId      String?
   reason          ReportReason
-  details         String? @db.Text
+  details         String?          @db.Text
   /// For copyright complaints: claimant identity/contact and the work concerned.
   claimantDetails Json?
   status          ReportStatus     @default(OPEN)
   assignedAdminId String?
-  resolutionNotes String? @db.Text
+  resolutionNotes String?          @db.Text
   resolvedAt      DateTime?        @db.DateTime(3)
   createdAt       DateTime         @default(now()) @db.DateTime(3)
   updatedAt       DateTime         @updatedAt @db.DateTime(3)
@@ -114,7 +114,7 @@ model ModerationAction {
   action     ModerationActionType
   targetType String
   targetId   String
-  reason     String @db.Text
+  reason     String               @db.Text
   reportId   String?
   appealId   String?
   metadata   Json?
@@ -134,9 +134,9 @@ model Appeal {
   listingId        String?
   /// The moderation action being appealed, by id (kept as plain id to avoid cycles).
   originalActionId String?
-  statement        String @db.Text
+  statement        String       @db.Text
   status           AppealStatus @default(OPEN)
-  decisionNotes    String? @db.Text
+  decisionNotes    String?      @db.Text
   decidedById      String?
   decidedAt        DateTime?    @db.DateTime(3)
   createdAt        DateTime     @default(now()) @db.DateTime(3)
@@ -152,7 +152,7 @@ model Appeal {
 model SupportCase {
   id              String            @id @default(uuid(7))
   userId          String?
-  contactEmail    String @db.VarChar(254)
+  contactEmail    String            @db.VarChar(254)
   subject         String
   status          SupportCaseStatus @default(OPEN)
   assignedAdminId String?
@@ -173,7 +173,7 @@ model SupportCaseMessage {
   fromAdminId String?
   /// Internal notes are never shown to the user.
   isInternal  Boolean  @default(false)
-  body        String @db.Text
+  body        String   @db.Text
   createdAt   DateTime @default(now()) @db.DateTime(3)
 
   case      SupportCase @relation(fields: [caseId], references: [id], onDelete: Cascade)

@@ -20,6 +20,7 @@
     "build": "prisma generate && next build --webpack",
     "start": "node .next/standalone/server.js",
     "lint": "eslint .",
+    "i18n:check": "node scripts/i18n-check.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "db:seed": "tsx scripts/seed.ts",
@@ -73,5 +74,8 @@
     "typescript": "^5.9.3",
     "web-push": "^3.6.7",
     "zod": "^4.6.7"
+  },
+  "overrides": {
+    "effect": "3.22.5"
   }
 }

@@ -26,7 +26,7 @@ export function ReviewForm({ action, initial }: {
               <Star className={`size-7 transition peer-focus-visible:outline peer-focus-visible:outline-2 ${n <= rating ? "fill-amber-400 text-amber-400" : "text-subtle"}`} aria-hidden />
             </label>
           ))}
-          <span className="ml-2 text-sm text-muted" aria-live="polite" data-testid="rating-word">{rating ? `${rating}/5 · ${RATING_WORDS[rating]}` : "Select 1 to 5 stars"}</span>
+          <span className="ms-2 text-sm text-muted" aria-live="polite" data-testid="rating-word">{rating ? `${rating}/5 · ${RATING_WORDS[rating]}` : "Select 1 to 5 stars"}</span>
         </div>
       </fieldset>
       <Field label="Title (optional)"><input name="title" maxLength={120} defaultValue={initial?.title ?? ""} className={inputClass} /></Field>

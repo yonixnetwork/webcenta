@@ -20,7 +20,7 @@ Every environment variable the application reads, and every setting managed in *
 
 ## Application and website
 
-Dashboard: **General** (immediate), **Branding & SEO** (immediate), **Social profiles** (immediate), **Marketplace** (immediate).
+Dashboard: **General** (immediate), **Branding & SEO** (immediate), **Languages & international SEO** (immediate), **Social profiles** (immediate), **Marketplace** (immediate).
 
 | Variable | Purpose | Required | Secret | Startup | Managed in dashboard | Change needs |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -107,7 +107,7 @@ Dashboard: **Stripe** (immediate, connection test), **PayPal** (immediate, conne
 
 ## Advertising
 
-Dashboard: **Google AdSense** (immediate), **Adsterra** (immediate), **Ad placements** (immediate).
+Dashboard: **Google AdSense** (immediate), **Adsterra** (immediate), **Ad content policy** (immediate), **Ad placements** (immediate).
 
 ## Analytics
 

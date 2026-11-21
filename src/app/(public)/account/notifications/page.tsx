@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { Check, Trash2 } from "lucide-react";
 import { EmptyState } from "@/components/states";
 import { buttonClass } from "@/components/ui/button";
@@ -36,7 +36,7 @@ export default async function NotificationsPage() {
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-extrabold tracking-tight">Notifications{unread > 0 && <span className="ml-2 align-middle text-sm font-semibold text-brand">{unread} unread</span>}</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight">Notifications{unread > 0 && <span className="ms-2 align-middle text-sm font-semibold text-brand">{unread} unread</span>}</h1>
         {unread > 0 && <form action={markNotificationsReadAction}><button className={buttonClass("secondary", "sm")}>Mark all as read</button></form>}
       </div>
       {items.length === 0 ? <EmptyState title="No notifications yet">New apps you may like, updates to apps you saved and replies to your reviews appear here.</EmptyState> : (

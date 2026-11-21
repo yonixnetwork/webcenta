@@ -3,6 +3,7 @@ import type { AgeRating } from "@/generated/prisma/enums";
 import { getSection } from "@/server/settings/store";
 import { ageOn, minRating, ratingForAge } from "@/lib/age";
 import { getCurrentUser } from "@/server/auth/session";
+import { combineRules, countryRules } from "@/server/geo/country-policy";
 
 export interface ViewerContext {
   /** ISO 3166-1 alpha-2, or null when unknown (best effort; VPNs bypass this). */
@@ -10,6 +11,8 @@ export interface ViewerContext {
   /** Highest age rating this viewer may see. Anonymous viewers never see 18+. */
   maxAgeRating: AgeRating;
   unknownCountryPolicy: "allow" | "deny";
+  /** Category slugs hidden by Admin → Country policies for this visitor (detected and chosen country combined). */
+  blockedCategorySlugs?: string[];
 }
 
 /**
@@ -18,9 +21,15 @@ export interface ViewerContext {
  * 18+). Without a date of birth, 18+ also needs the earlier self-confirmation. Self-declared
  * data; this is not age verification.
  */
-export function viewerMaxRating(user: { maxAgeRating: AgeRating; adultConfirmedAt: Date | null; birthDate?: Date | null } | null, country: string | null, now = new Date()): AgeRating {
+export function viewerMaxRating(user: { maxAgeRating: AgeRating; adultConfirmedAt: Date | null; birthDate?: Date | null; preferredCountry?: string | null } | null, country: string | null, now = new Date(), adultAge: number | null = null): AgeRating {
   if (!user) return "AGE_16_PLUS";
-  if (user.birthDate) return minRating(user.maxAgeRating, ratingForAge(ageOn(user.birthDate, now), country));
+  if (user.birthDate) {
+    const age = ageOn(user.birthDate, now);
+    // The stricter of the detected and the chosen country: choosing a country never lowers the age of majority.
+    let rating = minRating(ratingForAge(age, country), ratingForAge(age, normalizeCountry(user.preferredCountry)));
+    if (adultAge && age < adultAge) rating = minRating(rating, "AGE_16_PLUS");
+    return minRating(user.maxAgeRating, rating);
+  }
   return user.maxAgeRating === "AGE_18_PLUS" && !user.adultConfirmedAt ? "AGE_16_PLUS" : user.maxAgeRating;
 }
 
@@ -42,17 +51,35 @@ export async function networkSettings(): Promise<{ trustedProxyHops: number; geo
   };
 }
 
+export interface CountryInfo {
+  /** From the request (CDN country header); null when unknown. Never stored. */
+  detected: string | null;
+  /** Chosen by the user in their settings (optional). */
+  chosen: string | null;
+  /** For regional display (currency, recommendations): the choice, else the detected country. */
+  region: string | null;
+}
+
+export async function viewerCountry(): Promise<CountryInfo> {
+  const [h, e, user] = await Promise.all([headers(), networkSettings(), getCurrentUser()]);
+  const detected = normalizeCountry(h.get(e.geoCountryHeader));
+  const chosen = normalizeCountry(user?.preferredCountry);
+  return { detected, chosen, region: chosen ?? detected };
+}
+
 export async function getViewerContext(): Promise<ViewerContext> {
-  const h = await headers();
   const e = await networkSettings();
   const user = await getCurrentUser();
-  // The detected country takes precedence for legal restrictions; a user's stated
-  // country is only used when nothing is detected.
-  const country = normalizeCountry(h.get(e.geoCountryHeader)) ?? normalizeCountry(user?.preferredCountry);
+  const { detected, chosen } = await viewerCountry();
+  // Legal restrictions use the detected country; the chosen one is used only when nothing is
+  // detected. Country policies of BOTH apply (restrictions only add up).
+  const country = detected ?? chosen;
+  const rule = combineRules(await countryRules(), [detected, chosen]);
   return {
     country,
-    maxAgeRating: viewerMaxRating(user, country),
+    maxAgeRating: viewerMaxRating(user, country, new Date(), rule.adultAge),
     unknownCountryPolicy: e.geoUnknownPolicy,
+    blockedCategorySlugs: rule.restrictedCategories,
   };
 }
 

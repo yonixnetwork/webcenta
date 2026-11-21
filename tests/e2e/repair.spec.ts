@@ -218,15 +218,19 @@ test("ads: placements load only where they fit, are labelled, and never on sign-
   await expect(page.locator('[data-ad-placement="desktop-leaderboard"] iframe')).toHaveAttribute("src", "/ads/frame/728x90");
   await expect(page.locator('[data-ad-placement="mobile-compact"] iframe')).toHaveCount(0);
   await page.goto(`${BASE}/app/sample-lumen-notes`);
-  // The compact sponsored unit sits in the closing "Visit official website" box, labelled.
-  const visit = page.locator("section", { has: page.getByRole("heading", { name: /Ready to try/ }) });
-  await visit.scrollIntoViewIfNeeded();
-  await expect(visit.locator('[data-ad-placement="listing-native"] iframe')).toHaveAttribute("src", "/ads/frame/native");
-  await expect(visit.locator('[data-ad-placement="listing-native"]').getByText("Advertisement")).toBeVisible();
-  await expect(visit.getByRole("link", { name: /Visit official website/ })).toBeVisible();
+  // Detail pages: one "Visit Official Website" button, at most two ads, none right below it.
+  await expect(page.getByRole("link", { name: /Visit Official Website/i })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: /Ready to try/ })).toHaveCount(0);
+  await expect(page.locator('[data-ad-placement="listing-native"]')).toHaveCount(0);
+  const unit = page.locator('[data-ad-placement="listing"]');
+  await unit.scrollIntoViewIfNeeded();
+  await expect(unit.getByText("Advertisement")).toBeVisible();
   const appAds = await loadedAds(page);
-  expect(adRules(appAds, 3)).toEqual([]);
-  expect(appAds.map((a) => a.placement)).toContain("listing-native");
+  expect(adRules(appAds, 2)).toEqual([]);
+  expect(appAds.length).toBeLessThanOrEqual(2);
+  const btnBottom = await page.getByRole("link", { name: /Visit Official Website/i }).evaluate((el) => el.getBoundingClientRect().bottom + window.scrollY);
+  const inline = appAds.find((a) => a.placement === "listing")!;
+  expect(inline.top - btnBottom).toBeGreaterThan(300);
   await shot(page, "ads-app-1440");
   for (const p of ["/signin", "/signup"]) { await page.goto(`${BASE}${p}`); await expect(page.locator("[data-ad-placement]")).toHaveCount(0); }
   await desk.close();

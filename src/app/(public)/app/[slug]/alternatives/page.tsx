@@ -1,5 +1,6 @@
+import { seoAlternates } from "@/server/i18n/seo";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { notFound } from "next/navigation";
 import { CardGrid } from "@/components/rail";
 import { EmptyState } from "@/components/states";
@@ -17,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `Alternatives to ${l.name}`,
     description: `Compare web apps similar to ${l.name}: competitors, free and open-source alternatives.`,
-    alternates: { canonical: `/app/${l.slug}/alternatives` },
+    ...(await seoAlternates(`/app/${l.slug}/alternatives`, "listing")),
     robots: isSampleListing(l.slug) ? { index: false } : undefined,
   };
 }

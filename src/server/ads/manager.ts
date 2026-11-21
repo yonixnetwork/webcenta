@@ -27,7 +27,7 @@ const clamp = (n: number, lo: number, hi: number, dflt: number) => (Number.isFin
 export async function adPolicy(): Promise<AdPolicy> {
   const s = await getSection("ads");
   return {
-    max: { home: clamp(s.num("maxAdsHome"), 1, 4, 3), listing: clamp(s.num("maxAdsListing"), 1, 3, 3), browse: clamp(s.num("maxAdsBrowse"), 1, 2, 1) },
+    max: { home: clamp(s.num("maxAdsHome"), 1, 4, 3), listing: clamp(s.num("maxAdsListing"), 1, 2, 2), browse: clamp(s.num("maxAdsBrowse"), 1, 2, 1) },
     maxMobile: clamp(s.num("maxAdsMobile"), 1, 3, 2),
     minSpacingPx: clamp(s.num("minSpacingPx"), 400, 2000, 700),
     minSectionsBetween: clamp(s.num("minSectionsBetween"), 1, 6, 2),

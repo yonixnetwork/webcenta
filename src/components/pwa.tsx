@@ -4,6 +4,7 @@ import { Bell, Download, RefreshCw, Share, X } from "lucide-react";
 import { enablePush, pushSupported, syncPush } from "@/lib/push-client";
 import { useEffect, useState } from "react";
 import { buttonClass } from "./ui/button";
+import { useT } from "@/i18n/client";
 
 interface BeforeInstallPromptEvent extends Event { prompt(): Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> }
 
@@ -25,6 +26,7 @@ export function PwaManager({ build, account = "" }: { build: string; account?: s
   const [consented, setConsented] = useState(true);
   // Offer push notifications once (after the cookie question, and not together with the install banner).
   const [pushAsk, setPushAsk] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     const ua = navigator.userAgent;
@@ -118,42 +120,42 @@ export function PwaManager({ build, account = "" }: { build: string; account?: s
   return (
     <>
       {(waiting || deployed) && (
-        <div role="status" data-testid="update-banner" className="fixed inset-x-4 bottom-28 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-surface p-3 shadow-pop sm:bottom-6">
-          <span className="flex items-start gap-2 text-sm"><RefreshCw className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden /><span><strong>Webcenta has been updated.</strong> Reload to get the latest improvements.</span></span>
-          <button type="button" className={buttonClass("primary", "sm")} onClick={() => (waiting ? waiting.postMessage("SKIP_WAITING") : void reloadFresh())}>Reload</button>
+        <div role="status" data-testid="update-banner" className="fixed inset-x-4 above-mobile-nav z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl border border-brand/30 bg-surface p-3 shadow-pop">
+          <span className="flex items-start gap-2 text-sm"><RefreshCw className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden /><span><strong>{t("pwa.updated")}</strong> {t("pwa.reloadHint")}</span></span>
+          <button type="button" className={buttonClass("primary", "sm")} onClick={() => (waiting ? waiting.postMessage("SKIP_WAITING") : void reloadFresh())}>{t("pwa.reload")}</button>
         </div>
       )}
       {!dismissed && consented && (installEvt || iosEligible) && !waiting && !deployed && (
-        <div className="fixed inset-x-4 bottom-28 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2 shadow-pop sm:bottom-6" data-testid="install-banner">
+        <div role="region" aria-label={t("pwa.install")} className="fixed inset-x-4 above-mobile-nav z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2 shadow-pop" data-testid="install-banner">
           <Download className="size-5 shrink-0 text-brand" aria-hidden />
-          <p className="flex-1 text-sm font-medium">Add Webcenta to your home screen</p>
+          <p className="flex-1 text-sm font-medium">{t("pwa.install")}</p>
           <button type="button" className={buttonClass("primary", "sm")} onClick={async () => {
             if (installEvt) { await installEvt.prompt(); await installEvt.userChoice; setInstallEvt(null); }
             else setShowIos(true);
-          }}>Install</button>
-          <button type="button" aria-label="Dismiss" onClick={dismiss} className="text-subtle hover:text-text"><X className="size-4" aria-hidden /></button>
+          }}>{t("pwa.installButton")}</button>
+          <button type="button" aria-label={t("pwa.dismiss")} onClick={dismiss} className="text-subtle hover:text-text"><X className="size-4" aria-hidden /></button>
         </div>
       )}
       {pushAsk && consented && !installShown && !waiting && !deployed && (
-        <div className="fixed inset-x-4 bottom-28 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2 shadow-pop sm:bottom-6" data-testid="push-banner">
+        <div className="fixed inset-x-4 above-mobile-nav z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2 shadow-pop" data-testid="push-banner">
           <Bell className="size-5 shrink-0 text-brand" aria-hidden />
-          <p className="flex-1 text-sm">Stay updated with new applications, trending tools and discoveries on Webcenta.</p>
+          <p className="flex-1 text-sm">{t("pwa.push")}</p>
           <span className="flex shrink-0 flex-col gap-1">
-            <button type="button" className={buttonClass("primary", "sm")} onClick={async () => { await enablePush(); closePush(false); }}>Enable notifications</button>
-            <button type="button" onClick={() => closePush(true)} className="text-xs font-medium text-muted hover:text-text">Not now</button>
+            <button type="button" className={buttonClass("primary", "sm")} onClick={async () => { await enablePush(); closePush(false); }}>{t("pwa.enablePush")}</button>
+            <button type="button" onClick={() => closePush(true)} className="text-xs font-medium text-muted hover:text-text">{t("pwa.notNow")}</button>
           </span>
         </div>
       )}
       {showIos && (
         <div role="dialog" aria-modal="true" aria-labelledby="ios-title" className="fixed inset-0 z-50 grid place-items-end bg-black/40 p-4 sm:place-items-center" onClick={() => setShowIos(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-surface p-5 shadow-pop" onClick={(e) => e.stopPropagation()}>
-            <h2 id="ios-title" className="text-lg font-bold">Add Webcenta to your Home Screen</h2>
-            <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-muted">
-              <li>Tap the <Share className="inline size-4 align-[-2px]" aria-label="Share" /> Share button in Safari’s toolbar.</li>
-              <li>Scroll and choose <strong className="text-text">Add to Home Screen</strong>.</li>
-              <li>Tap <strong className="text-text">Add</strong>.</li>
+            <h2 id="ios-title" className="text-lg font-bold">{t("pwa.iosTitle")}</h2>
+            <ol className="mt-3 list-decimal space-y-2 ps-5 text-sm text-muted">
+              <li><Share className="me-1 inline size-4 align-[-2px]" aria-hidden />{t("pwa.iosStep1")}</li>
+              <li>{t("pwa.iosStep2")}</li>
+              <li>{t("pwa.iosStep3")}</li>
             </ol>
-            <button type="button" className={buttonClass("secondary", "md", "mt-4 w-full")} onClick={() => setShowIos(false)}>Got it</button>
+            <button type="button" className={buttonClass("secondary", "md", "mt-4 w-full")} onClick={() => setShowIos(false)}>{t("pwa.gotIt")}</button>
           </div>
         </div>
       )}

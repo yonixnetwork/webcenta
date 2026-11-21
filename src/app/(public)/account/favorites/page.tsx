@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { CardGrid } from "@/components/rail";
 import { EmptyState } from "@/components/states";
 import { db } from "@/server/db";

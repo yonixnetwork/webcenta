@@ -21,6 +21,7 @@ export interface CurrentUser {
   notifyReminders: boolean;
   pushNotifications: boolean;
   preferredCountry: string | null;
+  locale: string | null;
   emailNotifications: boolean;
 }
 
@@ -37,7 +38,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     where: { id: session.user.id },
     select: { id: true, email: true, name: true, emailVerified: true, status: true, personalizationEnabled: true, historyEnabled: true,
       maxAgeRating: true, adultConfirmedAt: true, birthDate: true, lastSeenAt: true,
-      notifyNewApps: true, notifySavedUpdates: true, notifyAnnouncements: true, notifyReminders: true, pushNotifications: true, preferredCountry: true, emailNotifications: true },
+      notifyNewApps: true, notifySavedUpdates: true, notifyAnnouncements: true, notifyReminders: true, pushNotifications: true, preferredCountry: true, locale: true, emailNotifications: true },
   });
   if (!u || u.status !== "ACTIVE") return null;
   const rest: Omit<typeof u, "status"> & { status?: unknown } = { ...u };

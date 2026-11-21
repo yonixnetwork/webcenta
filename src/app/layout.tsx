@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import { siteInfo } from "@/server/settings/site";
+import { getLocale } from "@/i18n/server";
+import { htmlAttrs } from "@/i18n/routing";
 import "./globals.css";
 
 /** Site-wide metadata from Admin → Settings (General, Branding & SEO, Search engines). */
@@ -46,8 +48,10 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const theme = (await cookies()).get("wc-theme")?.value;
   const themeClass = theme === "light" || theme === "dark" ? theme : undefined;
+  // The language comes from the URL prefix (set by the proxy), so server and browser agree.
+  const { lang, dir } = htmlAttrs(await getLocale());
   return (
-    <html lang="en" className={themeClass}>
+    <html lang={lang} dir={dir} className={themeClass}>
       <body className="min-h-dvh font-sans">{children}</body>
     </html>
   );

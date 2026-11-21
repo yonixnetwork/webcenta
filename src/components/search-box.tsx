@@ -1,7 +1,7 @@
 "use client";
 
 import { Search, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useLocalizedRouter as useRouter, useT } from "@/i18n/client";
 import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "./ui/cn";
 
@@ -16,6 +16,7 @@ export function SearchBox({ defaultValue = "", suggested = [], size = "md", auto
   defaultValue?: string; suggested?: string[]; size?: "md" | "lg"; autoFocus?: boolean;
 }) {
   const router = useRouter();
+  const t = useT();
   const listId = useId();
   const [q, setQ] = useState(defaultValue);
   const [open, setOpen] = useState(false);
@@ -72,7 +73,7 @@ export function SearchBox({ defaultValue = "", suggested = [], size = "md", auto
           if (term) go(`/search?q=${encodeURIComponent(term)}`);
         }}>
         <label htmlFor={`${listId}-input`} className="sr-only">Search web apps</label>
-        <Search className={cn("pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-subtle", size === "lg" ? "size-5" : "size-4")} aria-hidden />
+        <Search className={cn("pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-subtle", size === "lg" ? "size-5" : "size-4")} aria-hidden />
         <input
           id={`${listId}-input`}
           name="q"
@@ -80,7 +81,7 @@ export function SearchBox({ defaultValue = "", suggested = [], size = "md", auto
           value={q}
           autoFocus={autoFocus}
           autoComplete="off"
-          placeholder="Search apps, tools and websites"
+          placeholder={t("search.placeholder")}
           role="combobox"
           aria-expanded={open && options.length > 0}
           aria-controls={`${listId}-list`}
@@ -111,14 +112,14 @@ export function SearchBox({ defaultValue = "", suggested = [], size = "md", auto
           )}
         />
         {q && (
-          <button type="button" aria-label="Clear search" onClick={() => { setQ(""); setActive(-1); }}
-            className="absolute right-3 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-lg text-subtle hover:bg-surface-2 hover:text-text">
+          <button type="button" aria-label={t("search.clear")} onClick={() => { setQ(""); setActive(-1); }}
+            className="absolute end-3 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-lg text-subtle hover:bg-surface-2 hover:text-text">
             <X className="size-4" aria-hidden />
           </button>
         )}
       </form>
       {open && options.length > 0 && (
-        <ul id={`${listId}-list`} role="listbox" aria-label="Search suggestions"
+        <ul id={`${listId}-list`} role="listbox" aria-label={t("search.suggestions")}
           className="absolute z-50 mt-2 max-h-96 w-full overflow-auto rounded-2xl border border-border bg-surface p-1.5 shadow-pop">
           {options.map((o, i) => (
             <li key={o.key} id={`${listId}-opt-${i}`} role="option" aria-selected={i === active}

@@ -28,9 +28,9 @@ model AdminUser {
   role              AdminRole
   status            AdminStatus @default(ACTIVE)
   /// argon2id/scrypt hash. Never logged.
-  passwordHash      String @db.VarChar(255)
+  passwordHash      String      @db.VarChar(255)
   /// TOTP seed encrypted with FIELD_ENCRYPTION_KEY (AES-256-GCM).
-  totpSecretEnc     String? @db.Text
+  totpSecretEnc     String?     @db.Text
   totpEnabledAt     DateTime?   @db.DateTime(3)
   /// Last accepted TOTP time-step (prevents code replay).
   totpLastStep      Int?
@@ -79,7 +79,7 @@ model AdminSession {
   expiresAt     DateTime  @db.DateTime(3)
   lastSeenAt    DateTime  @default(now()) @db.DateTime(3)
   ipAddress     String?
-  userAgent     String? @db.Text
+  userAgent     String?   @db.Text
   revokedAt     DateTime? @db.DateTime(3)
   /// Last time the administrator re-confirmed with an authenticator code (sensitive actions).
   stepUpAt      DateTime? @db.DateTime(3)
@@ -93,10 +93,10 @@ model AdminSession {
 
 model AdminInvitation {
   id             String    @id @default(uuid(7))
-  email          String @db.VarChar(254)
+  email          String    @db.VarChar(254)
   role           AdminRole
   /// Set while the invitee enrols TOTP (encrypted); moved to AdminUser on acceptance.
-  pendingTotpEnc String? @db.Text
+  pendingTotpEnc String?   @db.Text
   /// SHA-256 of the single-use invitation token.
   tokenHash      String    @unique @db.VarChar(64)
   /// Null only for the bootstrap Super Administrator created by the provisioning CLI.
@@ -114,12 +114,12 @@ model AdminInvitation {
 model AdminLoginEvent {
   id             String   @id @default(uuid(7))
   adminId        String?
-  emailAttempted String @db.Text
+  emailAttempted String   @db.Text
   success        Boolean
   /// e.g. "bad_password", "bad_totp", "locked", "suspended"
-  failureReason  String? @db.Text
+  failureReason  String?  @db.Text
   ipAddress      String?
-  userAgent      String? @db.Text
+  userAgent      String?  @db.Text
   createdAt      DateTime @default(now()) @db.DateTime(3)
 
   admin AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
@@ -144,7 +144,7 @@ model AuditLog {
   /// Before/after diff or other context. Never contains secrets.
   metadata    Json?
   ipAddress   String?
-  userAgent   String? @db.Text
+  userAgent   String?   @db.Text
   createdAt   DateTime  @default(now()) @db.DateTime(3)
 
   admin AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)

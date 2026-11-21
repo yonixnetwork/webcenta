@@ -61,6 +61,8 @@ Questions about these terms: [Contact & support](/contact).`,
 - **Browsing history and interests:** only if you are signed in and leave history turned on (Account → Privacy & data). We use it to recommend apps.
 - **Visit statistics:** daily counters made from a one-way code that changes every day. We do not store your IP address in analytics and cannot use them to identify you.
 - **Security logs:** sign-in events with IP address and browser, kept to protect accounts and detect abuse.
+- **Country and language:** to show content and ads that are allowed where you are, we read the two-letter country code that our hosting or CDN provider adds to each request (from your IP address). We do not store your IP address for this, we do not use GPS or your device location, and we never guess a country we cannot detect. Your chosen language is remembered in a cookie and, if you are signed in, in your account. You can set your own region in your account settings; restrictions that apply where you are still apply.
+- **Ad reports:** if you report an ad, we store the page, the ad placement, your description and the country code (not your IP address).
 - **Push notifications:** if you turn them on, your browser gives us a subscription address. We use it only to send Webcenta notifications.
 - **Cookies:** see the [Cookie Policy](/legal/cookies).
 
@@ -83,6 +85,7 @@ We do not sell personal data. We share it only with:
 ## How long we keep it
 - Account data: while your account exists. After you delete your account, it is removed within 30 days, except what we must keep for legal or security reasons.
 - Security logs: up to 12 months.
+- Country codes are used for the request and not kept, except in ad reports, which are kept for up to 12 months.
 - Visit statistics: as anonymous totals.
 
 ## Your rights

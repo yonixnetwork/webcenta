@@ -149,3 +149,18 @@ body { background: var(--bg); color: var(--text); font-feature-settings: "cv11",
 }
 :root.dark .google-btn { background: #131314; color: #e3e3e3; border-color: #8e918f; }
 :root.dark .google-btn:hover { background: #1f1f20; }
+
+/* Fixed elements that share the bottom edge with the phone tab bar (install, update and push
+   prompts, the cookie notice) sit just above it, including the home-indicator safe area, and
+   above the page's own bottom edge on larger screens where there is no tab bar. One source of
+   truth so a prompt can never cover the navigation. */
+:root {
+  --mobile-nav-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  --mobile-nav-height: 4.25rem;
+}
+@utility above-mobile-nav {
+  bottom: calc(var(--mobile-nav-bottom) + var(--mobile-nav-height) + 0.5rem);
+  @media (width >= 40rem) {
+    bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  }
+}

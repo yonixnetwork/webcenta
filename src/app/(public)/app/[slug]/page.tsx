@@ -1,5 +1,7 @@
+import { categoryNamer } from "@/server/i18n/categories";
+import { seoAlternates } from "@/server/i18n/seo";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { Ad } from "@/components/ads/ad";
 import { notFound } from "next/navigation";
 import { ArrowUpRight, BadgeCheck, CalendarCheck, ChevronRight, Globe, ShieldCheck, ShieldQuestion, Star, TriangleAlert, UserRound } from "lucide-react";
@@ -10,7 +12,7 @@ import { ShareButton } from "@/components/share-button";
 import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
 import { visitMilestone } from "@/lib/visits";
-import { AGE_LABEL, PLATFORM_LABEL, PRICING_LABEL, SECURITY_LABEL, VERIFICATION_LABEL, formatDate, isSampleListing } from "@/lib/labels";
+import { AGE_LABEL, PLATFORM_LABEL, PRICING_LABEL, SECURITY_LABEL, VERIFICATION_LABEL, isSampleListing } from "@/lib/labels";
 import { displayDomain } from "@/lib/url";
 import { enumArray, stringArray } from "@/lib/json-arrays";
 import { Platform } from "@/generated/prisma/enums";
@@ -26,6 +28,8 @@ import { AddToCollection } from "@/components/community/add-to-collection";
 import { ReviewsSection } from "@/components/community/reviews-section";
 import { ViewTracker } from "@/components/community/view-tracker";
 import { mediaUrl } from "@/server/storage";
+import { getLocale, getT } from "@/i18n/server";
+import { formatDateIn } from "@/i18n/format";
 
 const PUBLIC_URL = () => (process.env.PUBLIC_ORIGIN || "http://localhost:3000").replace(/\/$/, "");
 /** Absolute URL of public media (for crawlers and social previews). */
@@ -46,7 +50,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${listing.name} — ${category}`,
     description,
-    alternates: { canonical: `/app/${listing.slug}` },
+    ...(await seoAlternates(`/app/${listing.slug}`, "listing")),
     openGraph: { type: "website", title: `${listing.name} — ${category}`, description, url: `/app/${listing.slug}`, ...(image ? { images: [{ url: image, alt: `${listing.name} ${shot!.kind === "LOGO" ? "logo" : "screenshot"}` }] } : {}) },
     twitter: { card: shot?.kind === "SCREENSHOT" ? "summary_large_image" : "summary", title: listing.name, description, ...(image ? { images: [image] } : {}) },
     robots: isSampleListing(listing.slug) ? { index: false } : undefined,
@@ -57,7 +61,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   return (
     <div className="flex items-start justify-between gap-4 py-2.5 text-sm">
       <dt className="text-muted">{label}</dt>
-      <dd className="text-right font-medium">{children}</dd>
+      <dd className="text-end font-medium">{children}</dd>
     </div>
   );
 }
@@ -89,6 +93,17 @@ export default async function AppPage({ params, searchParams }: Props) {
   const languages = stringArray(listing.languages);
   const verification = listing.developer ? VERIFICATION_LABEL[listing.developer.verificationLevel] : "Unclaimed listing";
   const reportAction = submitListingReport.bind(null, listing.slug);
+  const [t, tc, locale] = await Promise.all([getT("store"), getT("common"), getLocale()]);
+  const catName = await categoryNamer();
+  const formatDate = (d: Date | null | undefined) => (d ? formatDateIn(locale, d) : "—");
+  // Developer-written text keeps its original language; it is marked so screen readers and
+  // translation tools know (the listing's first declared language, else English).
+  const contentLang = (languages[0] ?? "en").slice(0, 10);
+  // Brand safety: no ads on pages about blocked categories (Settings → Ad content policy) or 18+ apps.
+  const adContent = {
+    adult: listing.ageRating === "AGE_18_PLUS",
+    categorySlugs: [listing.primaryCategory?.slug, listing.primaryCategory?.parent?.slug, ...listing.categories.map(({ category }) => category.slug)].filter((x): x is string => Boolean(x)),
+  };
 
   const logoKey = listing.media.find((m) => m.kind === "LOGO")?.asset.storageKey;
   const shotKeys = listing.media.filter((m) => m.kind === "SCREENSHOT").slice(0, 4).map((m) => m.asset.storageKey);
@@ -114,9 +129,9 @@ export default async function AppPage({ params, searchParams }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
 
       <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-muted">
-        <Link href="/categories" className="hover:text-text">Categories</Link>
-        {listing.primaryCategory?.parent && (<><ChevronRight className="size-4" aria-hidden /><Link href={`/c/${listing.primaryCategory.parent.slug}`} className="hover:text-text">{listing.primaryCategory.parent.name}</Link></>)}
-        {listing.primaryCategory && (<><ChevronRight className="size-4" aria-hidden /><Link href={`/c/${listing.primaryCategory.slug}`} className="hover:text-text">{listing.primaryCategory.name}</Link></>)}
+        <Link href="/categories" className="hover:text-text">{tc("header.categories")}</Link>
+        {listing.primaryCategory?.parent && (<><ChevronRight className="size-4" aria-hidden /><Link href={`/c/${listing.primaryCategory.parent.slug}`} className="hover:text-text">{catName(listing.primaryCategory.parent)}</Link></>)}
+        {listing.primaryCategory && (<><ChevronRight className="size-4" aria-hidden /><Link href={`/c/${listing.primaryCategory.slug}`} className="hover:text-text">{catName(listing.primaryCategory)}</Link></>)}
       </nav>
 
       {isSampleListing(listing.slug) && (
@@ -128,7 +143,7 @@ export default async function AppPage({ params, searchParams }: Props) {
           <AppIcon name={listing.name} storageKey={logo?.asset.storageKey} size="lg" />
           <div className="min-w-0 space-y-2">
             <h1 className="text-2xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-4xl">{listing.name}</h1>
-            {listing.tagline && <p className="text-lg text-muted">{listing.tagline}</p>}
+            {listing.tagline && <p lang={contentLang} className="text-lg text-muted">{listing.tagline}</p>}
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
               <span className="font-medium text-brand">{listing.publisherName}</span>
               {listing.developer && listing.developer.verificationLevel !== "UNVERIFIED" && <BadgeCheck className="size-4 text-brand" aria-label={verification} />}
@@ -140,7 +155,7 @@ export default async function AppPage({ params, searchParams }: Props) {
               {listing.isOpenSource && <Badge tone="brand">Open source</Badge>}
               {listing.isPwaInstallable && <Badge>Installable PWA</Badge>}
               <Badge tone="outline">Age {AGE_LABEL[listing.ageRating]}</Badge>
-              {showRating && <a href="#reviews" className="inline-flex"><Badge><Star className="size-3 fill-current text-amber-500" aria-hidden /> {listing.ratingAverage.toFixed(1)}/5 · {listing.ratingCount} review{listing.ratingCount === 1 ? "" : "s"}</Badge></a>}
+              {showRating && <a href="#reviews" className="inline-flex"><Badge><Star className="size-3 fill-current text-amber-500" aria-hidden /> {listing.ratingAverage.toFixed(1)}/5 · {t("listing.reviewsCount", { count: listing.ratingCount })}</Badge></a>}
             </div>
           </div>
         </div>
@@ -148,10 +163,10 @@ export default async function AppPage({ params, searchParams }: Props) {
           {/* Full-page navigation on purpose: the interstitial must load as its own document so
               its CSP (form-action allowing the https redirect) applies. */}
           <a href={`/go/${listing.slug}`} rel="nofollow" className={buttonClass("primary", "lg", "w-full sm:w-auto lg:w-64")}>
-            Visit website <ArrowUpRight className="size-5" aria-hidden />
+            {t("listing.visit")} <ArrowUpRight className="size-5" aria-hidden />
           </a>
-          <p className="text-center text-xs text-subtle lg:w-64">Opens {domain} · you’ll see a notice before leaving Webcenta</p>
-          <div className="flex gap-2 sm:ml-2 lg:ml-0">
+          <p className="text-center text-xs text-subtle lg:w-64">{t("listing.visitNote", { domain })}</p>
+          <div className="flex gap-2 sm:ms-2 lg:ms-0">
             <ShareButton url={`${origin}/app/${listing.slug}`} title={listing.name} />
             <FavoriteButton slug={listing.slug} initial={Boolean(favorite)} signedIn={Boolean(user)} />
             {user && <AddToCollection slug={listing.slug} collections={myCollections} />}
@@ -169,7 +184,7 @@ export default async function AppPage({ params, searchParams }: Props) {
       <div className="grid gap-10 lg:grid-cols-[1fr_340px]">
         <div className="space-y-10">
           <section aria-labelledby="screens">
-            <h2 id="screens" className="mb-4 text-xl font-bold">Screenshots</h2>
+            <h2 id="screens" className="mb-4 text-xl font-bold">{t("listing.screenshots")}</h2>
             {screenshots.length ? (
               <ul className="scrollbar-none -mx-4 flex snap-x gap-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
                 {screenshots.map((s) => (
@@ -182,18 +197,18 @@ export default async function AppPage({ params, searchParams }: Props) {
                 ))}
               </ul>
             ) : (
-              <p className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">No screenshots have been provided yet.</p>
+              <p className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">{t("listing.noScreenshots")}</p>
             )}
           </section>
 
           <section aria-labelledby="about">
-            <h2 id="about" className="mb-3 text-xl font-bold">About {listing.name}</h2>
-            <div className="whitespace-pre-line text-pretty leading-relaxed text-muted">{listing.description}</div>
+            <h2 id="about" className="mb-3 text-xl font-bold">{t("listing.about", { name: listing.name })}</h2>
+            <div lang={contentLang} className="whitespace-pre-line text-pretty leading-relaxed text-muted">{listing.description}</div>
           </section>
 
           {features.length > 0 && (
             <section aria-labelledby="features">
-              <h2 id="features" className="mb-3 text-xl font-bold">Features</h2>
+              <h2 id="features" className="mb-3 text-xl font-bold">{t("listing.features")}</h2>
               <ul className="grid gap-2 sm:grid-cols-2">
                 {features.map((f) => (
                   <li key={f} className="flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-2 text-sm"><span className="size-1.5 rounded-full bg-brand" aria-hidden />{f}</li>
@@ -202,37 +217,28 @@ export default async function AppPage({ params, searchParams }: Props) {
             </section>
           )}
 
-          {/* Closing call to action after the app's own information. The compact sponsored unit sits
-              between them, labelled and boxed so it can never be mistaken for this app's content;
-              the button at the top of the page has no ad near it. */}
-          <section aria-labelledby="visit" className="space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-card">
-            <h2 id="visit" className="text-lg font-bold">Ready to try {listing.name}?</h2>
-            <Ad placement="listing-native" page="listing" compact className="rounded-xl border border-dashed border-border bg-surface-2/50 p-2" />
-            <div className="flex flex-col items-start gap-1">
-              <a href={`/go/${listing.slug}`} rel="nofollow" className={buttonClass("primary", "md")}>Visit official website <ArrowUpRight className="size-4" aria-hidden /></a>
-              <p className="text-xs text-subtle">Opens {domain} · you’ll see a notice before leaving Webcenta</p>
-            </div>
-          </section>
+          {/* At most two sponsored placements on a detail page (enforced again by the ad manager's
+              per-page limit): this one sits between the app's own information and the reviews,
+              well away from the official-website button, and the sidebar unit on desktop. */}
+          <Ad placement="listing" page="listing" content={adContent} className="border-y border-border py-4" />
 
           <ReviewsSection listing={listing} user={user} isMember={Boolean(membership)}
             canReply={Boolean(membership && membership.role !== "ANALYST")}
             sort={sp.sort === "newest" ? "newest" : "helpful"} page={Math.max(1, Number(sp.rpage) || 1)} />
-
-          <Ad placement="listing" page="listing" className="border-t border-border pt-4" />
         </div>
 
         <aside className="space-y-6">
           <section aria-labelledby="trust" className="rounded-2xl border border-border bg-surface p-5 shadow-card">
-            <h2 id="trust" className="mb-2 font-bold">Trust & safety</h2>
+            <h2 id="trust" className="mb-2 font-bold">{t("listing.trust")}</h2>
             <ul className="space-y-3 text-sm">
               <li className="flex gap-3">
                 {listing.securityStatus === "PASSED" ? <ShieldCheck className="size-5 shrink-0 text-success" aria-hidden /> : <ShieldQuestion className="size-5 shrink-0 text-muted" aria-hidden />}
                 <span><span className="font-medium">Security scan: {security.label}</span><br /><span className="text-muted">{security.detail}</span>
-                  {listing.lastScannedAt && <><br /><span className="text-subtle">Last scanned {formatDate(listing.lastScannedAt)}</span></>}</span>
+                  {listing.lastScannedAt && <><br /><span className="text-subtle">{t("listing.lastScanned", { date: formatDate(listing.lastScannedAt) })}</span></>}</span>
               </li>
               <li className="flex gap-3">
                 <CalendarCheck className="size-5 shrink-0 text-muted" aria-hidden />
-                <span><span className="font-medium">Last verified</span><br /><span className="text-muted">{listing.lastVerifiedAt ? formatDate(listing.lastVerifiedAt) : "Not yet verified"}</span></span>
+                <span><span className="font-medium">{t("listing.lastVerified")}</span><br /><span className="text-muted">{listing.lastVerifiedAt ? formatDate(listing.lastVerifiedAt) : t("listing.notVerified")}</span></span>
               </li>
               <li className="flex gap-3">
                 <UserRound className="size-5 shrink-0 text-muted" aria-hidden />
@@ -243,25 +249,25 @@ export default async function AppPage({ params, searchParams }: Props) {
           </section>
 
           <section aria-labelledby="info" className="rounded-2xl border border-border bg-surface p-5 shadow-card">
-            <h2 id="info" className="font-bold">Information</h2>
+            <h2 id="info" className="font-bold">{t("listing.information")}</h2>
             <dl className="mt-2 divide-y divide-border">
-              <Fact label="Website"><span className="inline-flex items-center gap-1"><Globe className="size-3.5" aria-hidden />{domain}</span></Fact>
-              <Fact label="Publisher">{listing.publisherName}</Fact>
-              <Fact label="Pricing">{PRICING_LABEL[listing.pricingModel]}{listing.pricingDetails ? ` — ${listing.pricingDetails}` : ""}</Fact>
-              <Fact label="Platforms">{platforms.map((p) => PLATFORM_LABEL[p]).join(", ")}</Fact>
-              <Fact label="Age rating">{AGE_LABEL[listing.ageRating]}</Fact>
-              <Fact label="Countries">{supportedCountries.length ? supportedCountries.join(", ") : "Worldwide (as declared)"}</Fact>
-              {languages.length > 0 && <Fact label="Languages">{languages.join(", ").toUpperCase()}</Fact>}
-              <Fact label="Listed since">{formatDate(listing.publishedAt)}</Fact>
-              {listing.contentUpdatedAt && <Fact label="Last updated">{formatDate(listing.contentUpdatedAt)}</Fact>}
+              <Fact label={t("listing.website")}><span className="inline-flex items-center gap-1"><Globe className="size-3.5" aria-hidden />{domain}</span></Fact>
+              <Fact label={t("listing.publisher")}>{listing.publisherName}</Fact>
+              <Fact label={t("listing.pricing")}>{PRICING_LABEL[listing.pricingModel]}{listing.pricingDetails ? ` — ${listing.pricingDetails}` : ""}</Fact>
+              <Fact label={t("listing.platforms")}>{platforms.map((p) => PLATFORM_LABEL[p]).join(", ")}</Fact>
+              <Fact label={t("listing.ageRating")}>{AGE_LABEL[listing.ageRating]}</Fact>
+              <Fact label={t("listing.countries")}>{supportedCountries.length ? supportedCountries.join(", ") : t("listing.worldwide")}</Fact>
+              {languages.length > 0 && <Fact label={t("listing.languages")}>{languages.join(", ").toUpperCase()}</Fact>}
+              <Fact label={t("listing.listedSince")}>{formatDate(listing.publishedAt)}</Fact>
+              {listing.contentUpdatedAt && <Fact label={t("listing.lastUpdated")}>{formatDate(listing.contentUpdatedAt)}</Fact>}
             </dl>
           </section>
 
           <section aria-labelledby="tags">
-            <h2 id="tags" className="mb-2 text-sm font-semibold text-muted">Categories & tags</h2>
+            <h2 id="tags" className="mb-2 text-sm font-semibold text-muted">{t("listing.tags")}</h2>
             <ul className="flex flex-wrap gap-1.5">
               {listing.categories.map(({ category }) => (
-                <li key={category.id}><Link href={`/c/${category.slug}`} className="inline-block rounded-full border border-border px-2.5 py-1 text-xs hover:border-brand/40 hover:text-brand">{category.name}</Link></li>
+                <li key={category.id}><Link href={`/c/${category.slug}`} className="inline-block rounded-full border border-border px-2.5 py-1 text-xs hover:border-brand/40 hover:text-brand">{catName(category)}</Link></li>
               ))}
               {listing.tags.map(({ tag }) => (
                 <li key={tag.id}><Link href={`/search?q=${encodeURIComponent(tag.name)}`} className="inline-block rounded-full bg-surface-2 px-2.5 py-1 text-xs text-muted hover:text-brand">#{tag.name}</Link></li>
@@ -270,14 +276,14 @@ export default async function AppPage({ params, searchParams }: Props) {
           </section>
 
           <ReportForm action={reportAction} reasons={LISTING_REPORT_REASONS} />
-          <Ad placement="desktop-sidebar" page="listing" className="sticky top-24" />
+          <Ad placement="desktop-sidebar" page="listing" content={adContent} className="sticky top-24" />
         </aside>
       </div>
 
       <div className="space-y-12">
         <RelatedRails groups={related} name={listing.name} />
         {related.similar.length > 0 && (
-          <p><Link href={`/app/${listing.slug}/alternatives`} className="text-sm font-semibold text-brand hover:underline">See all alternatives to {listing.name} →</Link></p>
+          <p><Link href={`/app/${listing.slug}/alternatives`} className="text-sm font-semibold text-brand hover:underline">{t("listing.alternatives", { name: listing.name })} →</Link></p>
         )}
       </div>
     </article>

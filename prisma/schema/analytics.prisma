@@ -58,7 +58,7 @@ model ListingEvent {
   countryCode  String?          @db.Char(2)
   device       DeviceType       @default(UNKNOWN)
   /// Referrer host only (no path/query) to avoid leaking third-party URLs.
-  referrerHost String? @db.VarChar(255)
+  referrerHost String?          @db.VarChar(255)
   /// Internal surface that produced the event, e.g. "search", "home:trending".
   surface      String?
 
@@ -89,7 +89,7 @@ model ListingDailyDimensionStat {
   date           DateTime      @db.Date
   dimension      StatDimension
   /// Country code, device type or referrer host.
-  key            String @db.VarChar(255)
+  key            String        @db.VarChar(255)
   views          Int           @default(0)
   outboundClicks Int           @default(0)
 
@@ -119,7 +119,7 @@ model InteractionEvent {
   type       InteractionType
   listingId  String?
   categoryId String?
-  query      String? @db.Text
+  query      String?         @db.Text
   dwellMs    Int?
   createdAt  DateTime        @default(now()) @db.DateTime(3)
 

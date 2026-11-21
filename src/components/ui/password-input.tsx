@@ -14,9 +14,9 @@ export function PasswordInput({ className, ...props }: Omit<React.InputHTMLAttri
   const label = visible ? "Hide password" : "Show password";
   return (
     <span className="relative block">
-      <input {...props} type={visible ? "text" : "password"} className={cn(inputClass, "pr-11", className)} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+      <input {...props} type={visible ? "text" : "password"} className={cn(inputClass, "pe-11", className)} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
       <button type="button" title={label} aria-pressed={visible} onClick={() => setVisible((v) => !v)}
-        className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-xl text-muted hover:text-text focus-visible:text-text">
+        className="absolute inset-y-0 end-0 grid w-11 place-items-center rounded-e-xl text-muted hover:text-text focus-visible:text-text">
         {visible ? <EyeOff className="size-[18px]" aria-hidden /> : <Eye className="size-[18px]" aria-hidden />}
       </button>
     </span>

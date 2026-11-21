@@ -1,10 +1,13 @@
+import { seoAlternates } from "@/server/i18n/seo";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "About Webcenta",
-  description: "What Webcenta is, how listings are added and checked, and how rankings work.",
-  alternates: { canonical: "/about" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "About Webcenta",
+    description: "What Webcenta is, how listings are added and checked, and how rankings work.",
+    ...(await seoAlternates("/about", "original")),
+  };
+}
 
 export default function AboutPage() {
   const h2 = "mt-8 text-xl font-bold";

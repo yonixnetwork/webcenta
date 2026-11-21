@@ -1,5 +1,6 @@
+import { seoAlternates } from "@/server/i18n/seo";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { CategoryIcon } from "@/components/category-icon";
@@ -14,6 +15,8 @@ import { searchListings } from "@/server/search/search";
 import { getViewerContext } from "@/server/viewer";
 import { AGE_ORDER } from "@/server/catalog/visibility";
 import { getCurrentUser } from "@/server/auth/session";
+import { categoryNamer } from "@/server/i18n/categories";
+import { getLocale, getT } from "@/i18n/server";
 
 /** Shown instead of an adults-only category to visitors and users who have not confirmed they are 18 or older. */
 async function AgeGate({ name }: { name: string }) {
@@ -36,10 +39,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const cat = await getPublicCategory(slug);
   if (!cat) return { title: "Category not found", robots: { index: false } };
+  const [t, catName, locale] = await Promise.all([getT("store"), categoryNamer(), getLocale()]);
+  const name = catName(cat);
+  // English uses the editors' SEO text; other languages a translated description (never English text under a translated title).
+  const description = locale === "en" ? cat.seoDescription ?? cat.description ?? t("meta.categoryDescription", { name }) : t("meta.categoryDescription", { name });
   return {
-    title: `${cat.name} — web apps and websites`,
-    description: cat.seoDescription ?? cat.description ?? `Discover and compare ${cat.name.toLowerCase()} web apps on Webcenta.`,
-    alternates: { canonical: `/c/${cat.slug}` },
+    title: t("meta.categoryTitle", { name }),
+    description,
+    ...(await seoAlternates(`/c/${cat.slug}`)),
   };
 }
 
@@ -49,6 +56,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   if (!cat) notFound();
   const ctx = await getViewerContext();
   if (AGE_ORDER.indexOf(cat.defaultAgeRating) > AGE_ORDER.indexOf(ctx.maxAgeRating)) return <AgeGate name={cat.name} />;
+  const catName = await categoryNamer();
   const filters = { ...parseFilters(await searchParams), category: cat.slug };
   const result = await searchListings(ctx, filters);
 
@@ -56,12 +64,12 @@ export default async function CategoryPage({ params, searchParams }: Props) {
     <div className="space-y-6">
       <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-sm text-muted">
         <Link href="/categories" className="hover:text-text">Categories</Link>
-        {cat.parent && (<><ChevronRight className="size-4" aria-hidden /><Link href={`/c/${cat.parent.slug}`} className="hover:text-text">{cat.parent.name}</Link></>)}
+        {cat.parent && (<><ChevronRight className="size-4" aria-hidden /><Link href={`/c/${cat.parent.slug}`} className="hover:text-text">{catName(cat.parent)}</Link></>)}
       </nav>
       <header className="flex items-start gap-4">
         <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand"><CategoryIcon icon={cat.icon} emoji={cat.emoji} preferEmoji className="grid size-7 place-items-center text-3xl" /></span>
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">{cat.name}</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">{catName(cat)}</h1>
           {cat.description && <p className="mt-1 max-w-2xl text-muted">{cat.description}</p>}
         </div>
       </header>
@@ -69,7 +77,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         <ul className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" aria-label="Subcategories">
           {cat.children.map((c) => (
             <li key={c.id} className="shrink-0">
-              <Link href={`/c/${c.slug}`} className="inline-block whitespace-nowrap rounded-full border border-border bg-surface px-3.5 py-2 text-sm font-medium leading-none hover:border-brand/40 hover:text-brand">{c.name}</Link>
+              <Link href={`/c/${c.slug}`} className="inline-block whitespace-nowrap rounded-full border border-border bg-surface px-3.5 py-2 text-sm font-medium leading-none hover:border-brand/40 hover:text-brand">{catName(c)}</Link>
             </li>
           ))}
         </ul>

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { BadgeCheck, Star } from "lucide-react";
 import { ReviewForm } from "./review-form";
 import { DeleteReviewButton, HelpfulButton, ReplyForm, ReportReviewButton } from "./review-actions";
@@ -27,7 +27,7 @@ export async function ReviewsSection({ listing, user, canReply, isMember, sort, 
         </div>
       ) : (
         <div className="grid gap-6 rounded-2xl border border-border bg-surface p-5 sm:grid-cols-[200px_1fr]" data-testid="rating-summary">
-          <div className="text-center sm:text-left">
+          <div className="text-center sm:text-start">
             <p className="text-4xl font-extrabold tabular-nums" data-testid="rating-average">{formatAverage(summary.average)}</p>
             <div className="mt-1"><Stars value={summary.average} size="lg" /></div>
             <p className="mt-1 text-sm text-muted" data-testid="rating-total">{basedOnLabel(summary.total)}</p>
@@ -37,13 +37,13 @@ export async function ReviewsSection({ listing, user, canReply, isMember, sort, 
             <tbody>
               {summary.rows.map((d) => (
                 <tr key={d.rating} data-testid={`dist-${d.rating}`}>
-                  <th scope="row" className="w-12 whitespace-nowrap py-1 pr-2 text-left font-medium">
+                  <th scope="row" className="w-12 whitespace-nowrap py-1 pe-2 text-start font-medium">
                     {d.rating} <Star className="inline size-3 -translate-y-px fill-amber-400 text-amber-500" aria-hidden /><span className="sr-only"> star{d.rating > 1 ? "s" : ""}</span>
                   </th>
                   <td className="w-full py-1">
                     <span className="block h-2 overflow-hidden rounded-full bg-surface-2"><span className="block h-full rounded-full bg-amber-400" style={{ width: `${d.percent}%` }} /></span>
                   </td>
-                  <td className="whitespace-nowrap py-1 pl-3 text-right tabular-nums text-muted"><span data-testid="dist-percent">{d.percent}%</span> · <span data-testid="dist-count">{d.count}</span></td>
+                  <td className="whitespace-nowrap py-1 ps-3 text-end tabular-nums text-muted"><span data-testid="dist-percent">{d.percent}%</span> · <span data-testid="dist-count">{d.count}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -81,7 +81,7 @@ export async function ReviewsSection({ listing, user, canReply, isMember, sort, 
               <p className="mt-1 text-xs text-subtle">{r.user.name} · {formatDate(r.createdAt)}{r.editedAt ? " · edited" : ""} · Unverified usage</p>
               {r.body && <p className="mt-2 whitespace-pre-line text-sm leading-relaxed">{r.body}</p>}
               {r.reply && r.reply.status === "PUBLISHED" && (
-                <div className="mt-3 rounded-xl border-l-4 border-brand bg-brand-soft/50 p-3 text-sm">
+                <div className="mt-3 rounded-xl border-s-4 border-brand bg-brand-soft/50 p-3 text-sm">
                   <p className="flex items-center gap-1 font-semibold"><BadgeCheck className="size-4 text-brand" aria-hidden /> Response from {r.reply.org.displayName}</p>
                   <p className="mt-1 whitespace-pre-line">{r.reply.body}</p>
                 </div>
