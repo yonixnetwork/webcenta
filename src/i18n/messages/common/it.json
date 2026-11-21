@@ -80,5 +80,8 @@
   "action.close": "Chiudi",
   "action.seeAll": "Vedi tutto",
   "notFound.title": "Pagina non trovata",
-  "notFound.body": "La pagina che cerchi non esiste o è stata spostata. Controlla l’indirizzo, cerca su Webcenta o esplora una categoria popolare."
+  "notFound.body": "La pagina che cerchi non esiste o è stata spostata. Controlla l’indirizzo, cerca su Webcenta o esplora una categoria popolare.",
+  "search.placeholder": "Cerca app, strumenti e siti web",
+  "search.clear": "Cancella ricerca",
+  "search.suggestions": "Suggerimenti di ricerca"
 }

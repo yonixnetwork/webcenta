@@ -79,5 +79,8 @@
   "action.close": "Kapat",
   "action.seeAll": "Tümünü gör",
   "notFound.title": "Sayfa bulunamadı",
-  "notFound.body": "Aradığınız sayfa yok ya da taşınmış olabilir. Adresi kontrol edin, Webcenta’da arama yapın veya popüler bir kategoriye göz atın."
+  "notFound.body": "Aradığınız sayfa yok ya da taşınmış olabilir. Adresi kontrol edin, Webcenta’da arama yapın veya popüler bir kategoriye göz atın.",
+  "search.placeholder": "Uygulama, araç ve web sitesi arayın",
+  "search.clear": "Aramayı temizle",
+  "search.suggestions": "Arama önerileri"
 }

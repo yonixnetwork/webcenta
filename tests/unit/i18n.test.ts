@@ -75,6 +75,15 @@ describe("locale routing (proxy)", () => {
     expect(decideLocale({ ...base, pathname: "/fr/apps" })).toEqual({ kind: "redirect", location: "/apps", status: 307 });
     expect(decideLocale({ ...base, pathname: "/es/api/version" })).toMatchObject({ kind: "redirect", location: "/api/version" });
   });
+  it("never redirects to another host", () => {
+    for (const pathname of ["/en//evil.example/x", "/fr//evil.example", "/en/\\evil.example", "//evil.example"]) {
+      const d = decideLocale({ ...base, pathname, cookieLocale: "es" });
+      if (d.kind === "redirect") {
+        expect(d.location.startsWith("/")).toBe(true);
+        expect(new URL(d.location, "https://webcenta.com").host).toBe("webcenta.com");
+      }
+    }
+  });
   it("only a visitor's own choice redirects unprefixed pages, never prefetches, POSTs or crawlers", () => {
     expect(decideLocale({ ...base, pathname: "/apps", cookieLocale: "es" })).toEqual({ kind: "redirect", location: "/es/apps", status: 307 });
     expect(decideLocale({ ...base, pathname: "/apps", cookieLocale: "es", prefetch: true })).toMatchObject({ kind: "serve", locale: "en" });

@@ -80,5 +80,8 @@
   "action.close": "Schließen",
   "action.seeAll": "Alle ansehen",
   "notFound.title": "Seite nicht gefunden",
-  "notFound.body": "Die gesuchte Seite existiert nicht oder wurde verschoben. Prüfe die Adresse, durchsuche Webcenta oder sieh dir eine beliebte Kategorie an."
+  "notFound.body": "Die gesuchte Seite existiert nicht oder wurde verschoben. Prüfe die Adresse, durchsuche Webcenta oder sieh dir eine beliebte Kategorie an.",
+  "search.placeholder": "Apps, Tools und Websites suchen",
+  "search.clear": "Suche löschen",
+  "search.suggestions": "Suchvorschläge"
 }

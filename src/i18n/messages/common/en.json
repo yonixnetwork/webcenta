@@ -80,5 +80,8 @@
   "action.close": "Close",
   "action.seeAll": "See all",
   "notFound.title": "Page not found",
-  "notFound.body": "The page you are looking for doesn’t exist or may have moved. Check the address, search Webcenta, or browse a popular category."
+  "notFound.body": "The page you are looking for doesn’t exist or may have moved. Check the address, search Webcenta, or browse a popular category.",
+  "search.placeholder": "Search apps, tools and websites",
+  "search.clear": "Clear search",
+  "search.suggestions": "Search suggestions"
 }

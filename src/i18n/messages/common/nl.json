@@ -80,5 +80,8 @@
   "action.close": "Sluiten",
   "action.seeAll": "Alles bekijken",
   "notFound.title": "Pagina niet gevonden",
-  "notFound.body": "De pagina die je zoekt bestaat niet of is verplaatst. Controleer het adres, zoek op Webcenta of bekijk een populaire categorie."
+  "notFound.body": "De pagina die je zoekt bestaat niet of is verplaatst. Controleer het adres, zoek op Webcenta of bekijk een populaire categorie.",
+  "search.placeholder": "Zoek apps, tools en websites",
+  "search.clear": "Zoekopdracht wissen",
+  "search.suggestions": "Zoeksuggesties"
 }

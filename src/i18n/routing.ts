@@ -13,6 +13,9 @@ export type LocaleDecision =
  *   redirect. There is no redirect from Accept-Language or the country, so crawlers and new
  *   visitors always get the URL they asked for.
  */
+/** A same-site path: "//host" or "/\\host" would be read as another host by URL resolution. */
+const sameSite = (location: string) => location.replace(/^[/\\]+/, "/");
+
 export function decideLocale(input: {
   pathname: string;
   search: string;
@@ -27,15 +30,15 @@ export function decideLocale(input: {
   const first = input.pathname.split("/")[1] ?? "";
 
   if (first === DEFAULT_LOCALE && (input.pathname === "/en" || input.pathname.startsWith("/en/"))) {
-    return { kind: "redirect", location: (input.pathname.slice(3) || "/") + input.search, status: 308 };
+    return { kind: "redirect", location: sameSite((input.pathname.slice(3) || "/") + input.search), status: 308 };
   }
   if (prefixed) {
-    if (!enabled.has(locale) || !isLocalizablePath(path)) return { kind: "redirect", location: path + input.search, status: 307 };
+    if (!enabled.has(locale) || !isLocalizablePath(path)) return { kind: "redirect", location: sameSite(path + input.search), status: 307 };
     return { kind: "serve", locale, path };
   }
   const chosen = normalizeLocale(input.cookieLocale);
   if (chosen && chosen !== DEFAULT_LOCALE && enabled.has(chosen) && !input.prefetch && (input.method === "GET" || input.method === "HEAD") && isLocalizablePath(path)) {
-    return { kind: "redirect", location: localizePath(path, chosen) + input.search, status: 307 };
+    return { kind: "redirect", location: sameSite(localizePath(path, chosen) + input.search), status: 307 };
   }
   return { kind: "serve", locale: DEFAULT_LOCALE, path };
 }

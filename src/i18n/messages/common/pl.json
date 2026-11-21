@@ -79,5 +79,8 @@
   "action.close": "Zamknij",
   "action.seeAll": "Zobacz wszystkie",
   "notFound.title": "Nie znaleziono strony",
-  "notFound.body": "Strona, której szukasz, nie istnieje lub została przeniesiona. Sprawdź adres, wyszukaj w Webcenta albo przejrzyj popularną kategorię."
+  "notFound.body": "Strona, której szukasz, nie istnieje lub została przeniesiona. Sprawdź adres, wyszukaj w Webcenta albo przejrzyj popularną kategorię.",
+  "search.placeholder": "Szukaj aplikacji, narzędzi i stron",
+  "search.clear": "Wyczyść wyszukiwanie",
+  "search.suggestions": "Podpowiedzi wyszukiwania"
 }

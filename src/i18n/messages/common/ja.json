@@ -79,5 +79,8 @@
   "action.close": "閉じる",
   "action.seeAll": "すべて表示",
   "notFound.title": "ページが見つかりません",
-  "notFound.body": "お探しのページは存在しないか、移動した可能性があります。アドレスを確認するか、Webcenta を検索するか、人気のカテゴリを見てみてください。"
+  "notFound.body": "お探しのページは存在しないか、移動した可能性があります。アドレスを確認するか、Webcenta を検索するか、人気のカテゴリを見てみてください。",
+  "search.placeholder": "アプリ、ツール、Web サイトを検索",
+  "search.clear": "検索をクリア",
+  "search.suggestions": "検索候補"
 }

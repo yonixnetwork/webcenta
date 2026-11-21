@@ -79,5 +79,8 @@
   "action.close": "关闭",
   "action.seeAll": "查看全部",
   "notFound.title": "找不到页面",
-  "notFound.body": "你要找的页面不存在或已移动。请检查网址、在 Webcenta 中搜索，或浏览热门分类。"
+  "notFound.body": "你要找的页面不存在或已移动。请检查网址、在 Webcenta 中搜索，或浏览热门分类。",
+  "search.placeholder": "搜索应用、工具和网站",
+  "search.clear": "清除搜索",
+  "search.suggestions": "搜索建议"
 }

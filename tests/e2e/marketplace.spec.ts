@@ -28,7 +28,7 @@ test.describe("marketplace", () => {
 
   test("search autocomplete navigates to an app", async ({ page }) => {
     await page.goto("/search");
-    const box = page.getByRole("combobox").first();
+    const box = page.locator("input[role=combobox]:visible").first();
     await box.fill("lume");
     const option = page.getByRole("option", { name: /Lumen Notes/ });
     await expect(option).toBeVisible();
