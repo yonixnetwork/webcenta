@@ -1,7 +1,7 @@
 "use client";
 
 import { Heart } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useLocalizedRouter as useRouter } from "@/i18n/client";
 import { useState, useTransition } from "react";
 import { toggleFavoriteAction } from "@/server/actions/user";
 import { buttonClass } from "@/components/ui/button";

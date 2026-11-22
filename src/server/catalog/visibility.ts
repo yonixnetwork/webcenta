@@ -22,7 +22,9 @@ const blockedCategory = (ctx: ViewerContext): Prisma.CategoryWhereInput => {
       : [];
   // A category for an older audience hides its listings too, whatever a listing's own rating says.
   const tooOld: Prisma.CategoryWhereInput = { defaultAgeRating: { notIn: allowedAgeRatings(ctx.maxAgeRating) } };
-  const self: Prisma.CategoryWhereInput[] = [{ isEnabled: false }, { isRestricted: true }, tooOld, ...geo];
+  // Admin → Country policies: categories hidden for this visitor's country.
+  const policy: Prisma.CategoryWhereInput[] = ctx.blockedCategorySlugs?.length ? [{ slug: { in: ctx.blockedCategorySlugs } }] : [];
+  const self: Prisma.CategoryWhereInput[] = [{ isEnabled: false }, { isRestricted: true }, tooOld, ...geo, ...policy];
   return { OR: [...self, { parent: { OR: self } }] };
 };
 

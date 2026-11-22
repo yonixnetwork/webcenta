@@ -3,6 +3,8 @@ import { ADMIN_PREFIX, buildCsp, developerRewritePath, hostConfigFromEnv, isInte
 import { STATIC_ERROR_CSP, staticErrorPage } from "@/lib/static-error-pages";
 import { getSectionWithin } from "@/server/settings/store";
 import { cspExtras } from "@/server/settings/site";
+import { decideLocale } from "@/i18n/routing";
+import { DEFAULT_LOCALE, LOCALE_COOKIE, parseLocaleList } from "@/i18n/locales";
 
 /**
  * Edge of the application: host routing and per-request security headers.
@@ -68,39 +70,63 @@ export async function proxy(request: NextRequest) {
     });
   }
 
+  // Languages (public site only): /es/… is the Spanish version of /…, served by the same route.
+  let path = url.pathname;
+  let locale = DEFAULT_LOCALE;
+  if (surface === "public") {
+    const intl = await getSectionWithin("i18n", 1500);
+    const decision = decideLocale({
+      pathname: url.pathname,
+      search: url.search,
+      method: request.method,
+      cookieLocale: request.cookies.get(LOCALE_COOKIE)?.value,
+      enabled: parseLocaleList(intl.str("enabledLocales")),
+      prefetch: request.headers.has("next-router-prefetch") || request.headers.get("purpose") === "prefetch",
+    });
+    if (decision.kind === "redirect") {
+      return new NextResponse(null, { status: decision.status, headers: { location: new URL(decision.location, origins.publicOrigin).toString(), vary: "Cookie", "cache-control": "private, no-store" } });
+    }
+    path = decision.path;
+    locale = decision.locale;
+  }
+
   // Internal surface folders must never be reachable by path on any host.
-  if (isInternalSurfacePath(url.pathname)) {
+  if (isInternalSurfacePath(path)) {
     return NextResponse.rewrite(new URL("/__not-found", request.url), { status: 404 });
   }
 
   // Search engine ownership files (Google HTML file, Bing XML file), public site only.
-  if (surface === "public" && (/^\/google[0-9a-f]{8,32}\.html$/.test(url.pathname) || url.pathname === "/BingSiteAuth.xml")) {
-    return NextResponse.rewrite(new URL(`/api/site-verification/${encodeURIComponent(url.pathname.slice(1))}`, request.url));
+  if (surface === "public" && (/^\/google[0-9a-f]{8,32}\.html$/.test(path) || path === "/BingSiteAuth.xml")) {
+    return NextResponse.rewrite(new URL(`/api/site-verification/${encodeURIComponent(path.slice(1))}`, request.url));
   }
   // Ad frames (public site only) carry their own Content Security Policy; see src/app/ads/frame.
-  if (surface === "public" && /^\/ads\/frame\/[a-z0-9]+$/.test(url.pathname)) return NextResponse.next();
-  if (url.pathname.startsWith("/ads/")) return NextResponse.rewrite(new URL("/__not-found", request.url), { status: 404 });
+  if (surface === "public" && /^\/ads\/frame\/[a-z0-9]+$/.test(path)) return NextResponse.next();
+  if (path.startsWith("/ads/")) return NextResponse.rewrite(new URL("/__not-found", request.url), { status: 404 });
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   // Analytics/advertising sources are added only on the public site (never the admin or developer portals).
-  const extras = surface !== "public" ? { script: [], connect: [], img: [], frame: [] } : await cspExtras(url.pathname).catch(() => ({ script: [], connect: [], img: [], frame: [] }));
+  const extras = surface !== "public" ? { script: [], connect: [], img: [], frame: [] } : await cspExtras(path).catch(() => ({ script: [], connect: [], img: [], frame: [] }));
   const mediaOrigin = (extras as { mediaOrigin?: string }).mediaOrigin;
-  const csp = buildCsp(nonce, process.env.NODE_ENV === "development", mediaOrigin, surface !== "admin" && /^\/go\/[a-z0-9-]+\/?$/.test(url.pathname), extras);
+  const csp = buildCsp(nonce, process.env.NODE_ENV === "development", mediaOrigin, surface !== "admin" && /^\/go\/[a-z0-9-]+\/?$/.test(path), extras);
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
   requestHeaders.set("x-webcenta-surface", surface);
   // Lets not-found boundaries (which receive no params) know which URL failed.
-  requestHeaders.set("x-pathname", url.pathname);
+  requestHeaders.set("x-pathname", path);
+  // Always set here (never trusted from the client): the language of this request.
+  requestHeaders.set("x-wc-locale", locale);
 
   let response: NextResponse;
-  const devPath = surface === "developer" ? developerRewritePath(url.pathname) : null;
+  const devPath = surface === "developer" ? developerRewritePath(path) : null;
   if (surface === "admin") {
     const prefix = ADMIN_PREFIX;
-    const rewritten = new URL(prefix + (url.pathname === "/" ? "" : url.pathname) + url.search, request.url);
+    const rewritten = new URL(prefix + (path === "/" ? "" : path) + url.search, request.url);
     response = NextResponse.rewrite(rewritten, { request: { headers: requestHeaders } });
   } else if (devPath) {
     response = NextResponse.rewrite(new URL(devPath + url.search, request.url), { request: { headers: requestHeaders } });
+  } else if (path !== url.pathname) {
+    response = NextResponse.rewrite(new URL(path + url.search, request.url), { request: { headers: requestHeaders } });
   } else {
     response = NextResponse.next({ request: { headers: requestHeaders } });
   }
@@ -129,6 +155,10 @@ function logRouting(request: NextRequest, host: string, surface: string) {
 
 export const config = {
   matcher: [
+    // Language-prefixed URLs, router prefetches included (they must be rewritten too). The list
+    // is checked against src/i18n/locales.ts by tests/unit/i18n.test.ts.
+    "/:locale(es|fr|de|pt-br|it|nl|ru|ja|zh-hans|ko|ar|hi|tr|pl|id|vi|th|uk|sv|da|nb|fi|cs|el|he|ro|hu|ms|fa|bn|ur|fil|pt-pt|zh-hant|sk|bg|hr|sr|ta|ca|lt|lv|et|sl|sw|te|mr|gu|af|en)",
+    "/:locale(es|fr|de|pt-br|it|nl|ru|ja|zh-hans|ko|ar|hi|tr|pl|id|vi|th|uk|sv|da|nb|fi|cs|el|he|ro|hu|ms|fa|bn|ur|fil|pt-pt|zh-hant|sk|bg|hr|sr|ta|ca|lt|lv|et|sl|sw|te|mr|gu|af|en)/:path*",
     {
       source: "/((?!_next/static|_next/image|favicon.ico|icons/|brand/|errors/|sw.js|manifest.webmanifest).*)",
       missing: [

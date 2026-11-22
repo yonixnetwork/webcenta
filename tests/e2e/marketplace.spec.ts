@@ -28,7 +28,7 @@ test.describe("marketplace", () => {
 
   test("search autocomplete navigates to an app", async ({ page }) => {
     await page.goto("/search");
-    const box = page.getByRole("combobox").first();
+    const box = page.locator("input[role=combobox]:visible").first();
     await box.fill("lume");
     const option = page.getByRole("option", { name: /Lumen Notes/ });
     await expect(option).toBeVisible();
@@ -65,7 +65,7 @@ test.describe("marketplace", () => {
 
   test("visit website goes through the leaving-Webcenta notice", async ({ page, request }) => {
     await page.goto("/app/sample-lumen-notes");
-    await page.getByRole("link", { name: /Visit website/ }).click();
+    await page.getByRole("link", { name: /Visit Official Website/i }).click();
     await expect(page).toHaveURL(/\/go\/sample-lumen-notes$/);
     await expect(page.getByRole("heading", { name: "You’re leaving Webcenta" })).toBeVisible();
     await expect(page.getByText("lumen-notes.example", { exact: true })).toBeVisible();

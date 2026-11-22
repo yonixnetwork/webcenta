@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link from "@/i18n/client";
+import { useBarePathname as usePathname } from "@/i18n/client";
 import { ArrowLeft, Bell, Bookmark, ChevronLeft, ChevronRight, Clock, Code2, Flag, FolderHeart, House, MessageSquareText, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 
@@ -69,7 +69,7 @@ export function AccountBackLink() {
   const path = usePathname() ?? "";
   if (path === "/account") return null;
   return (
-    <Link href="/account" className="-ml-1 inline-flex items-center gap-1 rounded-lg px-1 py-1 text-sm font-semibold text-brand lg:hidden">
+    <Link href="/account" className="-ms-1 inline-flex items-center gap-1 rounded-lg px-1 py-1 text-sm font-semibold text-brand lg:hidden">
       <ChevronLeft className="size-4" aria-hidden />Account
     </Link>
   );

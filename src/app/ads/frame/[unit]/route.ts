@@ -1,4 +1,5 @@
 import { adsterraFrameHtml, adsterraUnit, type AdUnit } from "@/server/ads/placements";
+import { adEligibility } from "@/components/ads/ad";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,10 @@ const UNITS: AdUnit[] = ["native", "300x250", "728x90", "468x60", "320x50", "160
 export async function GET(request: Request, { params }: { params: Promise<{ unit: string }> }) {
   const { unit } = await params;
   if (!UNITS.includes(unit as AdUnit)) return new Response("Not found", { status: 404 });
+  // The same country rules as the placement itself (a frame URL opened directly gets nothing
+  // for a country where advertising or Adsterra is switched off).
+  const eligible = await adEligibility().catch(() => ({ allowed: false, disabledProviders: [] as string[] }));
+  if (!eligible.allowed || eligible.disabledProviders.includes("adsterra")) return new Response("Not found", { status: 404, headers: { "x-robots-tag": "noindex", "cache-control": "no-store" } });
   const u = await adsterraUnit(unit as AdUnit).catch(() => null);
   if (!u) return new Response("Not found", { status: 404, headers: { "x-robots-tag": "noindex" } });
   const origin = (process.env.PUBLIC_ORIGIN || new URL(request.url).origin).replace(/\/$/, "");
@@ -22,7 +27,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ unit
       "content-security-policy": "default-src 'none'; script-src https: 'unsafe-inline'; style-src https: 'unsafe-inline'; img-src https: data: blob:; media-src https:; font-src https: data:; frame-src https:; connect-src https:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
       "x-frame-options": "SAMEORIGIN",
       "x-robots-tag": "noindex, nofollow",
-      "cache-control": "public, max-age=300",
+      "cache-control": "private, max-age=300",
       "referrer-policy": "strict-origin-when-cross-origin",
     },
   });

@@ -1,3 +1,4 @@
+import { seoAlternates } from "@/server/i18n/seo";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CardGrid } from "@/components/rail";
@@ -12,7 +13,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const c = await getPublicCollection(await getViewerContext(), slug);
   if (!c) return { title: "Collection not found", robots: { index: false } };
   return {
-    title: c.title, description: c.description ?? undefined, alternates: { canonical: `/collections/${c.slug}` },
+    title: c.title, description: c.description ?? undefined, ...(await seoAlternates(`/collections/${c.slug}`, "original")),
     robots: c.visibility === "UNLISTED" || !c.isEditorial || c.slug.startsWith("sample-") ? { index: false } : undefined,
   };
 }

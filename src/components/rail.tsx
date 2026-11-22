@@ -1,10 +1,11 @@
-import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { getT } from "@/i18n/server";
+import Link from "@/i18n/client";
 import type { ListingCard } from "@/server/catalog/listings";
 import { AppCard } from "./app-card";
 
 /** Horizontal scroll on small screens, grid on large screens. */
-export function Rail({ title, subtitle, href, items, sponsoredIds = [] }: { title: string; subtitle?: string; href?: string; items: ListingCard[]; sponsoredIds?: string[] }) {
+export async function Rail({ title, subtitle, href, items, sponsoredIds = [] }: { title: string; subtitle?: string; href?: string; items: ListingCard[]; sponsoredIds?: string[] }) {
+  const seeAll = (await getT("common"))("action.seeAll");
   const id = `rail-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   return (
     <section aria-labelledby={id} className="space-y-4">
@@ -14,8 +15,8 @@ export function Rail({ title, subtitle, href, items, sponsoredIds = [] }: { titl
           {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
         </div>
         {href && (
-          <Link href={href} className="inline-flex shrink-0 items-center gap-0.5 text-sm font-semibold text-brand hover:underline">
-            See all <ChevronRight className="size-4" aria-hidden />
+          <Link href={href} className="shrink-0 text-sm font-semibold text-brand hover:underline">
+            {seeAll}<span className="sr-only"> {title}</span>
           </Link>
         )}
       </div>

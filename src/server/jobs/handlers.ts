@@ -119,6 +119,8 @@ Object.assign(handlers, {
     await db.emailMessage.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 90 * 86_400_000) } } });
     await db.pushDelivery.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 60 * 86_400_000) } } });
     await db.securityEvent.deleteMany({ where: { hour: { lt: new Date(Date.now() - 90 * 86_400_000) } } });
+    // Ad reports (country code, page, description): 12 months, as the privacy policy says.
+    await db.adReport.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 365 * 86_400_000) } } });
   },
 } satisfies Record<string, JobHandler>);
 
@@ -142,5 +144,5 @@ export const recurringJobs: Array<{ type: keyof typeof handlers & string; everyM
   { type: "notify.reminders", everyMinutes: 6 * 60, label: "Inactivity reminders", what: "Reminds push users who were away that new apps arrived." },
   { type: "maintenance.purge-raw-events", everyMinutes: 24 * 60, label: "Raw event clean-up", what: "Deletes raw listing events older than 35 days." },
   { type: "users.purge-deleted", everyMinutes: 24 * 60, label: "Account deletion", what: "Permanently deletes accounts 30 days after the user asked." },
-  { type: "maintenance.purge-history", everyMinutes: 24 * 60, label: "History clean-up", what: "Deletes old interaction, sign-in, email and push delivery history." },
+  { type: "maintenance.purge-history", everyMinutes: 24 * 60, label: "History clean-up", what: "Deletes old interaction, sign-in, email, push delivery and ad report history." },
 ];

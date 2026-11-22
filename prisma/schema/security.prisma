@@ -71,21 +71,21 @@ model SecurityScan {
   overallVerdict     CheckVerdict?
   /// 0–100, higher = riskier. Input to the approval engine, not a public score.
   riskScore          Int?
-  targetUrl          String @db.Text
-  finalUrl           String? @db.Text
+  targetUrl          String        @db.Text
+  finalUrl           String?       @db.Text
   httpStatus         Int?
   redirectChain      Json?
-  resolvedIps        Json      @default("[]")
-  nameservers        Json      @default("[]")
-  tlsIssuer          String? @db.Text
+  resolvedIps        Json          @default("[]")
+  nameservers        Json          @default("[]")
+  tlsIssuer          String?       @db.Text
   tlsValidTo         DateTime?     @db.DateTime(3)
   tlsFingerprint     String?
-  pageTitle          String? @db.Text
+  pageTitle          String?       @db.Text
   /// Hash of normalised visible text, for change detection.
   contentHash        String?
   bytesFetched       Int?
   durationMs         Int?
-  error              String? @db.Text
+  error              String?       @db.Text
   requestedByAdminId String?
   startedAt          DateTime?     @db.DateTime(3)
   completedAt        DateTime?     @db.DateTime(3)
@@ -108,7 +108,7 @@ model SecurityCheckResult {
   /// e.g. "internal", "google-web-risk", "urlhaus", "virustotal"
   provider   String
   verdict    CheckVerdict
-  summary    String? @db.Text
+  summary    String?      @db.Text
   /// Structured evidence (provider response excerpt, matched indicators).
   evidence   Json?
   durationMs Int?
@@ -126,13 +126,13 @@ model SecurityAlert {
   scanId          String?
   severity        AlertSeverity
   status          AlertStatus   @default(OPEN)
-  title           String @db.Text
-  details         String? @db.Text
+  title           String        @db.Text
+  details         String?       @db.Text
   evidence        Json?
   /// True when the system restricted visibility automatically.
   autoRestricted  Boolean       @default(false)
   assignedAdminId String?
-  resolutionNotes String? @db.Text
+  resolutionNotes String?       @db.Text
   resolvedAt      DateTime?     @db.DateTime(3)
   createdAt       DateTime      @default(now()) @db.DateTime(3)
   updatedAt       DateTime      @updatedAt @db.DateTime(3)
@@ -160,18 +160,18 @@ model MonitoringPolicy {
 /// new-device admin sign-ins, blocked requests), counted per type, source and hour so a flood
 /// produces one row, not millions. Never contains passwords, tokens or cookies. Kept 90 days.
 model SecurityEvent {
-  id          String   @id @default(uuid(7))
-  type        String   @db.VarChar(40)
-  severity    String   @default("info") @db.VarChar(10)
+  id        String    @id @default(uuid(7))
+  type      String    @db.VarChar(40)
+  severity  String    @default("info") @db.VarChar(10)
   /// Source: an IP address, an account id or a rate-limit scope (no secrets).
-  source      String   @db.VarChar(191)
-  detail      String?  @db.VarChar(500)
-  hour        DateTime @db.DateTime(3)
-  count       Int      @default(1)
-  firstAt     DateTime @default(now()) @db.DateTime(3)
-  lastAt      DateTime @default(now()) @db.DateTime(3)
+  source    String    @db.VarChar(191)
+  detail    String?   @db.VarChar(500)
+  hour      DateTime  @db.DateTime(3)
+  count     Int       @default(1)
+  firstAt   DateTime  @default(now()) @db.DateTime(3)
+  lastAt    DateTime  @default(now()) @db.DateTime(3)
   /// An alert email was sent for this row.
-  alertedAt   DateTime? @db.DateTime(3)
+  alertedAt DateTime? @db.DateTime(3)
 
   @@unique([type, source, hour])
   @@index([hour])

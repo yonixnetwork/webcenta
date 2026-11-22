@@ -1,0 +1,66 @@
+/// Admin-maintained policy for one country: categories hidden there (on top of the global
+/// rules), the minimum age for adult content, and advertising restrictions. A row only ever
+/// adds restrictions; a user's chosen country can never relax the detected country's row.
+model CountryPolicy {
+  /// ISO 3166-1 alpha-2, upper case.
+  country              String    @id @db.Char(2)
+  /// Category slugs hidden in this country (listings in them, or in their children, are hidden).
+  restrictedCategories Json
+  /// Restricted-by-default categories explicitly permitted here (documentation; never overrides a global block).
+  permittedCategories  Json
+  /// Minimum age for 18+ content in this country (null: the built-in age-of-majority table).
+  adultAge             Int?
+  /// No advertising at all for visitors from this country.
+  adsDisabled          Boolean   @default(false)
+  /// Ad providers switched off here, e.g. ["adsterra"].
+  disabledProviders    Json
+  lastReviewedAt       DateTime? @db.DateTime(3)
+  notes                String?   @db.Text
+  updatedById          String?
+  updatedAt            DateTime  @updatedAt @db.DateTime(3)
+  createdAt            DateTime  @default(now()) @db.DateTime(3)
+}
+
+/// A visitor's report about an advertisement they saw. Creatives are served by the provider
+/// inside a sandboxed frame we cannot inspect, so the report records where and when.
+model AdReport {
+  id           String    @id @default(uuid(7))
+  placement    String    @db.VarChar(40)
+  provider     String    @db.VarChar(20)
+  pagePath     String    @db.VarChar(300)
+  /// Country code only (never the IP address).
+  country      String?   @db.Char(2)
+  reason       String    @db.VarChar(40)
+  details      String?   @db.VarChar(1000)
+  status       String    @default("open") @db.VarChar(20)
+  resolution   String?   @db.VarChar(500)
+  resolvedById String?
+  resolvedAt   DateTime? @db.DateTime(3)
+  createdAt    DateTime  @default(now()) @db.DateTime(3)
+
+  @@index([status, createdAt])
+}
+
+/// Translated name and description of a category (admin-edited; overrides the bundled catalogue).
+model CategoryTranslation {
+  categoryId  String
+  locale      String   @db.VarChar(16)
+  name        String   @db.VarChar(120)
+  description String?  @db.VarChar(500)
+  reviewed    Boolean  @default(false)
+  updatedById String?
+  updatedAt   DateTime @updatedAt @db.DateTime(3)
+
+  @@id([categoryId, locale])
+  @@index([locale])
+}
+
+/// Per-language search metadata for the homepage (title, description and keywords).
+model LocaleSeo {
+  locale      String   @id @db.VarChar(16)
+  title       String?  @db.VarChar(70)
+  description String?  @db.VarChar(170)
+  keywords    Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt @db.DateTime(3)
+}

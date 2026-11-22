@@ -5,6 +5,7 @@
  */
 import type { PrismaClient } from "@/generated/prisma/client";
 import { CATEGORY_EMOJI, TOP_LEVEL_ORDER, flattenTaxonomy } from "@/server/catalog/taxonomy";
+import { createHash } from "node:crypto";
 import { LEGAL_TEXTS } from "./legal-texts";
 import { catalogueEntries } from "@/server/importer/catalogue";
 import { queueImports } from "@/server/importer/queue";
@@ -13,8 +14,10 @@ import { queueImports } from "@/server/importer/queue";
  * Version of the base data. Raise it when the base data changes (for example new
  * categories); every installation then re-runs the idempotent seed once at startup.
  */
-export const BASE_SEED_VERSION = 2;
+export const BASE_SEED_VERSION = 3;
 const SEED_KEY = "seed.base.version";
+/** SHA-256 of the privacy policy text published by base data v2 (to recognise an unedited copy). */
+const PRIVACY_V2_SHA256 = "edf2829b12ad9435e698d34e3c1e01dcfb4a2285b3393a698b7b5914d8fdfb3d";
 
 export async function baseSeedVersion(db: PrismaClient): Promise<number> {
   const row = await db.systemSetting.findUnique({ where: { key: SEED_KEY }, select: { value: true } });
@@ -133,6 +136,13 @@ export async function seedPlatformDefaults(db: PrismaClient, log: (m: string) =>
     } else if (versions.every((v) => !v.publishedAt && v.body.startsWith("DRAFT — requires legal review"))) {
       await db.legalPolicy.update({ where: { id: versions[0]!.id }, data: { title: t.title, body: t.body, effectiveAt: now, publishedAt: now } });
     }
+  }
+  // v3: the privacy policy explains country detection, language and ad reports. Published as a
+  // new version only while the live policy is still exactly the text this seed published (v2).
+  const privacy = await db.legalPolicy.findFirst({ where: { type: "PRIVACY_POLICY" as never, publishedAt: { not: null } }, orderBy: { version: "desc" } });
+  if (privacy && createHash("sha256").update(privacy.body).digest("hex") === PRIVACY_V2_SHA256 && privacy.body !== LEGAL_TEXTS.PRIVACY_POLICY!.body) {
+    await db.legalPolicy.create({ data: { type: "PRIVACY_POLICY" as never, version: privacy.version + 1, title: LEGAL_TEXTS.PRIVACY_POLICY!.title, body: LEGAL_TEXTS.PRIVACY_POLICY!.body, effectiveAt: now, publishedAt: now } });
+    log("privacy policy: published the version that explains country detection");
   }
   log("platform defaults: plans + published policies");
 }

@@ -89,7 +89,7 @@ model FeaturedPlacement {
 model SystemSetting {
   key              String   @id
   value            Json
-  description      String? @db.Text
+  description      String?  @db.Text
   updatedByAdminId String?
   updatedAt        DateTime @updatedAt @db.DateTime(3)
 
@@ -102,7 +102,7 @@ model LegalPolicy {
   version          Int
   title            String
   /// Markdown, rendered with a sanitising renderer.
-  body             String @db.MediumText
+  body             String          @db.MediumText
   effectiveAt      DateTime        @db.DateTime(3)
   publishedAt      DateTime?       @db.DateTime(3)
   createdByAdminId String?
@@ -158,8 +158,8 @@ model Sponsorship {
   slot          PlacementSlot     @default(HOME_FEATURED)
   startsAt      DateTime?         @db.DateTime(3)
   endsAt        DateTime?         @db.DateTime(3)
-  message       String? @db.Text
-  decisionNotes String? @db.Text
+  message       String?           @db.Text
+  decisionNotes String?           @db.Text
   createdAt     DateTime          @default(now()) @db.DateTime(3)
 
   org        DeveloperOrg        @relation(fields: [orgId], references: [id], onDelete: Cascade)

@@ -17,7 +17,7 @@ export default async function MyReportsPage() {
               <span className="font-medium">{r.targetType === "LISTING" ? r.listing?.name ?? "Listing" : r.targetType.toLowerCase()}</span>
               <span className="text-muted">· {r.reason.replace(/_/g, " ").toLowerCase()}</span>
               <Badge tone={r.status.startsWith("RESOLVED") ? "success" : r.status === "DISMISSED" ? "neutral" : "warning"}>{r.status.replace(/_/g, " ").toLowerCase()}</Badge>
-              <span className="ml-auto text-xs text-subtle">{formatDate(r.createdAt)}</span>
+              <span className="ms-auto text-xs text-subtle">{formatDate(r.createdAt)}</span>
             </li>
           ))}
         </ul>

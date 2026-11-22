@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/i18n/client";
 import { notFound } from "next/navigation";
 import { AppCard } from "@/components/app-card";
 import { EmptyState } from "@/components/states";

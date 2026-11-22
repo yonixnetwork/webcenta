@@ -56,9 +56,9 @@ export function ErrorPage({
         <form action="/search" method="get" role="search" className="mx-auto mt-10 flex w-full max-w-lg gap-2">
           <label htmlFor="error-search" className="sr-only">Search Webcenta</label>
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
+            <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
             <input id="error-search" name="q" type="search" maxLength={120} placeholder="Search apps, tools and websites"
-              className="h-11 w-full rounded-xl border border-border bg-surface pl-9 pr-3 text-sm outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30" />
+              className="h-11 w-full rounded-xl border border-border bg-surface ps-9 pe-3 text-sm outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30" />
           </div>
           <button type="submit" className={buttonClass("primary", "md")}>Search</button>
         </form>

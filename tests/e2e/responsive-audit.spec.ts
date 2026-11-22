@@ -16,7 +16,9 @@ const VIEWPORTS = [
   { w: 768, h: 1024, m: true }, { w: 1024, h: 768, m: false }, { w: 1280, h: 800, m: false }, { w: 1440, h: 900, m: false }, { w: 1920, h: 1080, m: false },
 ];
 const SHOT_WIDTHS = new Set([320, 390, 768, 1440]);
-const PUBLIC: Array<[string, string]> = [["home", "/"], ["games", "/c/games"], ["apps", "/apps"], ["search", "/search?q=notes"], ["app", "/app/sample-lumen-notes"], ["signin", "/signin"], ["signup", "/signup"]];
+const PUBLIC: Array<[string, string]> = [["home", "/"], ["games", "/c/games"], ["apps", "/apps"], ["search", "/search?q=notes"], ["app", "/app/sample-lumen-notes"], ["signin", "/signin"], ["signup", "/signup"],
+  // Languages (and Arabic right-to-left).
+  ["es-home", "/es"], ["fr-apps", "/fr/apps"], ["de-app", "/de/app/sample-lumen-notes"], ["ja-home", "/ja"], ["zh-categories", "/zh-hans/categories"], ["ar-home", "/ar"], ["ar-app", "/ar/app/sample-lumen-notes"]];
 const ACCOUNT: Array<[string, string]> = [["account", "/account"], ["profile", "/account/profile"], ["security", "/account/security"], ["saved", "/account/favorites"], ["collections", "/account/collections"], ["reviews", "/account/reviews"], ["notifications", "/account/notifications"], ["recently-viewed", "/account/history"], ["privacy", "/account/privacy"]];
 const dir = process.env.RESPONSIVE_AUDIT_DIR ?? "docs/production-repair/screenshots/responsive";
 

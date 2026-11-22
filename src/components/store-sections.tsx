@@ -1,5 +1,6 @@
-import Link from "next/link";
-import { BadgeCheck, ChevronRight, Star } from "lucide-react";
+import { getT } from "@/i18n/server";
+import Link from "@/i18n/client";
+import { BadgeCheck, Star } from "lucide-react";
 import { PRICING_LABEL } from "@/lib/labels";
 import { visitMilestone } from "@/lib/visits";
 import type { ListingCard } from "@/server/catalog/listings";
@@ -10,11 +11,15 @@ import { cn } from "./ui/cn";
 const logoOf = (app: ListingCard) => app.media.find((m) => m.kind === "LOGO")?.asset.storageKey;
 const shotOf = (app: ListingCard) => app.media.find((m) => m.kind === "SCREENSHOT" || m.kind === "PREVIEW")?.asset.storageKey;
 
-function SectionHeader({ id, title, subtitle, href }: { id: string; title: string; subtitle?: string; href?: string }) {
-  const heading = <h2 id={id} className="inline-flex items-center gap-1 text-[1.35rem] font-bold tracking-tight sm:text-2xl">{title}{href && <ChevronRight className="size-5 text-subtle" aria-hidden />}</h2>;
+async function SectionHeader({ id, title, subtitle, href }: { id: string; title: string; subtitle?: string; href?: string }) {
+  const seeAll = (await getT("common"))("action.seeAll");
+  const heading = <h2 id={id} className="inline-flex items-center gap-1 text-[1.35rem] font-bold tracking-tight sm:text-2xl">{title}</h2>;
   return (
     <div className="mb-3">
-      {href ? <Link href={href} className="hover:text-brand">{heading}</Link> : heading}
+      <div className="flex items-baseline justify-between gap-3">
+        {heading}
+        {href && <Link href={href} className="shrink-0 text-sm font-semibold text-brand hover:underline">{seeAll}<span className="sr-only"> {title}</span></Link>}
+      </div>
       {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
     </div>
   );
@@ -33,26 +38,25 @@ export function AppMeta({ app, sponsored, verified, className }: { app: ListingC
   if (app.pricingModel !== "UNKNOWN") parts.push(<span key="p" className="shrink-0">{PRICING_LABEL[app.pricingModel]}</span>);
   if (visits) parts.push(<span key="v" className="shrink-0">{visits}</span>);
   return (
-    <p className={cn("flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap", className)}>
+    <span className={cn("flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap", className)}>
       {parts.map((p, i) => <span key={i} className="flex min-w-0 items-center gap-1">{i > 0 && <span aria-hidden>·</span>}{p}{i === 0 && verified && <BadgeCheck className="size-3.5 shrink-0 text-brand" aria-label="Verified developer" />}</span>)}
-    </p>
+    </span>
   );
 }
 
-/** One App Store-style row: icon, name, one line of text, and a pill button. */
+/** One App Store-style row: the whole row (icon, name and facts) is a single link to the app's page. */
 export function AppRow({ app, rank, sponsored }: { app: ListingCard; rank?: number; sponsored?: boolean }) {
   const verified = app.developer && app.developer.verificationLevel !== "UNVERIFIED";
   return (
-    <div className="flex items-center gap-3 py-2.5">
-      {rank !== undefined && <span className="w-5 shrink-0 text-center text-base font-bold text-subtle">{rank}</span>}
-      <Link href={`/app/${app.slug}`} className="shrink-0" tabIndex={-1} aria-hidden><AppIcon name={app.name} storageKey={logoOf(app)} size="md" /></Link>
-      <div className="min-w-0 flex-1 border-b border-border/70 pb-2.5 group-last:border-0">
-        <Link href={`/app/${app.slug}`} className="block truncate font-semibold hover:text-brand">{app.name}</Link>
-        <p className="truncate text-[13px] text-muted">{app.tagline ?? app.primaryCategory?.name ?? app.publisherName}</p>
+    <Link href={`/app/${app.slug}`} className="group/row flex items-center gap-3 rounded-xl py-2.5 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
+      {rank !== undefined && <span className="w-5 shrink-0 text-center text-base font-bold text-subtle" aria-hidden>{rank}</span>}
+      <span className="shrink-0"><AppIcon name={app.name} storageKey={logoOf(app)} size="md" /></span>
+      <span className="block min-w-0 flex-1 border-b border-border/70 pb-2.5 group-last:border-0">
+        <span className="block truncate font-semibold group-hover/row:text-brand">{app.name}</span>
+        <span className="block truncate text-[13px] text-muted">{app.tagline ?? app.primaryCategory?.name ?? app.publisherName}</span>
         <AppMeta app={app} sponsored={sponsored} verified={Boolean(verified)} className="text-xs text-subtle" />
-      </div>
-      <Link href={`/app/${app.slug}`} aria-label={`View ${app.name}`} className="shrink-0 rounded-full bg-surface-2 px-4 py-1.5 text-sm font-bold text-brand hover:bg-brand-soft">View</Link>
-    </div>
+      </span>
+    </Link>
   );
 }
 
@@ -103,7 +107,6 @@ export function FeaturedCarousel({ label, items, sponsoredIds = [] }: { label: s
                     <p className="truncate font-semibold">{app.name}</p>
                     <AppMeta app={app} verified={Boolean(app.developer && app.developer.verificationLevel !== "UNVERIFIED")} className="text-xs text-white/85 [&_svg]:text-white" />
                   </div>
-                  <span className="rounded-full bg-white/25 px-4 py-1.5 text-sm font-bold backdrop-blur">View</span>
                 </div>
               </Link>
             </li>
