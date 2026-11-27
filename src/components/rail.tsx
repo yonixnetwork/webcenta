@@ -33,9 +33,10 @@ export async function Rail({ title, subtitle, href, items, sponsoredIds = [] }: 
 
 export function CardGrid({ items }: { items: ListingCard[] }) {
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    // grid-cols-1 (minmax(0, 1fr)): one long word on one card can never widen every card past the screen.
+    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((app) => (
-        <li key={app.id}><AppCard app={app} /></li>
+        <li key={app.id} className="min-w-0"><AppCard app={app} /></li>
       ))}
     </ul>
   );

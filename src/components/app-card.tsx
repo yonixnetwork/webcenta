@@ -12,7 +12,7 @@ export function AppCard({ app, sponsored = false, compact = false }: { app: List
   return (
     <Link
       href={`/app/${app.slug}`}
-      className="group relative flex h-full flex-col gap-3 rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-pop"
+      className="group relative flex h-full min-w-0 flex-col gap-3 [overflow-wrap:anywhere] rounded-2xl border border-border bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-pop"
     >
       <div className="flex items-start gap-3">
         <AppIcon name={app.name} storageKey={app.media.find((m) => m.kind === "LOGO")?.asset.storageKey} size={compact ? "sm" : "md"} />

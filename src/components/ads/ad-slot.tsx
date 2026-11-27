@@ -101,6 +101,9 @@ function loadAdsense(client: string): Promise<boolean> {
  * Adsterra units run in their own sandboxed frame. If the provider is blocked or fails, the
  * reserved space collapses and the page carries on.
  */
+/** Tallest a native unit may grow (px). */
+export const NATIVE_MAX = (compact?: boolean) => (compact ? 200 : 300);
+
 export function AdSlot(p: AdSlotProps) {
   const box = useRef<HTMLDivElement>(null);
   const started = useRef(false);
@@ -128,7 +131,9 @@ export function AdSlot(p: AdSlotProps) {
     const onMessage = (e: MessageEvent) => {
       if (!frame || e.source !== frame.contentWindow) return;
       const h = Number((e.data as { webcentaAd?: boolean; height?: number })?.height);
-      if ((e.data as { webcentaAd?: boolean })?.webcentaAd && h > 0) setFrameHeight(Math.min(p.compact ? 360 : 900, Math.max(p.unit === "native" ? 120 : p.height, h)));
+      // Native units grow to whatever the provider's widget asks for (a stack of large image
+      // posts). Cap them so an ad never takes over the screen; the rest stays hidden inside the frame.
+      if ((e.data as { webcentaAd?: boolean })?.webcentaAd && h > 0) setFrameHeight(Math.min(p.unit === "native" ? NATIVE_MAX(p.compact) : p.height, Math.max(p.unit === "native" ? 120 : p.height, h)));
     };
 
     const mountAdsterra = () => {
@@ -194,9 +199,11 @@ export function AdSlot(p: AdSlotProps) {
       data-ad-placement={p.placement}
       data-ad-provider={provider}
       data-ad-state={allowed === null ? "pending" : "allowed"}
-      className={cn(visibility(p.minWidth, p.maxWidth), "w-full max-w-full flex-col items-center gap-1 overflow-hidden", p.className)}
+      // A bordered, labelled box: never mistaken for an app card or the page's own content.
+      className={cn(visibility(p.minWidth, p.maxWidth), "mx-auto w-full max-w-full flex-col items-center gap-1.5 overflow-hidden rounded-2xl border border-dashed border-border bg-surface-2/50 p-2", p.className)}
+      style={{ maxWidth: p.width ? p.width + 18 : undefined }}
     >
-      <span className="flex w-full max-w-[728px] items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-subtle" style={{ maxWidth: p.width || undefined }}>
+      <span className="flex w-full items-center justify-between gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-subtle">
         <span>{p.labels?.ad ?? "Advertisement"}</span>
         <Link href={`/report-ad?placement=${encodeURIComponent(p.placement)}&provider=${provider}&from=${encodeURIComponent(path)}`} rel="nofollow" className="font-medium normal-case tracking-normal hover:text-text hover:underline">{p.labels?.report ?? "Report this ad"}</Link>
       </span>
