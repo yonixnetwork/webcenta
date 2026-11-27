@@ -287,3 +287,21 @@ test("ad reports: visitors can report an ad; admins close the report", async ({ 
   await admin.goto(`${ADMIN}/ad-reports?status=closed`);
   await expect(admin.getByText("Reported the advertiser to Adsterra support.")).toBeVisible();
 });
+
+test("cards never run past the screen, even with one very long word on one card", async ({ browser }) => {
+  const [orig] = await sql<{ tagline: string | null }>(`select tagline from "Listing" where slug = 'sample-lumen-notes'`);
+  await sql(`update "Listing" set tagline = $1 where slug = 'sample-lumen-notes'`, ["https://example.test/" + "averyveryverylongunbrokenword".repeat(6)]);
+  try {
+    const c = await ctx(browser, { viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true });
+    const page = await c.newPage();
+    await page.goto(`${BASE}/search?q=notes`);
+    await expect(page.locator("main ul li a[href^='/app/']").first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    const right = await page.locator("main ul li a[href^='/app/']").evaluateAll((els) => Math.max(...els.map((e) => e.getBoundingClientRect().right)));
+    expect(right).toBeLessThanOrEqual(360);
+    await shot(page, "cards-long-word-360");
+    await c.close();
+  } finally {
+    await sql(`update "Listing" set tagline = $1 where slug = 'sample-lumen-notes'`, [orig?.tagline ?? null]);
+  }
+});
